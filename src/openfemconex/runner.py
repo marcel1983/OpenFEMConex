@@ -7,14 +7,20 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-__all__ = ["CcxError", "CcxRun", "find_ccx", "read_run", "run_ccx"]
+__all__ = ["CcxCancelled", "CcxError", "CcxRun", "find_ccx", "read_run", "run_ccx"]
 
 
 class CcxError(RuntimeError):
+    pass
+
+
+class CcxCancelled(CcxError):
     pass
 
 
@@ -37,9 +43,15 @@ class CcxRun:
 
 
 def find_ccx(executable: str | None = None) -> str:
-    """Path of the ccx executable: argument, $OPENFEMCONEX_CCX, or ccx* on PATH."""
+    """Path of the ccx executable.
+
+    Order: argument, $OPENFEMCONEX_CCX, ccx* on PATH, and last the copy bundled with
+    the packaged application (so a system CalculiX is preferred when there is one).
+    """
+    bundled = Path(getattr(sys, "_MEIPASS", "")) / "ccx" / ("ccx.exe" if os.name == "nt"
+                                                            else "ccx")
     candidates = [executable, os.environ.get("OPENFEMCONEX_CCX"), "ccx", "ccx_2.22", "ccx_2.21",
-                  "ccx_2.20", "ccx_dynamic"]
+                  "ccx_2.20", "ccx_dynamic", str(bundled) if bundled.is_file() else None]
     for c in candidates:
         if c and (found := shutil.which(c)):
             return found
@@ -63,7 +75,8 @@ def _read_sta(path: Path) -> tuple[int, float, int, int]:
 
 
 def run_ccx(inp: str | Path, *, steps: int = 1, threads: int | None = None,
-            executable: str | None = None, timeout: float | None = None) -> CcxRun:
+            executable: str | None = None, timeout: float | None = None,
+            cancel: threading.Event | None = None) -> CcxRun:
     inp = Path(inp).resolve()
     ccx = find_ccx(executable)
     env = dict(os.environ)
@@ -73,11 +86,18 @@ def run_ccx(inp: str | Path, *, steps: int = 1, threads: int | None = None,
         inp.with_suffix(ext).unlink(missing_ok=True)
     t0 = time.monotonic()
     with log.open("w") as out:
-        try:
-            subprocess.run([ccx, "-i", inp.stem], cwd=inp.parent, env=env, stdout=out,
-                           stderr=subprocess.STDOUT, timeout=timeout, check=False)
-        except subprocess.TimeoutExpired as exc:
-            raise CcxError(f"ccx exceeded {timeout} s; see {log}") from exc
+        proc = subprocess.Popen([ccx, "-i", inp.stem], cwd=inp.parent, env=env, stdout=out,
+                                stderr=subprocess.STDOUT)
+        while proc.poll() is None:
+            if cancel is not None and cancel.is_set():
+                proc.kill()
+                proc.wait()
+                raise CcxCancelled("analysis cancelled")
+            if timeout is not None and time.monotonic() - t0 > timeout:
+                proc.kill()
+                proc.wait()
+                raise CcxError(f"ccx exceeded {timeout} s; see {log}")
+            time.sleep(0.1)
     seconds = time.monotonic() - t0
     text = log.read_text(errors="replace")
     if "*ERROR" in text and not inp.with_suffix(".sta").exists():

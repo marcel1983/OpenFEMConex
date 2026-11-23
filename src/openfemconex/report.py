@@ -134,7 +134,7 @@ def _fem_summary(c: ComboReport, units: UnitSystem) -> str:
 
 def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[ComboReport],
                   inputs: list[tuple[str, str]], today: dt.date | None = None,
-                  image: str | None = None) -> str:
+                  image: str | None = None, traces: bool = True) -> str:
     today = today or dt.date.today()
     every = [r for c in combos for r in c.fem_checks]
     ok = all(r.status.value != "ng" for r in every)
@@ -168,7 +168,7 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
             f"Vy = {fmt(a['Vy'], Kind.FORCE, units)}.{state}</p>",
             "<h3>Resultados del modelo FEM</h3>", _fem_summary(c, units),
             "<h3>Verificaciones con demandas del FEM</h3>", _checks_table(c.fem_checks, units),
-            _trace(c.fem_checks, units),
+            _trace(c.fem_checks, units) if traces else "",
         ]
         if c.analytical:
             parts += [

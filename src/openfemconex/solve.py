@@ -20,7 +20,7 @@ __all__ = ["solve"]
 def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
           mesh: Mesh | None = None, settings: MeshSettings | None = None,
           threads: int | None = None, ccx: str | None = None,
-          only_write: bool = False, reuse: bool = False) -> Results | Path:
+          only_write: bool = False, reuse: bool = False, cancel=None) -> Results | Path:
     """Solve one combination; returns the results (or the .inp path with ``only_write``).
 
     With ``reuse`` an existing solution of the same input deck is read instead of
@@ -39,7 +39,8 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
     if reuse and solved and previous == inp.read_text():
         run = read_run(inp, numbering.steps)
     else:
-        run = run_ccx(inp, steps=numbering.steps, threads=threads, executable=ccx)
+        run = run_ccx(inp, steps=numbering.steps, threads=threads, executable=ccx,
+                      cancel=cancel)
     if run.step == 0:
         raise RuntimeError(f"ccx did not converge on the first increment; see {run.log}")
     # Fractions of the axial load and of the moments and shears actually reached.

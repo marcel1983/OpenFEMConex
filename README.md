@@ -5,8 +5,8 @@ Software libre bajo [GPL-3.0-or-later](LICENSE).
 
 > **Estado: pasos 2 y 3 del plan.** Genera el modelo FEM de una placa base de
 > columna, lo resuelve con CalculiX, lee los resultados y hace las verificaciones
-> de AISC 360 y ACI 318 con esas demandas, con reporte en HTML. La interfaz
-> gráfica (paso 4) todavía no está.
+> de AISC 360 y ACI 318 con esas demandas, con reporte en HTML y PDF, desde la
+> línea de comandos o desde la interfaz gráfica (ver [docs/interfaz.md](docs/interfaz.md)).
 
 ## Qué hace
 
@@ -41,13 +41,21 @@ Requiere Python 3.12, CalculiX y una copia local de OpenConex.
 sudo apt install calculix-ccx
 ```
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e ../openconex -e ".[dev]"
+python3 -m venv .venv && .venv/bin/pip install -e ../openconex -e ".[gui,dev]"
 ```
 
 Gmsh se instala solo desde pip. Para usar otro ejecutable de CalculiX defina
 `OPENFEMCONEX_CCX` o pase `--ccx`.
 
 ## Uso
+
+Interfaz gráfica:
+
+```bash
+./run-gui.sh examples/dg1_2ed_ej_4_7.ocnx
+```
+
+Línea de comandos:
 
 ```bash
 .venv/bin/openfemconex run examples/dg1_2ed_ej_4_7.ocnx --combo LRFD-2

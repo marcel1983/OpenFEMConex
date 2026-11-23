@@ -1,0 +1,56 @@
+# Builds the application for Linux, Windows and macOS and runs the fast tests.
+# Not yet exercised: the repository has no remote. The Linux build was done by hand
+# with the same commands; the Windows and macOS jobs need a first run to be confirmed.
+name: package
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: marcel1983/openconex
+          path: openconex
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: CalculiX (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y calculix-ccx libxcb-cursor0 libegl1
+      - name: CalculiX (macOS)
+        if: runner.os == 'macOS'
+        run: brew install calculix-ccx && echo "OPENFEMCONEX_CCX=$(ls $(brew --prefix)/bin/ccx* | head -1)" >> "$GITHUB_ENV"
+      - name: CalculiX (Windows)
+        if: runner.os == 'Windows'
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: ccx
+          create-args: calculix
+          init-shell: none
+      - name: Locate ccx (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "OPENFEMCONEX_CCX=$(find "$MAMBA_ROOT_PREFIX/envs/ccx" -iname 'ccx*.exe' | head -1)" >> "$GITHUB_ENV"
+
+      - name: Install
+        run: python -m pip install ./openconex ".[gui,dev,package]"
+      - name: Tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -m "not ccx"
+      - name: Build
+        run: pyinstaller --noconfirm packaging/openfemconex.spec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openfemconex-${{ runner.os }}
+          path: dist/

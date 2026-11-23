@@ -32,6 +32,7 @@ from openfemconex.model import (
 )
 
 __all__ = ["dg1_bending", "loads_from_forces", "model_from_base_plate", "model_from_project",
+           "model_of",
            "project_loads"]
 
 
@@ -102,12 +103,16 @@ def project_loads(project: Project) -> list[tuple[LoadCombination, Loads]]:
             for c in project.load_combinations()]
 
 
-def model_from_project(path: str | Path, **kwargs) -> tuple[Project, BasePlateModel]:
-    project = load_project(path)
+def model_of(project: Project, **kwargs) -> BasePlateModel:
+    """FEM model of an already loaded project."""
     bp = project.base_plate_model()
     grout = project.quantity(project.base_plate.grout, Kind.LENGTH)
-    model = model_from_base_plate(bp, grout=grout, title=project.info.name, **kwargs)
-    return project, model
+    return model_from_base_plate(bp, grout=grout, title=project.info.name, **kwargs)
+
+
+def model_from_project(path: str | Path, **kwargs) -> tuple[Project, BasePlateModel]:
+    project = load_project(path)
+    return project, model_of(project, **kwargs)
 
 
 def dg1_bending(bp: BasePlate, loads: Loads, method: Method = Method.LRFD) -> BendingResult:
