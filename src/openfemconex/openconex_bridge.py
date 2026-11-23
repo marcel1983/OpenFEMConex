@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 The OpenFEMConex contributors
+"""Build the FEM model from an OpenConex project (.ocnx).
+
+OpenConex supplies the AISC shape catalog, the materials, the base plate data
+and the load combinations; this module only maps them to :mod:`openfemconex.model`.
+"""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+
+from openconex.connections.base_plate.check import BasePlate
+from openconex.connections.base_plate.plate import BendingResult, rectangular_bending
+from openconex.core.bolting import base_plate_hole
+from openconex.core.loads import Forces, LoadCombination, Method, combine
+from openconex.core.model import HSSKind, HSSShape, IShape
+from openconex.io.project import Project, load_project
+from openconex.units import Kind, from_internal, to_internal
+
+from openfemconex.model import (
+    Anchor,
+    AnchorSpec,
+    BasePlateModel,
+    Concrete,
+    ContactSettings,
+    Loads,
+    Section,
+    SectionKind,
+    Steel,
+)
+
+__all__ = ["dg1_bending", "loads_from_forces", "model_from_base_plate", "model_from_project",
+           "project_loads"]
+
+
+def _section(column: IShape | HSSShape) -> Section:
+    if isinstance(column, IShape):
+        return Section(SectionKind.I, d=column.d, bf=column.bf, tf=column.tf, tw=column.tw,
+                       name=column.name)
+    if column.kind is HSSKind.ROUND:
+        return Section(SectionKind.HSS_ROUND, d=column.d, bf=column.d, t=column.t,
+                       name=column.name)
+    return Section(SectionKind.HSS_RECT, d=column.d, bf=column.bf, t=column.t, name=column.name)
+
+
+def _rod_positions(bp: BasePlate) -> list[tuple[float, float]]:
+    # Same layout as openconex.connections.base_plate.interference
+    n = bp.rods_per_side
+    ys = ([0.0] if n == 1 else
+          [-bp.rod_spacing / 2 + i * bp.rod_spacing / (n - 1) for i in range(n)])
+    return [(sx * bp.f, y) for sx in (-1, 1) for y in ys]
+
+
+def _hole_and_washer(diameter: float) -> tuple[float, float]:
+    d_in = from_internal(diameter, Kind.LENGTH, "in")
+    try:
+        hole, washer, _ = base_plate_hole(d_in)
+    except ValueError:
+        hole = diameter + to_internal(0.3125, "in", Kind.LENGTH)
+        washer = to_internal(max(2.0, 1.5 * d_in + 0.125), "in", Kind.LENGTH)
+    return hole, washer
+
+
+def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
+                          leveling_nuts: bool = False, grout: float = 0.0,
+                          title: str = "") -> BasePlateModel:
+    col = bp.column
+    plate = bp.materials[bp.plate_grade]
+    hole, washer = _hole_and_washer(bp.rod.diameter)
+    # Concrete block: the pedestal when given, otherwise the plate scaled so that
+    # A2/A1 matches the project (capped at the AISC limit of 4).
+    ratio = math.sqrt(min(max(bp.A2_over_A1, 1.0), 4.0))
+    cN = bp.pedestal_N or bp.N * ratio
+    cB = bp.pedestal_B or bp.B * ratio
+    concrete = Concrete(fc=bp.fc, N=max(cN, bp.N), B=max(cB, bp.B),
+                        H=max(cN, cB, bp.N, bp.B), grout=grout)
+    hef = bp.hef or 12 * bp.rod.diameter
+    anchor = AnchorSpec(diameter=bp.rod.diameter, hole=hole, washer=washer, hef=hef,
+                        Fu=bp.rod.material.Fu, leveling_nuts=leveling_nuts)
+    return BasePlateModel(
+        section=_section(col),
+        column_steel=Steel(col.material.Fy, col.material.Fu, name=col.grade),
+        N=bp.N, B=bp.B, tp=bp.tp,
+        plate_steel=Steel(plate.Fy, plate.Fu, name=bp.plate_grade),
+        anchors=tuple(Anchor(x, y) for x, y in _rod_positions(bp)),
+        anchor=anchor, concrete=concrete,
+        contact=ContactSettings(mu=mu if mu is not None else (0.55 if bp.grout_pad else 0.7)),
+        title=title)
+
+
+def loads_from_forces(forces: Forces, name: str) -> Loads:
+    """OpenConex forces (P compression positive, V2/M3 strong axis) to FEM loads."""
+    return Loads(P=forces.P, Vx=forces.V2, Vy=forces.V3, My=forces.M3, Mx=forces.M2, name=name)
+
+
+def project_loads(project: Project) -> list[tuple[LoadCombination, Loads]]:
+    cases = project.case_forces()
+    return [(c, loads_from_forces(combine(c, cases), c.name))
+            for c in project.load_combinations()]
+
+
+def model_from_project(path: str | Path, **kwargs) -> tuple[Project, BasePlateModel]:
+    project = load_project(path)
+    bp = project.base_plate_model()
+    grout = project.quantity(project.base_plate.grout, Kind.LENGTH)
+    model = model_from_base_plate(bp, grout=grout, title=project.info.name, **kwargs)
+    return project, model
+
+
+def dg1_bending(bp: BasePlate, loads: Loads, method: Method = Method.LRFD) -> BendingResult:
+    """DG1 rectangular stress block for P and the strong-axis moment (analytical reference)."""
+    return rectangular_bending(loads.P, abs(loads.My), bp.N, bp.B, bp.f, bp.fc, bp.A2_over_A1,
+                               method)
