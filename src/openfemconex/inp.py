@@ -11,7 +11,8 @@ Components (CBFEM-style):
 * anchor rods: a reference node at each plate washer whose translation is the
   area-weighted mean of the plate nodes under the washer (*EQUATION), connected to a
   fixed ground node by
-  SPRING2 elements: axial (tension only unless leveling nuts) and lateral;
+  SPRING2 elements: axial (tension only unless leveling nuts) and lateral (engaged
+  only with welded plate washers; otherwise shear goes through friction);
 * loads: a *RIGID BODY at the column top; the forces given at the plate base are
   transferred to the top (moments corrected for the shear lever arm). The axial
   compression is applied in a first step and moments and shears in a second one.
@@ -116,7 +117,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {model.tp:.6f}\n")
         f.write("*NODE, NSET=ANCHORGND\n")
         for nid, a in zip(anchor_ground, model.anchors):
-            f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {-model.anchor.hef:.6f}\n")
+            # Coincident with the washer node: springs between separated nodes that act
+            # on one translation would add a spurious couple to the model.
+            f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {model.tp:.6f}\n")
 
         # ---- solid elements ----
         for part, conn in mesh.parts.items():
@@ -174,9 +177,10 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         X = 1000.0  # mm, range of the tabulated law
         f.write("*SPRING, ELSET=RODAX, NONLINEAR\n3, 3\n")
         f.write(f"{-ks.compression * X:.6e}, {-X:.6e}\n0., 0.\n{ks.axial * X:.6e}, {X:.6e}\n")
-        # Without shear the rods sit loose in their oversized holes: the lateral springs
-        # are then only a weak restraint against rigid-body sliding of the plate.
-        k_lat = ks.lateral if (loads.Vx or loads.Vy) else 1e-3 * ks.lateral
+        # Rods in oversized holes do not take shear (DG1): friction does. The lateral
+        # springs are then only a weak restraint against rigid-body sliding. With plate
+        # washers welded to the plate the rods are engaged with their bending stiffness.
+        k_lat = ks.lateral if model.anchor.welded_washers else 1e-3 * ks.lateral
         f.write(f"*SPRING, ELSET=RODX\n1, 1\n{k_lat:.6e}\n")
         f.write(f"*SPRING, ELSET=RODY\n2, 2\n{k_lat:.6e}\n")
 

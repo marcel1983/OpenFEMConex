@@ -40,6 +40,8 @@ def _report(res: Results, us: bool) -> str:
     lines += [
         f"  Tracción total en anclajes: {res.anchor_tension_total * f:.1f} {fu}",
         f"  Compresión sobre el concreto: {res.bearing_force * f:.1f} {fu}",
+        f"  Cortante por fricción: Vx = {res.friction[0] * f:.1f} {fu}, "
+        f"Vy = {res.friction[1] * f:.1f} {fu}",
         f"  Presión de contacto: máxima {res.bearing_pressure_max * s:.2f} {su}, media "
         f"{res.bearing_pressure_mean * s:.2f} {su}, longitud de apoyo "
         f"{res.bearing_length_x * d:.2f} {du}, centroide x = {res.bearing_centroid[0] * d:.2f} "
@@ -69,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--only-inp", action="store_true", help="solo escribe el .inp")
     run.add_argument("--leveling-nuts", action="store_true",
                      help="los anclajes también toman compresión")
+    run.add_argument("--mu", type=float, help="coeficiente de fricción placa-concreto")
     run.add_argument("--list", action="store_true", help="lista las combinaciones y sale")
     args = parser.parse_args(argv)
 
@@ -76,7 +79,8 @@ def main(argv: list[str] | None = None) -> int:
     from openfemconex.openconex_bridge import dg1_bending, model_from_project, project_loads
     from openfemconex.solve import solve
 
-    project, model = model_from_project(args.project, leveling_nuts=args.leveling_nuts)
+    project, model = model_from_project(args.project, leveling_nuts=args.leveling_nuts,
+                                        mu=args.mu)
     combos = project_loads(project)
     us = project.info.units == "US"
     if args.list:

@@ -82,6 +82,8 @@ class AnchorSpec:
     Fu: float = 400.0
     leveling_nuts: bool = False
     """With leveling nuts the rods also take compression."""
+    welded_washers: bool = False
+    """Plate washers welded to the plate: the rods then also take shear."""
 
     @property
     def area(self) -> float:
@@ -130,7 +132,7 @@ class Loads:
 @dataclass(frozen=True)
 class MeshSettings:
     size_fine: float | None = None
-    """Element size next to the column and holes (default: about half the thinnest wall)."""
+    """Element size next to the column and holes (default: thinnest of wall and plate)."""
     size_coarse: float | None = None
     """Element size far from the column (default: 3 × size_fine)."""
     plate_layers: int = 4
@@ -141,7 +143,7 @@ class MeshSettings:
     concrete_layers: int = 10
 
     def resolved(self, model: BasePlateModel) -> MeshSettings:
-        fine = self.size_fine or max(4.0, min(model.section.min_wall, model.tp) / 1.5)
+        fine = self.size_fine or max(4.0, min(model.section.min_wall, model.tp))
         coarse = self.size_coarse or 3.0 * fine
         return MeshSettings(
             size_fine=fine, size_coarse=coarse, plate_layers=max(3, self.plate_layers),

@@ -25,8 +25,8 @@ A partir de un proyecto de [OpenConex](https://github.com/marcel1983/openconex)
 | Soldadura columna–placa | nodos compartidos en la huella de la columna |
 | Concreto | bloque elástico (Ec = 4700√f'c), base empotrada |
 | Apoyo | `*CONTACT PAIR` superficie a superficie, sin tracción, con fricción |
-| Anclajes | resorte axial solo a tracción (EA/L) y resortes laterales, unidos al área de la arandela |
-| Cargas | `*RIGID BODY` en la cabeza de la columna; P, V y M se dan en la base |
+| Anclajes | resorte axial solo a tracción (EA/L) unido al área de la arandela; toman cortante solo con arandelas soldadas |
+| Cargas | `*RIGID BODY` en la cabeza de la columna; P, V y M se dan en la base. Primero se aplica P y luego M y V |
 
 Perfiles admitidos: W, M, S, HP, HSS rectangular y cuadrado, HSS circular y Pipe.
 
@@ -51,7 +51,9 @@ Gmsh se instala solo desde pip. Para usar otro ejecutable de CalculiX defina
 ```
 
 Opciones útiles: `--list` (combinaciones), `--only-inp` (no corre ccx), `--size`
-(tamaño fino de malla en mm), `--layers`, `--threads`, `--leveling-nuts`, `--out`.
+(tamaño fino de malla en mm), `--layers`, `--threads`, `--leveling-nuts`, `--mu`,
+`--out`. Cada combinación deja en la carpeta de salida el `.inp`, los archivos de
+ccx, un `.json` con el resumen y un `.vtu` para ver en ParaView o PyVista.
 
 ## Convenciones
 

@@ -78,7 +78,8 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
                         H=max(cN, cB, bp.N, bp.B), grout=grout)
     hef = bp.hef or 12 * bp.rod.diameter
     anchor = AnchorSpec(diameter=bp.rod.diameter, hole=hole, washer=washer, hef=hef,
-                        Fu=bp.rod.material.Fu, leveling_nuts=leveling_nuts)
+                        Fu=bp.rod.material.Fu, leveling_nuts=leveling_nuts,
+                        welded_washers=bp.washer_thickness is not None)
     return BasePlateModel(
         section=_section(col),
         column_steel=Steel(col.material.Fy, col.material.Fu, name=col.grade),

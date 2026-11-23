@@ -20,9 +20,11 @@ __all__ = ["write_vtu"]
 _PARTS = {"PLATE": 1, "COLUMN": 2, "CONCRETE": 3}
 
 
-def _array(f, name: str, data: np.ndarray, fmt: str, kind: str = "Float64") -> None:
+def _array(f, name: str, data: np.ndarray, fmt: str, kind: str = "Float64",
+           components: int | None = None) -> None:
     data = np.atleast_2d(data.T).T
-    f.write(f'<DataArray type="{kind}" Name="{name}" NumberOfComponents="{data.shape[1]}" '
+    f.write(f'<DataArray type="{kind}" Name="{name}" '
+            f'NumberOfComponents="{components or data.shape[1]}" '
             'format="ascii">\n')
     np.savetxt(f, data, fmt=fmt)
     f.write("</DataArray>\n")
@@ -54,7 +56,7 @@ def write_vtu(path: str | Path, mesh: Mesh, frd: str | Path | None = None) -> Pa
         f.write(f'<Piece NumberOfPoints="{n}" NumberOfCells="{len(conn)}">\n<Points>\n')
         _array(f, "Points", mesh.nodes, "%.6f")
         f.write("</Points>\n<Cells>\n")
-        _array(f, "connectivity", conn, "%d", "Int64")
+        _array(f, "connectivity", conn, "%d", "Int64", components=1)
         _array(f, "offsets", 8 * np.arange(1, len(conn) + 1), "%d", "Int64")
         _array(f, "types", np.full(len(conn), 12), "%d", "UInt8")
         f.write("</Cells>\n<CellData>\n")
