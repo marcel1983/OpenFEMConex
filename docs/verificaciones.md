@@ -54,7 +54,7 @@ de OpenConex (DG1 3.ª ed.) con las mismas cargas, para comparar.
 | 4.3, 4.5, 4.7: tracción de anclajes de ¾, ⅞ y 1½ in | 14.4, 19.6 y 57.7 kips | igual (0.5 %) |
 | 4.10: cortante de un anclaje de ¾ in | 7.69 kips | igual |
 | 4.5: arrancamiento, hef = 13 in | 77.5 kips | 77.5 kips |
-| 4.5b: pedestal de 20 in, hef' = 5.33 in | 25.6 kips | 25.7 kips |
+| 4.5b: pedestal de 20 in, hef' = 5.33 in | 25.6 kips | 25.6 kips |
 | 4.7: arrancamiento, hef = 18 in | 134 kips | 133.8 kips |
 | Tabla 3.2: extracción con tuerca pesada, ⅞ y 1½ in | 27.3 y 70.1 kips | 26.6 y 69.8 kips |
 | 4.10: arrancamiento en cortante, c1 = 14 in | 32.7 kips | 32.7 kips |
