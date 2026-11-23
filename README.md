@@ -3,9 +3,10 @@
 Conexiones metálicas por elementos finitos con CalculiX, según AISC y ACI.
 Software libre bajo [GPL-3.0-or-later](LICENSE).
 
-> **Estado: paso 2 del plan.** Genera el modelo FEM de una placa base de columna,
-> lo resuelve con CalculiX y lee los resultados. Las verificaciones normativas
-> (paso 3) y la interfaz gráfica (paso 4) todavía no están.
+> **Estado: pasos 2 y 3 del plan.** Genera el modelo FEM de una placa base de
+> columna, lo resuelve con CalculiX, lee los resultados y hace las verificaciones
+> de AISC 360 y ACI 318 con esas demandas, con reporte en HTML. La interfaz
+> gráfica (paso 4) todavía no está.
 
 ## Qué hace
 
@@ -17,7 +18,9 @@ A partir de un proyecto de [OpenConex](https://github.com/marcel1983/openconex)
 2. escribe un `.inp` por combinación de carga;
 3. corre `ccx` y lee los archivos `.dat` y `.frd`;
 4. resume tracción en cada anclaje, presión de contacto, esfuerzos, deformación
-   plástica y equilibrio, y guarda un `.json` por combinación.
+   plástica y equilibrio, y guarda un `.json` por combinación;
+5. verifica anclajes, concreto, placa y soldadura con esas demandas y escribe
+   `reporte.html` (ver [docs/verificaciones.md](docs/verificaciones.md)).
 
 | Parte | Modelo |
 |---|---|
@@ -52,7 +55,7 @@ Gmsh se instala solo desde pip. Para usar otro ejecutable de CalculiX defina
 
 Opciones útiles: `--list` (combinaciones), `--only-inp` (no corre ccx), `--size`
 (tamaño fino de malla en mm), `--layers`, `--threads`, `--leveling-nuts`, `--mu`,
-`--out`. Cada combinación deja en la carpeta de salida el `.inp`, los archivos de
+`--edition` (`current` o `dg1-2ed`), `--weld`, `--strain-limit`, `--reuse`, `--out`. Cada combinación deja en la carpeta de salida el `.inp`, los archivos de
 ccx, un `.json` con el resumen y un `.vtu` para ver en ParaView o PyVista.
 
 ## Convenciones

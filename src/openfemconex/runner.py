@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-__all__ = ["CcxError", "CcxRun", "find_ccx", "run_ccx"]
+__all__ = ["CcxError", "CcxRun", "find_ccx", "read_run", "run_ccx"]
 
 
 class CcxError(RuntimeError):
@@ -83,7 +83,15 @@ def run_ccx(inp: str | Path, *, steps: int = 1, threads: int | None = None,
     if "*ERROR" in text and not inp.with_suffix(".sta").exists():
         first = next(line for line in text.splitlines() if "*ERROR" in line)
         raise CcxError(f"ccx rejected the input: {first.strip()} (see {log})")
+    return read_run(inp, steps, seconds)
+
+
+def read_run(inp: str | Path, steps: int = 1, seconds: float = 0.0) -> CcxRun:
+    """Status of a finished ccx run from its .sta and .log files."""
+    inp = Path(inp).resolve()
+    log = inp.with_suffix(".log")
+    text = log.read_text(errors="replace") if log.exists() else ""
     step, step_time, incs, iters = _read_sta(inp.with_suffix(".sta"))
     converged = step == steps and abs(step_time - 1.0) < 1e-9 and "Job finished" in text
-    return CcxRun(inp=inp, converged=converged, step=step, step_time=step_time, increments=incs,
-                  iterations=iters, seconds=seconds, log=log)
+    return CcxRun(inp=inp, converged=converged, step=step, step_time=step_time,
+                  increments=incs, iterations=iters, seconds=seconds, log=log)

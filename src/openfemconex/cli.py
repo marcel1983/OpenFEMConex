@@ -72,11 +72,25 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--leveling-nuts", action="store_true",
                      help="los anclajes también toman compresión")
     run.add_argument("--mu", type=float, help="coeficiente de fricción placa-concreto")
+    run.add_argument("--edition", choices=["current", "dg1-2ed"], default="current",
+                     help="normas: vigentes (AISC 360-22, ACI 318-19) o las de la DG1 2.ª ed.")
+    run.add_argument("--weld", type=float, help="tamaño del filete columna-placa [mm]")
+    run.add_argument("--strain-limit", type=float, default=0.05,
+                     help="límite de deformación plástica de la placa (0.05)")
+    run.add_argument("--reuse", action="store_true",
+                     help="reutiliza la solución de ccx si el .inp no cambió")
     run.add_argument("--list", action="store_true", help="lista las combinaciones y sale")
     args = parser.parse_args(argv)
 
+    from openconex.connections.base_plate.check import check_base_plate
+    from openconex.core.loads import combine
+    from openconex.report.builder import fmt
+    from openconex.units import Kind
+
+    from openfemconex.checks import EDITIONS, check_fem
     from openfemconex.mesh import build_mesh
     from openfemconex.openconex_bridge import dg1_bending, model_from_project, project_loads
+    from openfemconex.report import ComboReport, check_title, write_report
     from openfemconex.solve import solve
 
     project, model = model_from_project(args.project, leveling_nuts=args.leveling_nuts,
@@ -101,20 +115,56 @@ def main(argv: list[str] | None = None) -> int:
     s, su = (1 / KSI, "ksi") if us else (1.0, "MPa")
     d, du = (1 / INCH, "in") if us else (1.0, "mm")
     bp = project.base_plate_model()
+    edition = EDITIONS[args.edition]
+    cases = project.case_forces()
+    units = project.info.unit_system()
+    reports = []
     for combo, loads in combos:
         res = solve(model, loads, out, mesh=mesh, threads=args.threads, ccx=args.ccx,
-                    only_write=args.only_inp)
+                    only_write=args.only_inp, reuse=args.reuse)
         if isinstance(res, Path):
             print(f"Escrito {res}")
             continue
         print(_report(res, us))
+        reference = {}
         if not (loads.Mx or loads.Vx or loads.Vy):
             ref = dg1_bending(bp, loads, combo.method)
-            print(f"  Referencia DG1 (bloque rectangular, {combo.method}, {ref.case}): "
-                  f"T = {ref.T * f:.1f} {fu}, Y = {ref.Y * d:.2f} {du}, "
-                  f"fp = {ref.fp_max * s:.2f} {su}")
-        print(f"  Archivos: {out}/{res.load}.inp, .json, .vtu, .frd, .dat")
-        status |= 0 if res.converged else 1
+            if ref.case != "not_possible":
+                reference = {"T": ref.T, "Y": ref.Y, "fp": ref.fp_max}
+                print(f"  Referencia DG1 (bloque rectangular, {combo.method}, {ref.case}): "
+                      f"T = {ref.T * f:.1f} {fu}, Y = {ref.Y * d:.2f} {du}, "
+                      f"fp = {ref.fp_max * s:.2f} {su}")
+        checks = check_fem(bp, res, edition, combo.method, weld_size=args.weld,
+                           strain_limit=args.strain_limit)
+        print(f"  Verificaciones ({edition.aisc}, {edition.aci}):")
+        for r in checks:
+            print(f"    {'OK ' if r.status.value != 'ng' else 'NO '} {r.ratio:5.2f}  "
+                  f"{check_title(r)}  [{r.clause}]")
+        analytical = []
+        if edition.key == "current":
+            try:
+                analytical = check_base_plate(bp, combine(combo, cases), combo.method,
+                                              combo.name)
+            except Exception as exc:  # the analytical path must not hide the FEM result
+                print(f"  (camino analítico no disponible: {exc})")
+        reports.append(ComboReport(res, combo.method.value, checks, analytical, reference))
+        status |= 0 if res.converged and all(r.status.value != "ng" for r in checks) else 1
+    if reports:
+        inputs = [
+            ("Columna", f"{bp.column.name} ({bp.column.grade})"),
+            ("Placa", f"{fmt(bp.N, Kind.LENGTH, units)} × {fmt(bp.B, Kind.LENGTH, units)} × "
+                      f"{fmt(bp.tp, Kind.THICKNESS, units)} ({bp.plate_grade})"),
+            ("Anclajes", f"{bp.rods} de {fmt(bp.rod.diameter, Kind.LENGTH, units)} "
+                         f"({bp.rod.grade}), hef = {fmt(bp.hef, Kind.LENGTH, units)}"),
+            ("Concreto", f"f'c = {fmt(bp.fc, Kind.STRESS, units)}, A2/A1 = {bp.A2_over_A1:g}, "
+                         + ("fisurado" if bp.cracked else "no fisurado")),
+            ("Fricción", f"μ = {model.contact.mu:g}"),
+            ("Malla", f"{len(mesh.nodes)} nodos, {mesh.element_count} hexaedros C3D8I"),
+        ]
+        path = write_report(out / "reporte.html", project.info.name, edition, units, reports,
+                            inputs)
+        print(f"Reporte: {path}")
+        print(f"Archivos por combinación (.inp, .json, .vtu, .frd, .dat) en {out}")
     return status
 
 

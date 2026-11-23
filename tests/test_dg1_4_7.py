@@ -7,8 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from openfemconex.checks import CURRENT, DG1_2ED, check_fem
 from openfemconex.model import MeshSettings
 from openfemconex.openconex_bridge import dg1_bending, model_from_project, project_loads
+from openfemconex.report import ComboReport, render_report
 from openfemconex.solve import solve
 
 EXAMPLE = Path(__file__).parents[1] / "examples" / "dg1_2ed_ej_4_7.ocnx"
@@ -55,3 +57,19 @@ def test_fem_against_dg1(case, tmp_path):
     ref = dg1_bending(project.base_plate_model(), loads)
     assert res.anchor_tension_total == pytest.approx(ref.T, rel=0.20)
     assert res.bearing_length_x == pytest.approx(ref.Y, rel=0.20)
+
+    # code checks with the FEM demands, in the editions used by the guide
+    bp = project.base_plate_model()
+    checks = {r.id: r for r in check_fem(bp, res, DG1_2ED)}
+    # guide: 38.0 / 57.7 = 0.66 per rod, 76.0 / 134 = 0.57 breakout, bearing at its limit
+    assert checks["anchor.steel_tension"].ratio == pytest.approx(0.66, abs=0.03)
+    assert checks["anchor.concrete_breakout_tension"].ratio == pytest.approx(0.57, abs=0.03)
+    assert checks["fem.concrete_bearing"].ratio == pytest.approx(1.0, abs=0.06)
+    assert checks["fem.plate_plastic_strain"].ratio < 0.2
+    assert checks["anchor.steel_tension"].clause.startswith("AISC 360-05")
+    assert {"fem.weld", "anchor.pullout", "fem.plate_bending_tension"} <= set(checks)
+    current = {r.id: r for r in check_fem(bp, res, CURRENT)}
+    assert current["anchor.steel_tension"].clause == "ACI 318-19 §17.6.1.2"
+    html = render_report("DG1 4.7", DG1_2ED, project.info.unit_system(),
+                         [ComboReport(res, "LRFD", list(checks.values()))], [("Columna", "W12X96")])
+    assert "ACI 318-08 D.5.2" in html and "<math" in html

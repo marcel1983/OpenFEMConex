@@ -11,7 +11,7 @@ from openfemconex.inp import write_inp
 from openfemconex.mesh import Mesh, build_mesh
 from openfemconex.model import BasePlateModel, Loads, MeshSettings
 from openfemconex.results import Results, summarize
-from openfemconex.runner import run_ccx
+from openfemconex.runner import read_run, run_ccx
 from openfemconex.vtk import write_vtu
 
 __all__ = ["solve"]
@@ -20,17 +20,26 @@ __all__ = ["solve"]
 def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
           mesh: Mesh | None = None, settings: MeshSettings | None = None,
           threads: int | None = None, ccx: str | None = None,
-          only_write: bool = False) -> Results | Path:
-    """Solve one combination; returns the results (or the .inp path with ``only_write``)."""
+          only_write: bool = False, reuse: bool = False) -> Results | Path:
+    """Solve one combination; returns the results (or the .inp path with ``only_write``).
+
+    With ``reuse`` an existing solution of the same input deck is read instead of
+    running ccx again.
+    """
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
     mesh = mesh or build_mesh(model, settings)
     stem = re.sub(r"[^A-Za-z0-9_-]+", "_", loads.name) or "load"
     inp = workdir / f"{stem}.inp"
+    previous = inp.read_text() if inp.exists() else None
     numbering = write_inp(inp, model, mesh, loads)
     if only_write:
         return inp
-    run = run_ccx(inp, steps=numbering.steps, threads=threads, executable=ccx)
+    solved = all(inp.with_suffix(e).exists() for e in (".frd", ".dat", ".sta"))
+    if reuse and solved and previous == inp.read_text():
+        run = read_run(inp, numbering.steps)
+    else:
+        run = run_ccx(inp, steps=numbering.steps, threads=threads, executable=ccx)
     if run.step == 0:
         raise RuntimeError(f"ccx did not converge on the first increment; see {run.log}")
     # Fractions of the axial load and of the moments and shears actually reached.

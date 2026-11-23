@@ -24,7 +24,8 @@
     "rods_per_side": 2,
     "f": "8.75 in",
     "rod_spacing": "12 in",
-    "hef": "18 in"
+    "hef": "18 in",
+    "cracked": false
   },
   "cases": [
     {"name": "D", "type": "D", "P": "100 kip", "M": "1000 kip*in"},

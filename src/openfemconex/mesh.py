@@ -60,6 +60,10 @@ class Mesh:
     footprint_nodes: np.ndarray
     plate_node_count: int = 0
     """Plate nodes are ids 1..plate_node_count."""
+    weld_quads: np.ndarray = field(default_factory=lambda: np.zeros((0, 4), dtype=int))
+    """Column footprint quads as node ids of the first column level above the plate."""
+    weld_quad_xy: np.ndarray = field(default_factory=lambda: np.zeros((0, 2)))
+    weld_quad_area: np.ndarray = field(default_factory=lambda: np.zeros(0))
     """Nodes on the plate top shared with the column (welded footprint)."""
     settings: MeshSettings = field(default_factory=MeshSettings)
 
@@ -307,5 +311,7 @@ def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> M
         plate_bottom_area=nodal_area,
         footprint_nodes=pid(L, cnodes),
         plate_node_count=(L + 1) * n2,
+        weld_quads=cid(1, cq), weld_quad_xy=xy[cq].mean(axis=1),
+        weld_quad_area=area[plan.region == -2],
         settings=st,
     )
