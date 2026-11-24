@@ -15,7 +15,7 @@ from openfemconex.mesh import Mesh
 from openfemconex.model import BasePlateModel, Loads, SectionKind
 
 __all__ = ["AnchorForce", "Results", "WeldPoint", "read_dat", "read_frd", "summarize",
-           "von_mises", "weld_forces"]
+           "stiffener_weld_forces", "von_mises", "weld_forces"]
 
 
 # --------------------------------------------------------------------------- .dat
@@ -162,6 +162,54 @@ def weld_forces(model: BasePlateModel, mesh: Mesh, stress_ids: np.ndarray,
     return out
 
 
+def stiffener_weld_forces(model: BasePlateModel, mesh: Mesh, stress_ids: np.ndarray,
+                           stress: np.ndarray) -> list[WeldPoint]:
+    """Forces per unit length in the welds of each stiffener.
+
+    ``base k``: along the weld to the base plate, from the stresses of the first
+    level above the plate. ``vertical k``: along the weld to the column, from the
+    stresses one element away from the column face, level by level.
+    """
+    if not len(mesh.stiffener_quads):
+        return []
+    top = int(max(stress_ids.max(), mesh.stiffener_quads.max(),
+                  max(r.max() for r in mesh.stiffener_root_nodes if r.size)))
+    table = np.zeros((top + 1, 6))
+    table[stress_ids] = stress
+    out: list[WeldPoint] = []
+    step = 1.5 * (mesh.settings.size_fine or 10.0)
+    for k, sf in enumerate(model.stiffeners):
+        ts = sf.thickness
+        sel = np.nonzero(mesh.stiffener_quad_index == k)[0]
+        if len(sel):
+            sq = table[mesh.stiffener_quads[sel]].mean(axis=1)
+            xy = mesh.stiffener_quad_xy[sel]
+            area = mesh.stiffener_quad_area[sel]
+            r = (xy - np.array(sf.origin)) @ np.array(sf.direction)
+            bins = np.floor(r / step).astype(int)
+            for b in np.unique(bins):
+                i = bins == b
+                length = area[i].sum() / ts
+                fz = (sq[i, 2] * area[i]).sum() / length
+                fx = (sq[i, 5] * area[i]).sum() / length
+                fy = (sq[i, 4] * area[i]).sum() / length
+                c = (xy[i] * area[i, None]).sum(axis=0) / area[i].sum()
+                out.append(WeldPoint(f"base {k + 1}", float(c[0]), float(c[1]), ts, float(fz),
+                                     float(np.hypot(fx, fy))))
+        roots = mesh.stiffener_root_nodes[k] if k < len(mesh.stiffener_root_nodes) else None
+        if roots is not None and roots.size:
+            d = np.array([sf.direction[0], sf.direction[1], 0.0])
+            for m in range(1, roots.shape[0]):
+                sxx, syy, szz, sxy, syz, szx = table[roots[m]].mean(axis=0)
+                tensor = np.array([[sxx, sxy, szx], [sxy, syy, syz], [szx, syz, szz]])
+                traction = tensor @ d
+                normal = float(traction @ d)
+                shear = float(np.linalg.norm(traction - normal * d))
+                out.append(WeldPoint(f"vertical {k + 1}", float(sf.origin[0]),
+                                     float(sf.origin[1]), ts, normal * ts, shear * ts))
+    return out
+
+
 @dataclass
 class Results:
     load: str
@@ -194,6 +242,9 @@ class Results:
     moment_error: float
     """Relative error of the moment about y from anchors and bearing."""
     weld: list[WeldPoint] = field(default_factory=list)
+    stiffener_weld: list[WeldPoint] = field(default_factory=list)
+    stiffener_von_mises_max: float = 0.0
+    stiffener_peeq_element: float = 0.0
     mesh: dict[str, int] = field(default_factory=dict)
     solver: dict[str, float] = field(default_factory=dict)
 
@@ -276,6 +327,14 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     peeq[pid] = pv[:, 0]
     peeq_element = float(peeq[mesh.parts["PLATE"]].mean(axis=1).max())
     weld = weld_forces(model, mesh, sid, sv)
+    stiff = {}
+    if "STIFFENER" in mesh.parts:
+        conn = mesh.parts["STIFFENER"]
+        vm_table = np.zeros(len(mesh.nodes) + 1)
+        vm_table[sid] = vm
+        stiff = {"stiffener_weld": stiffener_weld_forces(model, mesh, sid, sv),
+                 "stiffener_von_mises_max": float(vm_table[conn].max()),
+                 "stiffener_peeq_element": float(peeq[conn].mean(axis=1).max())}
 
     top = dat["displacements/LOADNODES"][numbering.load_ref]
     P = loads.P * fractions[0]
@@ -297,7 +356,7 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
         bearing_pressure_max=float(p.max(initial=0.0)),
         bearing_pressure_mean=C / A if A else 0.0, bearing_area=A, bearing_length_x=Y,
         plate_von_mises_max=float(vm[plate_s].max()), plate_peeq_max=float(pv[plate_p].max()),
-        plate_peeq_element=peeq_element, weld=weld,
+        plate_peeq_element=peeq_element, weld=weld, **stiff,
         column_von_mises_max=float(vm[col_s].max()), column_peeq_max=float(pv[col_p].max()),
         column_top_displacement=(float(top[0]), float(top[1]), float(top[2])),
         equilibrium_error=abs(C - T - P) / scale,

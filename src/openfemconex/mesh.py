@@ -35,7 +35,8 @@ class PlanMesh:
     quads: np.ndarray
     """(m, 4) zero-based node indices, counter-clockwise seen from +z."""
     region: np.ndarray
-    """(m,) region of each quad: -1 plate, -2 column footprint, k >= 0 washer ring of anchor k."""
+    """(m,) region of each quad: -1 plate, -2 column footprint, k >= 0 washer ring of
+    anchor k, -10 - k stiffener k."""
 
 
 @dataclass
@@ -64,6 +65,16 @@ class Mesh:
     """Column footprint quads as node ids of the first column level above the plate."""
     weld_quad_xy: np.ndarray = field(default_factory=lambda: np.zeros((0, 2)))
     weld_quad_area: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    stiffener_quads: np.ndarray = field(default_factory=lambda: np.zeros((0, 4), dtype=int))
+    """Stiffener plan quads as node ids of the first level above the plate."""
+    stiffener_quad_xy: np.ndarray = field(default_factory=lambda: np.zeros((0, 2)))
+    stiffener_quad_area: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    stiffener_quad_index: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
+    """Stiffener each of those quads belongs to."""
+    stiffener_root_nodes: list[np.ndarray] = field(default_factory=list)
+    """Per stiffener, (levels, n) node ids one element away from the column face."""
+    stiffener_levels: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    """Heights above the plate of the stiffener levels at the column face [mm]."""
     """Nodes on the plate top shared with the column (welded footprint)."""
     settings: MeshSettings = field(default_factory=MeshSettings)
 
@@ -118,19 +129,31 @@ def plan_mesh(model: BasePlateModel, settings: MeshSettings) -> PlanMesh:
             rings.append(ring[0])
             cutters.append((2, occ.addDisk(a.x, a.y, 0, rw, rw)))
         body, _ = occ.cut([(2, rect)], cutters)
-        tools = section + rings
+        stiffs = []
+        for sf in model.stiffeners:
+            pts = [occ.addPoint(x, y, 0) for x, y in sf.corners()]
+            loop = occ.addCurveLoop([occ.addLine(pts[i], pts[(i + 1) % 4]) for i in range(4)])
+            stiffs.append((2, occ.addPlaneSurface([loop])))
+        tools = section + rings + stiffs
         _, omap = occ.fragment(body, tools)
         occ.synchronize()
 
-        n_body = len(body)
-        column_surfs = {t for m in omap[n_body:n_body + len(section)] for _, t in m}
+        n_body, n_sec, n_ring = len(body), len(section), len(rings)
+        column_surfs = {t for m in omap[n_body:n_body + n_sec] for _, t in m}
         ring_surfs: dict[int, int] = {}
-        for k, m in enumerate(omap[n_body + len(section):]):
+        for k, m in enumerate(omap[n_body + n_sec:n_body + n_sec + n_ring]):
             for _, t in m:
                 ring_surfs[t] = k
+        # the part of each stiffener rectangle inside the column wall stays column
+        stiff_surfs: dict[int, int] = {}
+        for k, m in enumerate(omap[n_body + n_sec + n_ring:]):
+            for _, t in m:
+                if t not in column_surfs:
+                    stiff_surfs[t] = k
 
-        curves = gmsh.model.getBoundary([(2, t) for t in column_surfs | set(ring_surfs)],
-                                        combined=False, oriented=False)
+        curves = gmsh.model.getBoundary(
+            [(2, t) for t in column_surfs | set(ring_surfs) | set(stiff_surfs)],
+            combined=False, oriented=False)
         fld = gmsh.model.mesh.field
         f1 = fld.add("Distance")
         fld.setNumbers(f1, "CurvesList", sorted({abs(t) for _, t in curves}))
@@ -161,7 +184,8 @@ def plan_mesh(model: BasePlateModel, settings: MeshSettings) -> PlanMesh:
         quads, region = [], []
         for _, s in gmsh.model.getEntities(2):
             etypes, _, enodes = gmsh.model.mesh.getElements(2, s)
-            reg = -2 if s in column_surfs else ring_surfs.get(s, -1)
+            reg = (-2 if s in column_surfs else -10 - stiff_surfs[s] if s in stiff_surfs
+                   else ring_surfs.get(s, -1))
             for et, nodes in zip(etypes, enodes):
                 if et != 3:
                     raise RuntimeError("the plan mesh is not all quadrilaterals")
@@ -208,9 +232,17 @@ def _graded(H: float, n: int, power: float = 1.6) -> np.ndarray:
 
 
 def _column_levels(length: float, first: float, growth: float = 1.3,
-                   max_ratio: float = 5.0) -> np.ndarray:
-    """Heights along the column: fine next to the plate, growing geometrically."""
+                   max_ratio: float = 5.0, uniform: float = 0.0) -> np.ndarray:
+    """Heights along the column: fine next to the plate, growing geometrically.
+
+    The first ``uniform`` millimetres (the stiffener height) are divided evenly so
+    that a level falls exactly at that height.
+    """
     sizes, h, total = [], first, 0.0
+    if uniform > 0:
+        n = max(3, math.ceil(uniform / first))
+        sizes = [uniform / n] * n
+        total, h = uniform, uniform / n
     while total + h < length:
         sizes.append(h)
         total += h
@@ -238,28 +270,53 @@ def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> M
 
     plate = np.vstack([np.hstack([pid(k, quads), pid(k + 1, quads)]) for k in range(L)])
 
-    # --- column: footprint quads extruded upwards ------------------------------
+    # --- column and stiffeners: footprint quads extruded upwards ----------------
+    # The stiffeners share the column levels up to their height; away from the column
+    # face each level is scaled down to follow the sloping top edge.
     cq = quads[plan.region == -2]
     cnodes = np.unique(cq)
-    local = -np.ones(n2, dtype=int)
-    local[cnodes] = np.arange(len(cnodes))
-    zc = model.tp + _column_levels(model.Lc, st.column_size)
+    stiff_sel = plan.region <= -10
+    sq = quads[stiff_sel]
+    sq_index = -10 - plan.region[stiff_sel]
+    hs = max((sf.height for sf in model.stiffeners), default=0.0) if len(sq) else 0.0
+    zc = model.tp + _column_levels(model.Lc, st.column_size, uniform=hs)
     Mc = len(zc) - 1
-    base_c = (L + 1) * n2
+    Ms = int(np.argmin(np.abs(zc - model.tp - hs))) if hs else 0
+    snodes = np.setdiff1d(np.unique(sq), cnodes) if len(sq) else np.zeros(0, dtype=int)
+    scale = np.ones(n2)
+    for k, sf in enumerate(model.stiffeners):
+        mine = np.setdiff1d(np.unique(sq[sq_index == k]), cnodes)
+        r = (xy[mine] - np.array(sf.origin)) @ np.array(sf.direction)
+        scale[mine] = sf.height_at(r) / hs
+    ids = np.zeros((Mc + 1, n2), dtype=int)
+    ids[0] = pid(L, np.arange(n2))
+    next_id = (L + 1) * n2 + 1
     for m in range(1, Mc + 1):
-        nodes.append(np.column_stack([xy[cnodes], np.full(len(cnodes), zc[m])]))
+        members = np.concatenate([cnodes, snodes]) if m <= Ms else cnodes
+        ids[m, members] = next_id + np.arange(len(members))
+        next_id += len(members)
+        z = model.tp + (zc[m] - model.tp) * scale[members]
+        nodes.append(np.column_stack([xy[members], z]))
 
     def cid(m: int, i):
-        if m == 0:
-            return pid(L, i)
-        return base_c + (m - 1) * len(cnodes) + local[np.asarray(i)] + 1
+        return ids[m, np.asarray(i)]
 
     column = np.vstack([np.hstack([cid(m, cq), cid(m + 1, cq)]) for m in range(Mc)])
     column_top = cid(Mc, cnodes)
+    stiffener = (np.vstack([np.hstack([cid(m, sq), cid(m + 1, sq)]) for m in range(Ms)])
+                 if Ms else np.zeros((0, 8), dtype=int))
+    in_column = np.zeros(n2, dtype=bool)
+    in_column[cnodes] = True
+    roots = []
+    for k in range(len(model.stiffeners) if Ms else 0):
+        mine = sq[sq_index == k]
+        touching = mine[in_column[mine].sum(axis=1) >= 2]
+        far = np.setdiff1d(np.unique(touching), cnodes)
+        roots.append(ids[:Ms + 1][:, far])
 
     # --- concrete: structured grid -------------------------------------------
     c = model.concrete
-    base_k = base_c + Mc * len(cnodes)
+    base_k = next_id - 1
     nx = max(4, math.ceil(c.N / st.concrete_size))
     ny = max(4, math.ceil(c.B / st.concrete_size))
     gx = np.linspace(-c.N / 2, c.N / 2, nx + 1)
@@ -281,7 +338,14 @@ def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> M
     conc_bottom = kid(gi.ravel(), gj.ravel(), 0)
 
     # --- numbering and sets ------------------------------------------------------
-    first = {"PLATE": 1, "COLUMN": 1 + len(plate), "CONCRETE": 1 + len(plate) + len(column)}
+    parts = {"PLATE": plate, "COLUMN": column}
+    if len(stiffener):
+        parts["STIFFENER"] = stiffener
+    parts["CONCRETE"] = concrete
+    first, count = {}, 1
+    for name, conn in parts.items():
+        first[name] = count
+        count += len(conn)
     m2 = len(quads)
     area = _quad_areas(xy, quads)
     washer_nodes, washer_weights = [], []
@@ -299,7 +363,7 @@ def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> M
 
     return Mesh(
         nodes=np.vstack(nodes),
-        parts={"PLATE": plate, "COLUMN": column, "CONCRETE": concrete},
+        parts=parts,
         first_element=first,
         plate_bottom_elements=first["PLATE"] + np.arange(m2),
         concrete_top_elements=first["CONCRETE"] + conc_top,
@@ -313,5 +377,9 @@ def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> M
         plate_node_count=(L + 1) * n2,
         weld_quads=cid(1, cq), weld_quad_xy=xy[cq].mean(axis=1),
         weld_quad_area=area[plan.region == -2],
+        stiffener_quads=cid(1, sq) if Ms else np.zeros((0, 4), dtype=int),
+        stiffener_quad_xy=xy[sq].mean(axis=1) if Ms else np.zeros((0, 2)),
+        stiffener_quad_area=area[stiff_sel], stiffener_quad_index=sq_index,
+        stiffener_root_nodes=roots, stiffener_levels=zc[:Ms + 1] - model.tp,
         settings=st,
     )

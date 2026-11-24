@@ -373,6 +373,21 @@ def fillet_weld_line(normal: float, shear: float, size: float, FEXX: float, fill
     return c.result("fem.weld", clause, r, cap, Kind.FORCE_PER_LENGTH)
 
 
+def stiffener_slenderness(width: float, thickness: float, Fy: float, E: float = 200_000.0,
+                          ed: Edition = CURRENT, combo: str = "") -> CheckResult:
+    """Width-to-thickness ratio of the stiffener outstand, b/t ≤ 0.56 √(E/Fy).
+
+    Limit of plates projecting from rolled shapes (Table B4.1a, case 1); it guards
+    against local buckling of the free edge, which the FEM model does not capture.
+    """
+    clause = f"{ed.aisc} Table B4.1a"
+    c = _calc(Method.LRFD, combo)
+    limit = c.step(r"\lambda_r", r"0.56\sqrt{E/F_y}", 0.56 * math.sqrt(E / Fy), clause=clause)
+    ratio = c.step("b/t", "", width / thickness, clause=clause, b=(width, Kind.LENGTH),
+                   t=(thickness, Kind.THICKNESS))
+    return c.result("fem.stiffener_slenderness", clause, ratio, limit, Kind.DIMENSIONLESS)
+
+
 # ------------------------------------------------------------------------------ assembly
 def _min_fillet(t: float) -> float:
     """Minimum fillet size for the thinner part joined (AISC 360 Table J2.4) [mm]."""
@@ -460,15 +475,18 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                                           combo)
                 if worst is None or r.ratio > worst.ratio:
                     worst = r
-            out.append(worst)
+            out.append(_not_governing(worst) if extras.stiffeners else worst)
         else:
             # rows of rods in tension bend the plate about the nearest flange
             for sign in (-1.0, 1.0):
                 row = [a for a in group if a.x * sign > col.d / 2]
                 if row:
                     lever = abs(sum(a.x for a in row) / len(row)) - col.d / 2 + col.tf / 2
-                    out.append(plate_bending_tension(sum(a.tension for a in row), lever, bp.B,
-                                                     bp.tp, bp.Fy, ed, method, combo))
+                    bending = plate_bending_tension(sum(a.tension for a in row), lever, bp.B,
+                                                    bp.tp, bp.Fy, ed, method, combo)
+                    # with stiffeners the plate no longer cantilevers from the flange:
+                    # its bending is judged by the plastic strain of the FEM
+                    out.append(_not_governing(bending) if extras.stiffeners else bending)
         tmax = max(a.tension for a in group)
         out.append(anchor_steel_tension(rod.diameter, Fu, Fy, tmax, ed, method, combo))
         if lrfd:
@@ -573,4 +591,23 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                 worst = r
         if worst is not None:
             out.append(worst)
+    # -- stiffeners
+    spec = extras.stiffeners
+    if spec is not None and res.stiffener_weld:
+        steel = bp.materials[spec.grade]
+        strain = plate_plastic_strain(res.stiffener_peeq_element, strain_limit, combo, method)
+        out.append(strain.model_copy(update={"id": "fem.stiffener_plastic_strain",
+                                             "text_id": "check.fem.stiffener_plastic_strain"}))
+        out.append(stiffener_slenderness(spec.length, spec.thickness, steel.Fy, steel.E, ed,
+                                         combo))
+        fexx = (bp.electrodes[bp.electrode] if bp.electrode in bp.electrodes
+                else ELECTRODES[bp.electrode]).FEXX
+        size = spec.weld or _min_fillet(spec.thickness)
+        worst = None
+        for w in res.stiffener_weld:
+            r = fillet_weld_line(w.normal, w.shear, size, fexx, 2, ed, method, combo)
+            if worst is None or r.ratio > worst.ratio:
+                worst = r
+        out.append(worst.model_copy(update={"id": "fem.stiffener_weld",
+                                            "text_id": "check.fem.stiffener_weld"}))
     return out

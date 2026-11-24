@@ -19,7 +19,7 @@ from openconex.core.model import HSSKind, HSSShape, IShape
 from openconex.io.project import Project
 from openconex.units import Kind, from_internal, to_internal
 
-from openfemconex.extras import Extras, load_extended
+from openfemconex.extras import Extras, StiffenerSpec, load_extended
 from openfemconex.model import (
     Anchor,
     AnchorSpec,
@@ -30,6 +30,7 @@ from openfemconex.model import (
     Section,
     SectionKind,
     Steel,
+    Stiffener,
 )
 
 __all__ = ["dg1_bending", "loads_from_forces", "model_from_base_plate", "model_from_project",
@@ -45,6 +46,33 @@ def section_of(column: IShape | HSSShape) -> Section:
         return Section(SectionKind.HSS_ROUND, d=column.d, bf=column.d, t=column.t,
                        name=column.name)
     return Section(SectionKind.HSS_RECT, d=column.d, bf=column.bf, t=column.t, name=column.name)
+
+
+def stiffeners_of(section: Section, spec: StiffenerSpec) -> tuple[Stiffener, ...]:
+    """Stiffener plates of a layout for the given column section."""
+    def make(origin, direction, embed):
+        return Stiffener(origin, direction, spec.length, spec.thickness, spec.height,
+                         spec.end_height, embed)
+
+    if spec.layout == "radial":
+        if section.kind is not SectionKind.HSS_ROUND:
+            raise ValueError("la disposición radial es para columnas circulares")
+        r = section.d / 2
+        out = []
+        for i in range(spec.count):
+            a = 2 * math.pi * i / spec.count
+            d = (math.cos(a), math.sin(a))
+            out.append(make((r * d[0], r * d[1]), d, section.t / 2))
+        return tuple(out)
+    if section.kind is not SectionKind.I:
+        raise ValueError(f"la disposición '{spec.layout}' es para perfiles W; en tubos "
+                         "circulares use 'radial'")
+    ys = [0.0]
+    if spec.layout == "alma y bordes":
+        edge = section.bf / 2 - spec.thickness / 2
+        ys = [-edge, 0.0, edge]
+    return tuple(make((sign * section.d / 2, y), (sign, 0.0), section.tf / 2)
+                 for sign in (-1.0, 1.0) for y in ys)
 
 
 def _rod_positions(bp: BasePlate) -> list[tuple[float, float]]:
@@ -83,8 +111,14 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
                         Fu=bp.rod.material.Fu, leveling_nuts=leveling_nuts,
                         welded_washers=bp.washer_thickness is not None)
     positions = extras.anchors if extras and extras.anchors else _rod_positions(bp)
+    section = section_of(col)
+    stiffeners, stiffener_steel = (), None
+    if extras and extras.stiffeners:
+        stiffeners = stiffeners_of(section, extras.stiffeners)
+        grade = bp.materials[extras.stiffeners.grade]
+        stiffener_steel = Steel(grade.Fy, grade.Fu, name=extras.stiffeners.grade)
     return BasePlateModel(
-        section=section_of(col),
+        section=section, stiffeners=stiffeners, stiffener_steel=stiffener_steel,
         column_steel=Steel(col.material.Fy, col.material.Fu, name=col.grade),
         N=bp.N, B=bp.B, tp=bp.tp,
         plate_steel=Steel(plate.Fy, plate.Fu, name=bp.plate_grade),

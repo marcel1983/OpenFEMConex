@@ -79,6 +79,8 @@ def main(argv: list[str] | None = None) -> int:
                      help="límite de deformación plástica de la placa (0.05)")
     run.add_argument("--reuse", action="store_true",
                      help="reutiliza la solución de ccx si el .inp no cambió")
+    run.add_argument("--no-figures", action="store_true",
+                     help="no renderiza los gráficos del reporte")
     run.add_argument("--list", action="store_true", help="lista las combinaciones y sale")
     args = parser.parse_args(argv)
 
@@ -164,8 +166,14 @@ def main(argv: list[str] | None = None) -> int:
             ("Fricción", f"μ = {model.contact.mu:g}"),
             ("Malla", f"{len(mesh.nodes)} nodos, {mesh.element_count} hexaedros C3D8I"),
         ]
+        figures = {}
+        if not args.no_figures:
+            from openfemconex.study import Settings, Study
+
+            study = Study(project, Settings(edition=args.edition), extras)
+            figures = study.figures(out, reports, model, mesh)
         path = write_report(out / "reporte.html", project.info.name, edition, units, reports,
-                            inputs)
+                            inputs, figures=figures)
         print(f"Reporte: {path}")
         print(f"Archivos por combinación (.inp, .json, .vtu, .frd, .dat) en {out}")
     return status

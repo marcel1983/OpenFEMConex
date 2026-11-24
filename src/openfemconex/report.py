@@ -70,6 +70,8 @@ table{border-collapse:collapse;width:100%;margin:.6em 0;font-size:.92em}
 th,td{border:1px solid #ccc;padding:.3em .5em;text-align:left;vertical-align:top}
 th{background:#f0f0f0}td.n{text-align:right;font-variant-numeric:tabular-nums}
 .ok{color:#17692b;font-weight:600}.ng{color:#b00020;font-weight:600}.na{color:#777}
+table.figs td{border:none;text-align:center;padding:.4em}
+table.figs img{max-width:100%;height:auto;border:1px solid #ddd}
 details{margin:.3em 0 .8em}summary{cursor:pointer}small,.note{color:#555;font-size:.88em}
 """
 
@@ -143,7 +145,9 @@ def _fem_summary(c: ComboReport, units: UnitSystem) -> str:
 
 def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[ComboReport],
                   inputs: list[tuple[str, str]], today: dt.date | None = None,
-                  image: str | None = None, traces: bool = True) -> str:
+                  image: str | None = None, traces: bool = True,
+                  figures: dict[str, list[tuple[str, str]]] | None = None,
+                  figure_base: str = "") -> str:
     today = today or dt.date.today()
     every = [r for c in combos for r in c.fem_checks]
     ok = all(r.status.value != "ng" for r in every)
@@ -161,6 +165,22 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
            f"ratio {worst.ratio:.2f}." if worst else ".") + "</p>",
         "<h2>Datos</h2>", _table(["Dato", "Valor"], [[escape(k), escape(v)] for k, v in inputs]),
     ]
+    figures = figures or {}
+
+    def gallery(key: str, heading: str) -> str:
+        items = [(c, f) for c, f in figures.get(key, []) if f]
+        if not items:
+            return ""
+        rows = ""
+        for i in range(0, len(items), 2):
+            cells = "".join(
+                f'<td class="fig"><img src="{escape(figure_base + name)}" width="470" '
+                f'alt="{escape(caption)}"><br><small>{escape(caption)}</small></td>'
+                for caption, name in items[i:i + 2])
+            rows += f"<tr>{cells}</tr>"
+        return f"<h3>{heading}</h3><table class='figs'>{rows}</table>"
+
+    parts.append(gallery("", "Geometría y malla"))
     if image:
         parts.append(f'<p><img src="{escape(image)}" alt="Resultados FEM" style="max-width:100%">'
                      "</p>")
@@ -176,6 +196,7 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
             f"Mx = {fmt(a['Mx'], Kind.MOMENT, units)}, Vx = {fmt(a['Vx'], Kind.FORCE, units)}, "
             f"Vy = {fmt(a['Vy'], Kind.FORCE, units)}.{state}</p>",
             "<h3>Resultados del modelo FEM</h3>", _fem_summary(c, units),
+            gallery(r.load, "Gráficos de resultados"),
             "<h3>Verificaciones con demandas del FEM</h3>", _checks_table(c.fem_checks, units),
             _trace(c.fem_checks, units) if traces else "",
         ]

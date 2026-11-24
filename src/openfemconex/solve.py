@@ -14,7 +14,12 @@ from openfemconex.results import Results, summarize
 from openfemconex.runner import read_run, run_ccx
 from openfemconex.vtk import write_vtu
 
-__all__ = ["solve"]
+__all__ = ["file_stem", "solve"]
+
+
+def file_stem(name: str) -> str:
+    """File name used for the files of a load combination."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", name) or "load"
 
 
 def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
@@ -29,7 +34,7 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
     mesh = mesh or build_mesh(model, settings)
-    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", loads.name) or "load"
+    stem = file_stem(loads.name)
     inp = workdir / f"{stem}.inp"
     previous = inp.read_text() if inp.exists() else None
     numbering = write_inp(inp, model, mesh, loads)

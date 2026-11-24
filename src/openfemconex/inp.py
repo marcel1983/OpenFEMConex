@@ -159,6 +159,10 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         f.write("*SOLID SECTION, ELSET=COLUMN, MATERIAL=COLSTEEL\n")
         f.write("*SOLID SECTION, ELSET=PLATE, MATERIAL=PLATESTEEL\n")
         f.write("*SOLID SECTION, ELSET=CONCRETE, MATERIAL=CONCRETE\n")
+        if "STIFFENER" in mesh.parts:
+            ss = model.stiffener_steel or ps
+            _material(f, "STIFFSTEEL", ss.E, ss.nu, ss.plastic_curve())
+            f.write("*SOLID SECTION, ELSET=STIFFENER, MATERIAL=STIFFSTEEL\n")
 
         # ---- contact plate / concrete ----
         f.write("*SURFACE, NAME=SPLATE, TYPE=ELEMENT\n")

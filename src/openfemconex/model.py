@@ -112,6 +112,45 @@ class AnchorSpec:
 
 
 @dataclass(frozen=True)
+class Stiffener:
+    """A vertical plate welded to the column and to the base plate.
+
+    It starts at ``origin`` on the column face and runs ``length`` along ``direction``
+    (unit vector in plan). Its height goes from ``height`` at the column to
+    ``end_height`` at the free end.
+    """
+
+    origin: tuple[float, float]
+    direction: tuple[float, float]
+    length: float
+    thickness: float
+    height: float
+    end_height: float
+    embed: float = 0.0
+    """Overlap into the column wall, so that the plan regions share an edge."""
+
+    def corners(self) -> list[tuple[float, float]]:
+        (x0, y0), (dx, dy), h = self.origin, self.direction, self.thickness / 2
+        nx, ny = -dy, dx
+        out = []
+        for s, t in ((-self.embed, -h), (self.length, -h), (self.length, h), (-self.embed, h)):
+            out.append((x0 + s * dx + t * nx, y0 + s * dy + t * ny))
+        return out
+
+    def local(self, x: float, y: float) -> tuple[float, float]:
+        """(distance along the stiffener from the column face, offset across it)."""
+        rx, ry = x - self.origin[0], y - self.origin[1]
+        dx, dy = self.direction
+        return rx * dx + ry * dy, -rx * dy + ry * dx
+
+    def height_at(self, r):
+        """Height at the distance ``r`` from the column face (number or array)."""
+        t = (r / self.length)
+        t = min(max(t, 0.0), 1.0) if isinstance(t, float) else t.clip(0.0, 1.0)
+        return self.height + (self.end_height - self.height) * t
+
+
+@dataclass(frozen=True)
 class Concrete:
     fc: float
     N: float
@@ -195,6 +234,8 @@ class BasePlateModel:
     ex: float = 0.0
     ey: float = 0.0
     """Column eccentricity on the plate."""
+    stiffeners: tuple[Stiffener, ...] = ()
+    stiffener_steel: Steel | None = None
     column_length: float | None = None
     """Modelled column length above the plate (default 2.5 × largest section dimension)."""
     contact: ContactSettings = field(default_factory=ContactSettings)
@@ -216,6 +257,20 @@ class BasePlateModel:
                 if math.hypot(a.x - b.x, a.y - b.y) < 2 * r:
                     raise ValueError(f"washers of the anchors at ({a.x:.1f}, {a.y:.1f}) and "
                                      f"({b.x:.1f}, {b.y:.1f}) overlap")
+        for st in self.stiffeners:
+            if st.height >= self.Lc:
+                raise ValueError("the stiffener is taller than the modelled column")
+            if st.end_height <= 0 or st.end_height > st.height:
+                raise ValueError("the stiffener end height must be between 0 and its height")
+            for x, y in st.corners():
+                if abs(x) > self.N / 2 or abs(y) > self.B / 2:
+                    raise ValueError("a stiffener leaves the plate")
+            for a in self.anchors:
+                s, t = st.local(a.x, a.y)
+                gap = math.hypot(max(-s, 0.0, s - st.length), max(abs(t) - st.thickness / 2, 0.0))
+                if gap < r:
+                    raise ValueError(f"the washer of the anchor at ({a.x:.1f}, {a.y:.1f}) "
+                                     "overlaps a stiffener")
         if self.concrete.N < self.N or self.concrete.B < self.B:
             raise ValueError("the concrete block must be at least the plate size")
         if self.anchor.hole >= self.anchor.washer:

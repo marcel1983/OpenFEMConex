@@ -589,23 +589,25 @@ class MainWindow(QMainWindow):
             "<p><small>El reporte completo muestra las fórmulas con notación matemática."
             "</small></p>")
 
-    def _report_html(self, traces: bool = True, image: str | None = None) -> str | None:
+    def _report_html(self, traces: bool = True, figure_base: str = "") -> str | None:
         st = self.state
         if not st.reports or not st.valid:
             QMessageBox.information(self, "Reporte", "Primero resuelva el modelo.")
             return None
-        return st.study().report_html(list(st.reports.values()), st.model, st.mesh, image=image,
-                                      traces=traces)
+        reports = list(st.reports.values())
+        figures = {}
+        if self.viewer.plotter is not None and self._ensure_mesh():
+            self.status_label.setText("Generando los gráficos del reporte…")
+            QApplication.processEvents()
+            figures = st.study().figures(st.output_dir(), reports, st.model, st.mesh)
+        return st.study().report_html(reports, st.model, st.mesh, traces=traces,
+                                      figures=figures, figure_base=figure_base)
 
     def generate_report(self) -> Path | None:
-        out = self.state.output_dir()
-        image = None
-        if self._view == "results" and self.viewer.screenshot(out / "vista.png"):
-            image = "vista.png"
-        html = self._report_html(image=image)
+        html = self._report_html()
         if html is None:
             return None
-        path = out / "reporte.html"
+        path = self.state.output_dir() / "reporte.html"
         path.write_text(html, encoding="utf-8")
         self.log.appendPlainText(f"Reporte escrito en {path}")
         self.status_label.setText(f"Reporte escrito en {path}")
@@ -617,7 +619,7 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def export_pdf(self, path: str | None = None) -> Path | None:
-        html = self._report_html(traces=False)
+        html = self._report_html(traces=False, figure_base=str(self.state.output_dir()) + "/")
         if html is None:
             return None
         if not path:
@@ -631,7 +633,7 @@ class MainWindow(QMainWindow):
         printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
         printer.setPageOrientation(QPageLayout.Orientation.Portrait)
         document = QTextDocument()
-        document.setHtml(html)
+        document.setHtml(html.replace('width="470"', 'width="330"'))
         document.print_(printer)
         self.log.appendPlainText(f"PDF escrito en {path}")
         return Path(path)

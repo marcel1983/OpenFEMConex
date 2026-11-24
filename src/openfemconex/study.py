@@ -128,9 +128,47 @@ class Study:
                                   "C3D8I"))
         return rows
 
+    def force_unit(self) -> tuple[float, str]:
+        """(factor from N, label) of the force unit used for presentation."""
+        sample = fmt(1000.0, Kind.FORCE, self.project.info.unit_system(), 6).split()
+        return float(sample[0]) / 1000.0, sample[-1]
+
+    def figures(self, out: Path, reports: list[ComboReport], model: BasePlateModel,
+                mesh: Mesh) -> dict[str, list[tuple[str, str]]]:
+        """Render the report figures into ``out`` (empty without PyVista or OpenGL)."""
+        from openfemconex.scenes import render_figures
+        from openfemconex.solve import file_stem
+
+        factor, label = self.force_unit()
+        solved = [(r.results.load, out / f"{file_stem(r.results.load)}.vtu", r.results)
+                  for r in reports]
+        solved = [s for s in solved if s[1].exists()]
+        figures = render_figures(out, model, mesh, solved, unit_force=factor, force_label=label)
+        # add the peak value of each figure to its caption
+        u = self.project.info.unit_system()
+        for r in reports:
+            res = r.results
+            top = max(abs(v) for v in res.column_top_displacement)
+            peaks = {
+                "von_Mises": "máx. placa " + fmt(res.plate_von_mises_max, Kind.STRESS, u)
+                             + ", columna " + fmt(res.column_von_mises_max, Kind.STRESS, u),
+                "PEEQ": f"máx. placa {100 * res.plate_peeq_max:.2f} %, columna "
+                        f"{100 * res.column_peeq_max:.2f} %",
+                "_U": f"cabeza de la columna {top:.2f} mm",
+                "CPRESS": "máx. " + fmt(res.bearing_pressure_max, Kind.STRESS, u)
+                          + ", media " + fmt(res.bearing_pressure_mean, Kind.STRESS, u),
+            }
+            figures[res.load] = [
+                (caption + next((f": {text}" for key, text in peaks.items()
+                                 if name and name.endswith(f"{key.lstrip('_')}.png")), ""), name)
+                for caption, name in figures.get(res.load, [])]
+        return figures
+
     def report_html(self, reports: list[ComboReport], model: BasePlateModel,
                     mesh: Mesh | None = None, image: str | None = None,
-                    traces: bool = True) -> str:
+                    traces: bool = True, figures: dict | None = None,
+                    figure_base: str = "") -> str:
         return render_report(self.project.info.name, self.edition,
                              self.project.info.unit_system(), reports,
-                             self.inputs(model, mesh), image=image, traces=traces)
+                             self.inputs(model, mesh), image=image, traces=traces,
+                             figures=figures, figure_base=figure_base)

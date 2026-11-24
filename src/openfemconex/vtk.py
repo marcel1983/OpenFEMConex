@@ -15,9 +15,9 @@ import numpy as np
 from openfemconex.mesh import Mesh
 from openfemconex.results import read_frd, von_mises
 
-__all__ = ["write_vtu"]
+__all__ = ["PARTS", "write_vtu"]
 
-_PARTS = {"PLATE": 1, "COLUMN": 2, "CONCRETE": 3}
+PARTS = {"PLATE": 1, "COLUMN": 2, "CONCRETE": 3, "STIFFENER": 4}
 
 
 def _array(f, name: str, data: np.ndarray, fmt: str, kind: str = "Float64",
@@ -34,7 +34,7 @@ def write_vtu(path: str | Path, mesh: Mesh, frd: str | Path | None = None) -> Pa
     path = Path(path)
     n = len(mesh.nodes)
     conn = np.vstack(list(mesh.parts.values())) - 1
-    part = np.concatenate([np.full(len(c), _PARTS[k]) for k, c in mesh.parts.items()])
+    part = np.concatenate([np.full(len(c), PARTS[k]) for k, c in mesh.parts.items()])
     fields: dict[str, np.ndarray] = {}
     if frd is not None:
         blocks = read_frd(frd)

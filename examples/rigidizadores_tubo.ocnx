@@ -1,0 +1,60 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Tubo con rigidizadores radiales",
+    "number": "OFC-0003",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-23",
+    "language": "es",
+    "units": "SI_kN_m"
+  },
+  "base_plate": {
+    "column": "HSS10.000X0.500",
+    "N": "600 mm",
+    "B": "600 mm",
+    "tp": "32 mm",
+    "plate_grade": "ASTM A36",
+    "fc": "28 MPa",
+    "A2_over_A1": 1.0,
+    "grout": "40 mm",
+    "rod_diameter": "1.5 in",
+    "rod_grade": "ASTM F1554 Gr. 36",
+    "rods_per_side": 2,
+    "f": "230 mm",
+    "rod_spacing": "460 mm",
+    "hef": "450 mm",
+    "cracked": false
+  },
+  "cases": [
+    {
+      "name": "D",
+      "type": "D",
+      "P": "450 kN",
+      "M": "40 kN*m"
+    },
+    {
+      "name": "L",
+      "type": "L",
+      "P": "700 kN",
+      "M": "60 kN*m"
+    }
+  ],
+  "combinations": {
+    "methods": [
+      "LRFD"
+    ]
+  },
+  "openfemconex": {
+    "stiffeners": {
+      "layout": "radial",
+      "length": "120 mm",
+      "height": "250 mm",
+      "end_height": "25 mm",
+      "thickness": "12 mm",
+      "grade": "ASTM A36",
+      "count": 8
+    }
+  }
+}
