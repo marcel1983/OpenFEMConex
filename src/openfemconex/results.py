@@ -356,6 +356,8 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     # Moment about y at the plate base: compression at +x gives a positive moment.
     # The rod shears act at the contact plane, so they add no moment about it.
     M_fem = M_base - sum(a.x * a.tension for a in anchors)
+    # couple of the lug shear over the depth it is transferred
+    M_fem -= lug_shear[0] * numbering.lug_offset
     # relative to the moment itself, to the moment of the shear at the column top, or
     # to 1 % of P·N when there is (almost) none
     V_lever = math.hypot(loads.Vx, loads.Vy) * fractions[1] * (model.tp + model.Lc)

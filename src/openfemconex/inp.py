@@ -72,6 +72,9 @@ class InpNumbering:
     lug_nodes: tuple[int, ...] = ()
     """Plate-side and concrete-side reference nodes of the shear lug."""
     lug_stiffness: float = 0.0
+    lug_offset: float = 0.0
+    """Height of the plate-side lug nodes above the concrete-side ones [mm]: the lug
+    transfers its shear across this offset, as the real lug does over its depth."""
 
 
 def _write_rows(f: TextIO, rows, per_line: int = 8) -> None:
@@ -313,4 +316,7 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
     return InpNumbering(load_ref, load_rot, anchor_ref, anchor_ground, spring_axial,
                         steps=len(steps), anchor_base=anchor_base,
                         anchor_concrete=anchor_concrete, lateral_stiffness=k_lat,
-                        lug_nodes=lug_nodes, lug_stiffness=k_lug)
+                        lug_nodes=lug_nodes, lug_stiffness=k_lug,
+                        lug_offset=(float(mesh.nodes[np.array(lug_plate) - 1, 2].mean()
+                                          - mesh.nodes[np.array(lug_conc) - 1, 2].mean())
+                                    if lug_nodes else 0.0))

@@ -610,10 +610,9 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                 if worst is None or r.ratio > worst.ratio:
                     worst = r
             out.append(worst)
-        lug_v = res.lug_shear
         if bp.shear_lug is not None:
-            # shear lug: the openconex checks (DG1 3rd ed., ACI 318-19 §17.11) with the
-            # shear the FEM puts on the lug; the axial force gives ψbrg,sl
+            # shear lug: the openconex checks (DG1 3rd ed., ACI 318-19 §17.11); the axial
+            # force gives ψbrg,sl
             P_ = res.applied["P"]
             # as in DG1 the lug is designed for the whole shear in its direction, not
             # only for the part the FEM gives it (the rest goes by friction)
