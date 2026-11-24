@@ -27,6 +27,10 @@ Además de los datos de OpenConex, el archivo `.ocnx` puede llevar:
 - **Rigidizadores** (Geometría › Rigidizadores): en línea con el alma o tres
   por patín para perfiles W, y radiales para tubos circulares.
 
+El refuerzo del pedestal se dibuja dentro del concreto (estribos que toman
+cortante en naranja), pero no forma parte del modelo FEM: solo entra en las
+verificaciones.
+
 Un archivo con estos datos solo se abre en OpenFEMConex.
 
 ## Malla

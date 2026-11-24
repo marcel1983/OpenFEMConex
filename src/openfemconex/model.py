@@ -260,6 +260,9 @@ class BasePlateModel:
     """Column eccentricity on the plate."""
     stiffeners: tuple[Stiffener, ...] = ()
     lug: ShearLug | None = None
+    rebar: object | None = None
+    """Pedestal reinforcement (extras.PedestalRebar). It is not part of the FEM model
+    (the concrete is a plain elastic block): it is drawn and used by the checks."""
     stiffener_steel: Steel | None = None
     column_length: float | None = None
     """Modelled column length above the plate (default 2.5 × largest section dimension)."""

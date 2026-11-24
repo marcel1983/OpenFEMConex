@@ -113,3 +113,20 @@ def test_fem_with_free_anchors_and_pedestal(tmp_path):
     # unless both fail
     pair = (checks["anchor.concrete_breakout_shear"], checks["anchor.reinforcement_shear"])
     assert sum(r.applicable for r in pair) == 1 or all(r.status.value == "ng" for r in pair)
+
+
+def test_pedestal_rebar_reaches_the_model_but_not_the_deck(tmp_path):
+    """The bars are drawn and checked; the FEM input deck does not change with them."""
+    from openfemconex.inp import write_inp
+    from openfemconex.mesh import build_mesh
+    from openfemconex.model import MeshSettings
+
+    project, extras = load_extended(EXAMPLE)
+    with_bars = model_of(project, extras=extras)
+    without = model_of(project, extras=type(extras)(anchors=extras.anchors))
+    assert with_bars.rebar is extras.pedestal and without.rebar is None
+    loads = project_loads(project)[0][1]
+    mesh = build_mesh(without, MeshSettings(size_fine=25.0))
+    write_inp(tmp_path / "a.inp", with_bars, mesh, loads)
+    write_inp(tmp_path / "b.inp", without, mesh, loads)
+    assert (tmp_path / "a.inp").read_text() == (tmp_path / "b.inp").read_text()

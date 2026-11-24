@@ -27,6 +27,9 @@ Besides the OpenConex data, the `.ocnx` file can hold:
 - **Stiffeners** (Geometry › Stiffeners): in line with the web or three per
   flange for W shapes, radial for round tubes.
 
+The pedestal reinforcement is drawn inside the concrete (ties taking shear in
+orange), but it is not part of the FEM model: it enters only the checks.
+
 A file with these data opens only in OpenFEMConex.
 
 ## Mesh

@@ -82,6 +82,45 @@ def _lug(plotter, model: BasePlateModel) -> None:
         plotter.add_mesh(box.extract_feature_edges(), color="#5a1a12", line_width=1.5)
 
 
+def _rebar(plotter, model: BasePlateModel) -> None:
+    """Pedestal bars and ties, inside the (transparent) concrete block.
+
+    Ties that take shear as anchor reinforcement are drawn in orange, the others grey.
+    """
+    import pyvista as pv
+
+    r = model.rebar
+    if r is None:
+        return
+    c = model.concrete
+    bars = r.positions(c.N, c.B)
+    if not bars:
+        return
+    top = -(r.cover + r.tie_diameter + r.bar_diameter / 2)
+    bottom = -c.H
+    for x, y in bars:
+        line = pv.Line((x, y, bottom), (x, y, top))
+        plotter.add_mesh(line.tube(radius=r.bar_diameter / 2, n_sides=10), color="#55606b")
+        if r.hooked:
+            # standard hook towards the centre of the section
+            length = 12 * r.bar_diameter
+            dx, dy = -x, -y
+            norm = (dx * dx + dy * dy) ** 0.5 or 1.0
+            end = (x + dx / norm * length, y + dy / norm * length, top)
+            plotter.add_mesh(pv.Line((x, y, top), end).tube(radius=r.bar_diameter / 2,
+                                                            n_sides=10), color="#55606b")
+    inset = r.cover + r.tie_diameter / 2
+    a, b = c.N / 2 - inset, c.B / 2 - inset
+    z = -(r.cover + r.tie_diameter / 2)
+    k = 0
+    while z > bottom + r.cover:
+        loop = pv.MultipleLines([(-a, -b, z), (a, -b, z), (a, b, z), (-a, b, z), (-a, -b, z)])
+        color = "#e07a1f" if k < r.top_ties else "#8a949e"
+        plotter.add_mesh(loop.tube(radius=r.tie_diameter / 2, n_sides=8), color=color)
+        z -= r.tie_spacing
+        k += 1
+
+
 def _anchor_labels(plotter, model: BasePlateModel, results: Results, unit_force: float,
                    force_label: str) -> None:
     """Axial force (tension +) and shear of every anchor rod, next to it."""
@@ -123,6 +162,7 @@ def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
                              line_width=1.2)
     _rods(plotter, model)
     _lug(plotter, model)
+    _rebar(plotter, model)
     _finish(plotter, reset)
 
 
@@ -153,6 +193,7 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
         plotter.add_mesh(concrete.extract_surface(), color=COLORS[3], opacity=0.3)
         _rods(plotter, model)
         _lug(plotter, model)
+        _rebar(plotter, model)
     _anchor_labels(plotter, model, results, unit_force, force_label)
     _finish(plotter, reset)
     if name == "CPRESS":
