@@ -48,8 +48,10 @@ jobs:
         run: |
           mkdir -p ccxcheck && cd ccxcheck
           printf '*NODE\n1,0,0,0\n2,1,0,0\n*ELEMENT,TYPE=T3D2,ELSET=E\n1,1,2\n*MATERIAL,NAME=S\n*ELASTIC\n2.1e5,0.3\n*SOLID SECTION,ELSET=E,MATERIAL=S\n1.\n*BOUNDARY\n1,1,3\n2,2,3\n*STEP\n*STATIC\n*CLOAD\n2,1,10.\n*NODE PRINT,NSET=Nall\nU\n*END STEP\n' > t.inp
-          "$OPENFEMCONEX_CCX" -i t
-          grep -A3 displacements t.dat
+          find "$MAMBA_ROOT_PREFIX/envs/ccx" -iname '*arpack*' | head || true
+          "$MAMBA_ROOT_PREFIX/../micromamba-bin/micromamba" list -n ccx 2>/dev/null | grep -i -E "arpack|calculix|blas" || true
+          "$OPENFEMCONEX_CCX" -i t | tee ccx.log
+          grep -q "Job finished" ccx.log
       - name: Install
         run: python -m pip install ".[gui,dev,package]"
       - name: Tests
