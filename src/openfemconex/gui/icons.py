@@ -81,6 +81,21 @@ def _stiffener(p: QPainter) -> None:
     p.drawPolygon(_poly((24, 12), (24, 48), (52, 48), (52, 40)))
 
 
+def _rebar(p: QPainter) -> None:
+    p.setPen(_pen(QColor("#6b7075"), 3))
+    p.setBrush(CONCRETE)
+    p.drawRect(QRectF(10, 10, 44, 44))
+    p.setPen(_pen(ACCENT, 4))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRect(QRectF(17, 17, 30, 30))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(STEEL)
+    for x in (17, 32, 47):
+        for y in (17, 32, 47):
+            if (x, y) != (32, 32):
+                p.drawEllipse(QPointF(x, y), 4, 4)
+
+
 def _lug(p: QPainter) -> None:
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(CONCRETE)
@@ -238,7 +253,7 @@ def _info(p: QPainter) -> None:
 
 _PAINTERS: dict[str, Callable[[QPainter], None]] = {
     "column": _column, "plate": _plate, "anchor": _anchor, "concrete": _concrete,
-    "weld": _weld, "stiffener": _stiffener, "lug": _lug,
+    "weld": _weld, "stiffener": _stiffener, "lug": _lug, "rebar": _rebar,
     "load": _load, "combo": _combo, "mesh": _mesh, "play": _play,
     "stop": _stop, "results": _results, "check": _check, "table": _table, "report": _report,
     "help": _help, "info": _info, "new": _new, "open": _open, "save": _save,

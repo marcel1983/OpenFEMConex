@@ -72,7 +72,7 @@ levantamiento de cada uno.
 
 Además de los datos de OpenConex, el `.ocnx` puede llevar un bloque
 `"openfemconex"` con anclajes por coordenadas (Geometría › Anclajes), refuerzo
-del pedestal (Geometría › Concreto) y rigidizadores (Geometría ›
+del pedestal (Geometría › Refuerzo del pedestal) y rigidizadores (Geometría ›
 Rigidizadores). Un archivo con ese bloque solo se abre en OpenFEMConex. La
 llave de cortante usa el campo `shear_lug` de OpenConex.
 

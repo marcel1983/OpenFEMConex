@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
                                        PEDESTAL_FIELDS)
         self.stiffener_form = BlockForm(self.state, "stiffeners", "Rigidizadores",
                                         STIFFENER_FIELDS)
-        additions = {"Anclajes": self.anchor_table, "Concreto": self.pedestal_form}
+        additions = {"Anclajes": self.anchor_table}
         for name, fields in SECTIONS.items():
             self.forms[name] = FormPanel(self.state, name, fields)
             page = QWidget()
@@ -173,6 +173,23 @@ class MainWindow(QMainWindow):
         box.addStretch(1)
         scroll.setWidget(holder)
         self.pages["Llave de cortante"] = scroll
+        self.properties.addWidget(scroll)
+        note = QLabel(tr(
+            "Las barras longitudinales a menos de 0.5·hef de los anclajes en tracción y "
+            "desarrolladas sobre el cono trabajan como refuerzo de anclaje a tracción; los "
+            "estribos superiores, como refuerzo de anclaje a cortante (ACI 318-19 §17.5.2.1). "
+            "Si cumplen, reemplazan al arrancamiento del concreto. Requiere las dimensiones del "
+            "pedestal (Geometría › Concreto)."))
+        note.setWordWrap(True)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        holder = QWidget()
+        box = QVBoxLayout(holder)
+        box.addWidget(self.pedestal_form)
+        box.addWidget(note)
+        box.addStretch(1)
+        scroll.setWidget(holder)
+        self.pages["Refuerzo del pedestal"] = scroll
         self.properties.addWidget(scroll)
         self.analysis_panel = AnalysisPanel(self.state)
         self.properties.addWidget(self.analysis_panel)
@@ -256,7 +273,8 @@ class MainWindow(QMainWindow):
         g = tab("Componentes")
         for name, pic in (("Columna", "column"), ("Placa", "plate"), ("Anclajes", "anchor"),
                           ("Concreto", "concrete"), ("Soldadura", "weld"),
-                          ("Rigidizadores", "stiffener"), ("Llave de cortante", "lug")):
+                          ("Refuerzo del pedestal", "rebar"), ("Rigidizadores", "stiffener"),
+                          ("Llave de cortante", "lug")):
             g.add_button(name, icon(pic), lambda n=name: self.show_section(n))
         g = tab("Vista")
         g.add_button("Modelo", icon("view"), lambda: self.show_model(False))
@@ -420,6 +438,10 @@ class MainWindow(QMainWindow):
                                  d=bp.get("rod_diameter", "?"))),
             "Concreto": f"f'c = {bp.get('fc', '?')}",
             "Soldadura": str(bp.get("flange_weld", tr("filete mínimo"))),
+            "Refuerzo del pedestal": (
+                tr("{n} barras de {d}", n=st.ext("pedestal").get("bars", "?"),
+                   d=st.ext("pedestal").get("bar_diameter", "?"))
+                if st.ext("pedestal") else tr("ninguno")),
             "Rigidizadores": (tr(str(st.ext("stiffeners").get("layout")))
                               if st.ext("stiffeners") else tr("ninguno")),
             "Llave de cortante": (tr(str(bp["shear_lug"].get("direction", "strong")))

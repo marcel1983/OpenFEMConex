@@ -22,7 +22,7 @@ Además de los datos de OpenConex, el archivo `.ocnx` puede llevar:
 
 - **Anclajes por coordenadas** (Geometría › Anclajes): tabla x, y desde el
   centro de la placa. x va a lo largo del peralte de la columna.
-- **Refuerzo del pedestal** (Geometría › Concreto): barras, estribos y altura.
+- **Refuerzo del pedestal** (Geometría › Refuerzo del pedestal): barras, estribos y altura.
   Necesita las dimensiones del pedestal.
 - **Rigidizadores** (Geometría › Rigidizadores): en línea con el alma o tres
   por patín para perfiles W, y radiales para tubos circulares.

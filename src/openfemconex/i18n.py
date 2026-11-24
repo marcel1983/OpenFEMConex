@@ -200,6 +200,15 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    "{n} barras de {d}": "{n} bars of {d}",
+    "Las barras longitudinales a menos de 0.5·hef de los anclajes en tracción y desarrolladas "
+    "sobre el cono trabajan como refuerzo de anclaje a tracción; los estribos superiores, como "
+    "refuerzo de anclaje a cortante (ACI 318-19 §17.5.2.1). Si cumplen, reemplazan al "
+    "arrancamiento del concreto. Requiere las dimensiones del pedestal (Geometría › Concreto).":
+        "Longitudinal bars within 0.5·hef of the anchors in tension and developed above the "
+        "cone work as anchor reinforcement in tension; the top ties, as anchor reinforcement "
+        "in shear (ACI 318-19 §17.5.2.1). When they work they replace concrete breakout. It "
+        "needs the pedestal dimensions (Geometry › Concrete).",
     "{name}: no se resolvió porque la columna no resiste las cargas.":
         "{name}: not solved because the column cannot carry the loads.",
     "no se resolvió porque la columna no resiste las cargas.":

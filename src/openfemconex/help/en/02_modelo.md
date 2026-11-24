@@ -22,7 +22,7 @@ Besides the OpenConex data, the `.ocnx` file can hold:
 
 - **Anchors by coordinates** (Geometry › Anchors): an x, y table from the plate
   centre. x runs along the column depth.
-- **Pedestal reinforcement** (Geometry › Concrete): bars, ties and height. It
+- **Pedestal reinforcement** (Geometry › Pedestal reinforcement): bars, ties and height. It
   needs the pedestal dimensions.
 - **Stiffeners** (Geometry › Stiffeners): in line with the web or three per
   flange for W shapes, radial for round tubes.
