@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # PyInstaller spec, one-folder build:  pyinstaller packaging/openfemconex.spec
 #
 # A CalculiX executable is bundled when one is found: $OPENFEMCONEX_CCX or ccx on PATH.

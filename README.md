@@ -8,7 +8,7 @@ modelo, lo resuelve con [CalculiX](http://www.calculix.de/) y verifica cada
 componente según **AISC 360**, la **Guía de Diseño 1 del AISC** y el **ACI 318,
 capítulo 17**, con las fuerzas que da el modelo.
 
-Software libre bajo [GPL-3.0-or-later](LICENSE).
+Software libre bajo [AGPL-3.0-or-later](LICENSE).
 
 ![Verificación de una placa base](docs/img/gui_verificacion.png)
 
@@ -108,6 +108,8 @@ que lo firma, que debe verificar los resultados.
 
 ## Licencia
 
-[GPL-3.0-or-later](LICENSE). Usa CalculiX (GPL), Gmsh (GPL), OpenConex (GPL),
-Qt for Python (LGPL), VTK y PyVista (BSD/MIT). Las memorias y modelos que genere
-con OpenFEMConex son suyos.
+[AGPL-3.0-or-later](LICENSE). Usa CalculiX (GPL), Gmsh (GPL), OpenConex (GPL),
+Qt for Python (LGPL), VTK y PyVista (BSD/MIT); las licencias GPL-3.0 son
+compatibles con la AGPL-3.0 (sección 13). Si ofrece el programa modificado como
+servicio en red, debe dar acceso a su código fuente. Las memorias y modelos que
+genere con OpenFEMConex son suyos.

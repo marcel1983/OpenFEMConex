@@ -8,7 +8,7 @@ the model, solves it with [CalculiX](http://www.calculix.de/) and checks every
 component per **AISC 360**, **AISC Design Guide 1** and **ACI 318 Chapter 17**,
 with the forces from the model.
 
-Free software under [GPL-3.0-or-later](LICENSE).
+Free software under [AGPL-3.0-or-later](LICENSE).
 
 ![Checking a base plate](docs/img/gui_en_oscuro.png)
 
@@ -107,6 +107,8 @@ who must verify the results.
 
 ## License
 
-[GPL-3.0-or-later](LICENSE). Uses CalculiX (GPL), Gmsh (GPL), OpenConex (GPL),
-Qt for Python (LGPL), VTK and PyVista (BSD/MIT). The reports and models you
-create with OpenFEMConex are yours.
+[AGPL-3.0-or-later](LICENSE). Uses CalculiX (GPL), Gmsh (GPL), OpenConex (GPL),
+Qt for Python (LGPL), VTK and PyVista (BSD/MIT); GPL-3.0 works can be combined
+with AGPL-3.0 (section 13). If you offer a modified version as a network service,
+you must give its users the source code. The reports and models you create with
+OpenFEMConex are yours.

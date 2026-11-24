@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 The OpenFEMConex contributors
 """AISC Design Guide 1, 2nd ed., Example 4.7 (W12x96, large moment), solved by FEM."""
 

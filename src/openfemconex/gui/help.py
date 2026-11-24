@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 The OpenFEMConex contributors
 """Help window: the manual topics, shipped as Markdown inside the package."""
 
@@ -72,11 +72,11 @@ def about(parent: QWidget | None) -> None:
     text = {
         "es": "<h3>OpenFEMConex {v}</h3><p>Placas base de columna por elementos finitos "
               "(CalculiX) con verificaciones AISC 360 y ACI 318.</p><p>Software libre bajo "
-              "GPL-3.0-or-later. Usa CalculiX (GPL), Gmsh (GPL), OpenConex (GPL), Qt for "
+              "AGPL-3.0-or-later. Usa CalculiX (GPL), Gmsh (GPL), OpenConex (GPL), Qt for "
               "Python (LGPL), VTK y PyVista (BSD/MIT).</p><p>Herramienta de apoyo: la "
               "responsabilidad del diseño corresponde al profesional que lo firma.</p>",
         "en": "<h3>OpenFEMConex {v}</h3><p>Column base plates by finite elements (CalculiX) "
-              "with AISC 360 and ACI 318 checks.</p><p>Free software under GPL-3.0-or-later. "
+              "with AISC 360 and ACI 318 checks.</p><p>Free software under AGPL-3.0-or-later. "
               "Uses CalculiX (GPL), Gmsh (GPL), OpenConex (GPL), Qt for Python (LGPL), VTK "
               "and PyVista (BSD/MIT).</p><p>A support tool: the design is the responsibility "
               "of the engineer who signs it.</p>",

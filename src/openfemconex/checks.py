@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 The OpenFEMConex contributors
 """Code checks of the base plate with demands taken from the FEM solution.
 

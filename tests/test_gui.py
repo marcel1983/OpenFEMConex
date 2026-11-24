@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 The OpenFEMConex contributors
 """Interface tests without OpenGL: the 3D widget is replaced by a placeholder."""
 
