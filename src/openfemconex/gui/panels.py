@@ -379,3 +379,209 @@ class AnalysisPanel(QWidget):
 
 def unit_presets() -> list[str]:
     return list(PRESETS)
+
+
+@dataclass(frozen=True)
+class BlockField:
+    key: str
+    label: str
+    default: Any
+    kind: str = "text"
+    options: tuple[str, ...] = ()
+    tip: str = ""
+
+
+class BlockForm(QWidget):
+    """An optional block of the OpenFEMConex additions: a switch and its fields."""
+
+    def __init__(self, state: ProjectState, block: str, title: str,
+                 fields: list[BlockField]) -> None:
+        super().__init__()
+        self.state, self.block, self.fields = state, block, fields
+        self._loading = False
+        self.widgets: dict[str, QWidget] = {}
+        layout = QVBoxLayout(self)
+        self.enabled = QCheckBox(title)
+        self.enabled.setStyleSheet("font-weight: bold;")
+        self.enabled.toggled.connect(self._commit)
+        layout.addWidget(self.enabled)
+        form = QFormLayout()
+        layout.addLayout(form)
+        for f in fields:
+            w: QWidget
+            if f.kind == "choice":
+                w = QComboBox()
+                w.addItems(f.options)
+                w.textActivated.connect(self._commit)
+            elif f.kind == "int":
+                w = QSpinBox()
+                w.setRange(1, 99)
+                w.valueChanged.connect(self._commit)
+            elif f.kind == "bool":
+                w = QCheckBox()
+                w.toggled.connect(self._commit)
+            else:
+                w = QLineEdit()
+                w.editingFinished.connect(self._commit)
+            w.setToolTip(f.tip)
+            self.widgets[f.key] = w
+            form.addRow(f.label, w)
+        state.loaded.connect(self.refresh)
+        self.refresh()
+
+    def values(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for f in self.fields:
+            w = self.widgets[f.key]
+            if isinstance(w, QComboBox):
+                out[f.key] = w.currentText()
+            elif isinstance(w, QSpinBox):
+                out[f.key] = w.value()
+            elif isinstance(w, QCheckBox):
+                out[f.key] = w.isChecked()
+            elif w.text().strip():
+                out[f.key] = w.text().strip()
+        return out
+
+    def _commit(self, *_: object) -> None:
+        for w in self.widgets.values():
+            w.setEnabled(self.enabled.isChecked())
+        if not self._loading:
+            self.state.set_ext(self.block, self.values() if self.enabled.isChecked() else None)
+
+    def refresh(self) -> None:
+        self._loading = True
+        try:
+            data = self.state.ext(self.block)
+            self.enabled.setChecked(bool(data))
+            data = data or {}
+            for f in self.fields:
+                value = data.get(f.key, f.default)
+                w = self.widgets[f.key]
+                if isinstance(w, QComboBox):
+                    w.setCurrentIndex(max(0, w.findText(str(value))))
+                elif isinstance(w, QSpinBox):
+                    w.setValue(int(value))
+                elif isinstance(w, QCheckBox):
+                    w.setChecked(bool(value))
+                else:
+                    w.setText("" if value is None else str(value))
+                w.setEnabled(self.enabled.isChecked())
+        finally:
+            self._loading = False
+
+
+PEDESTAL_FIELDS = [
+    BlockField("bars", "Barras longitudinales", 8, "int",
+               tip="Se reparten por igual en el perímetro"),
+    BlockField("bar_diameter", "Diámetro de barra", "25 mm"),
+    BlockField("fy", "fy del refuerzo", "420 MPa"),
+    BlockField("cover", "Recubrimiento libre a estribos", "40 mm"),
+    BlockField("hooked", "Barras con gancho arriba", True, "bool"),
+    BlockField("tie_diameter", "Diámetro de estribo", "10 mm"),
+    BlockField("tie_spacing", "Separación de estribos", "150 mm"),
+    BlockField("tie_legs", "Ramas por estribo", 2, "int"),
+    BlockField("top_ties", "Estribos superiores que toman cortante", 2, "int",
+               tip="Estribos cerca del tope que encierran los anclajes"),
+    BlockField("height", "Altura del pedestal", "1 m",
+               tip="El cortante suma V·h al momento en la base del pedestal"),
+]
+
+STIFFENER_FIELDS = [
+    BlockField("layout", "Disposición", "alma", "choice", ("alma", "alma y bordes", "radial"),
+               tip="Perfiles W: en línea con el alma o tres por patín. Tubos: radial"),
+    BlockField("count", "Cantidad (radial)", 8, "int"),
+    BlockField("length", "Largo desde la cara de la columna", "120 mm"),
+    BlockField("height", "Alto junto a la columna", "250 mm"),
+    BlockField("end_height", "Alto en el extremo libre", "25 mm"),
+    BlockField("thickness", "Espesor", "12 mm"),
+    BlockField("grade", "Acero", "ASTM A36", "choice", tuple(STEELS)),
+    BlockField("weld", "Tamaño del filete", "", tip="Vacío: mínimo de la Tabla J2.4"),
+]
+
+
+class AnchorTable(QWidget):
+    """Anchor rods at free coordinates, from the plate centre."""
+
+    def __init__(self, state: ProjectState) -> None:
+        super().__init__()
+        self.state = state
+        self._loading = False
+        layout = QVBoxLayout(self)
+        self.enabled = QCheckBox("Posiciones por coordenadas")
+        self.enabled.setStyleSheet("font-weight: bold;")
+        self.enabled.setToolTip("x a lo largo del peralte de la columna, y a lo largo del "
+                                "patín, desde el centro de la placa")
+        self.enabled.toggled.connect(self._toggled)
+        layout.addWidget(self.enabled)
+        self.table = QTableWidget(0, 2)
+        self.table.setHorizontalHeaderLabels(["x", "y"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.itemChanged.connect(self._commit)
+        layout.addWidget(self.table)
+        row = QHBoxLayout()
+        self.add_button, self.remove_button = QPushButton("Agregar"), QPushButton("Quitar")
+        self.add_button.clicked.connect(self._add)
+        self.remove_button.clicked.connect(self._remove)
+        row.addWidget(self.add_button)
+        row.addWidget(self.remove_button)
+        row.addStretch(1)
+        layout.addLayout(row)
+        state.loaded.connect(self.refresh)
+        self.refresh()
+
+    def _fill(self, rows: list[list[str]]) -> None:
+        self._loading = True
+        try:
+            self.table.setRowCount(len(rows))
+            for r, (x, y) in enumerate(rows):
+                self.table.setItem(r, 0, QTableWidgetItem(str(x)))
+                self.table.setItem(r, 1, QTableWidgetItem(str(y)))
+        finally:
+            self._loading = False
+
+    def rows(self) -> list[list[str]]:
+        out = []
+        for r in range(self.table.rowCount()):
+            cells = [self.table.item(r, c) for c in (0, 1)]
+            out.append([c.text().strip() if c else "0" for c in cells])
+        return out
+
+    def refresh(self) -> None:
+        data = self.state.ext("anchors")
+        self._loading = True
+        self.enabled.setChecked(bool(data))
+        self._loading = False
+        self._fill(data or [])
+        self._enable()
+
+    def _enable(self) -> None:
+        for w in (self.table, self.add_button, self.remove_button):
+            w.setEnabled(self.enabled.isChecked())
+
+    def _toggled(self, on: bool) -> None:
+        self._enable()
+        if self._loading:
+            return
+        if on and not self.table.rowCount() and self.state.model is not None:
+            # start from the current pattern so that points are only moved or added
+            self._fill([[f"{a.x:.1f} mm", f"{a.y:.1f} mm"] for a in self.state.model.anchors])
+        self._commit()
+
+    def _commit(self, *_: object) -> None:
+        if not self._loading:
+            self.state.set_ext("anchors", self.rows() if self.enabled.isChecked() else None)
+
+    def _add(self) -> None:
+        rows = self.rows()
+        rows.append(["0 mm", "0 mm"])
+        self._fill(rows)
+        self._commit()
+
+    def _remove(self) -> None:
+        row = self.table.currentRow()
+        rows = self.rows()
+        if 0 <= row < len(rows) and len(rows) > 2:
+            del rows[row]
+            self._fill(rows)
+            self._commit()

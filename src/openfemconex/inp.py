@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
+import numpy as np
+
 from openfemconex.mesh import FACE_BOTTOM, FACE_TOP, Mesh
 from openfemconex.model import BasePlateModel, Loads
 
@@ -62,6 +64,11 @@ class InpNumbering:
     spring_axial: tuple[int, ...]
     steps: int = 1
     """With two steps the first one applies only the axial compression."""
+    anchor_base: tuple[int, ...] = ()
+    """Nodes that follow the plate bottom under each washer (lateral springs)."""
+    anchor_concrete: tuple[int, ...] = ()
+    """Concrete surface node next to each rod, the other end of the lateral springs."""
+    lateral_stiffness: float = 0.0
 
 
 def _write_rows(f: TextIO, rows, per_line: int = 8) -> None:
@@ -92,11 +99,19 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
     load_ref, load_rot = nn + 1, nn + 2
     anchor_ref = tuple(nn + 3 + i for i in range(na))
     anchor_ground = tuple(nn + 3 + na + i for i in range(na))
+    anchor_base = tuple(nn + 3 + 2 * na + i for i in range(na))
     ne = mesh.element_count
     spring_axial = tuple(ne + 1 + i for i in range(na))
     spring_x = tuple(ne + 1 + na + i for i in range(na))
     spring_y = tuple(ne + 1 + 2 * na + i for i in range(na))
     ks = anchor_stiffness(model)
+    conc = np.unique(mesh.parts["CONCRETE"])
+    surface = conc[np.abs(mesh.nodes[conc - 1, 2]) < 1e-6]
+    sxy = mesh.nodes[surface - 1, :2]
+    anchor_concrete = tuple(
+        int(surface[np.argmin(np.hypot(sxy[:, 0] - a.x, sxy[:, 1] - a.y))])
+        for a in model.anchors)
+    k_lat = ks.lateral if model.anchor.welded_washers else 1e-3 * ks.lateral
     c = model.concrete
     top_z = model.tp + model.Lc
 
@@ -115,6 +130,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         f.write("*NODE, NSET=ANCHORREF\n")
         for nid, a in zip(anchor_ref, model.anchors):
             f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {model.tp:.6f}\n")
+        f.write("*NODE, NSET=ANCHORBASE\n")
+        for nid, a in zip(anchor_base, model.anchors):
+            f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, 0.\n")
         f.write("*NODE, NSET=ANCHORGND\n")
         for nid, a in zip(anchor_ground, model.anchors):
             # Coincident with the washer node: springs between separated nodes that act
@@ -131,6 +149,7 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         _nset(f, "COLTOP", mesh.column_top_nodes)
         _nset(f, "CONCBOT", mesh.concrete_bottom_nodes)
         _nset(f, "FOOTPRINT", mesh.footprint_nodes)
+        _nset(f, "ANCHORCONC", sorted(set(anchor_concrete)))
 
         # ---- materials and sections ----
         cs, ps = model.column_steel, model.plate_steel
@@ -155,14 +174,23 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         f.write(f"{K:.6e}, {model.contact.tension:.6e}\n")
         # Friction only matters when there is shear to transfer; without it the contact
         # is frictionless, which keeps the system symmetric and converges faster.
-        if model.contact.mu > 0 and (loads.Vx or loads.Vy):
+        # With welded plate washers the rods are designed for the whole shear (DG1 does
+        # not add friction to rod bearing), so the contact is left frictionless.
+        if model.contact.mu > 0 and (loads.Vx or loads.Vy) and not model.anchor.welded_washers:
             f.write(f"*FRICTION\n{model.contact.mu:.4e}, {K / 10:.6e}\n")
 
         # ---- anchors ----
         # The washer reference node follows the area-weighted mean translation of the
         # plate nodes under the washer, so the rod force is spread over the washer area.
         f.write("*EQUATION\n")
-        for ref, wn, ww in zip(anchor_ref, mesh.washer_nodes, mesh.washer_weights):
+        # A second node per rod follows the plate bottom under the washer: the lateral
+        # springs act there, so they resist the slip of the plate on the grout and not
+        # the sway of its top face when the plate tilts.
+        down = mesh.plate_node_count - mesh.plate_node_count // (mesh.settings.plate_layers + 1)
+        tied = list(zip(anchor_ref, mesh.washer_nodes, mesh.washer_weights)) + [
+            (base, wn - down, ww)
+            for base, wn, ww in zip(anchor_base, mesh.washer_nodes, mesh.washer_weights)]
+        for ref, wn, ww in tied:
             for dof in (1, 2, 3):
                 terms = [(ref, dof, -1.0)] + [(int(n), dof, float(w)) for n, w in zip(wn, ww)]
                 f.write(f"{len(terms)}\n")
@@ -172,7 +200,11 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             f.write(f"*ELEMENT, TYPE=SPRING2, ELSET={name}\n")
             # Node order (plate, ground): with it ccx 2.21 evaluates the tabulated law
             # with a positive elongation when the plate lifts.
-            for eid, g, r in zip(ids, anchor_ground, anchor_ref):
+            # The lateral springs join the plate bottom to the concrete surface next to
+            # the rod, so they follow the block when it deforms.
+            pairs = (zip(anchor_ground, anchor_ref) if name == "RODAX"
+                     else zip(anchor_concrete, anchor_base))
+            for eid, (g, r) in zip(ids, pairs):
                 f.write(f"{eid}, {r}, {g}\n")
         X = 1000.0  # mm, range of the tabulated law
         f.write("*SPRING, ELSET=RODAX, NONLINEAR\n3, 3\n")
@@ -180,7 +212,6 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         # Rods in oversized holes do not take shear (DG1): friction does. The lateral
         # springs are then only a weak restraint against rigid-body sliding. With plate
         # washers welded to the plate the rods are engaged with their bending stiffness.
-        k_lat = ks.lateral if model.anchor.welded_washers else 1e-3 * ks.lateral
         f.write(f"*SPRING, ELSET=RODX\n1, 1\n{k_lat:.6e}\n")
         f.write(f"*SPRING, ELSET=RODY\n2, 2\n{k_lat:.6e}\n")
 
@@ -211,10 +242,12 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                 f.write(f"{node}, {dof}, {value:.8e}\n")
             f.write("*NODE FILE, FREQUENCY=100000\nU\n*EL FILE, FREQUENCY=100000\nS, PEEQ\n"
                     "*CONTACT FILE, FREQUENCY=100000\nCSTR\n")
-            for nset, key in (("ANCHORGND", "RF"), ("ANCHORREF", "U"), ("CONCBOT", "RF"),
+            for nset, key in (("ANCHORGND", "RF"), ("ANCHORREF", "U"), ("ANCHORBASE", "U"),
+                              ("ANCHORCONC", "U"), ("CONCBOT", "RF"),
                               ("LOADNODES", "U")):
                 f.write(f"*NODE PRINT, NSET={nset}, FREQUENCY=100000\n{key}\n")
             f.write("*END STEP\n")
 
     return InpNumbering(load_ref, load_rot, anchor_ref, anchor_ground, spring_axial,
-                        steps=len(steps))
+                        steps=len(steps), anchor_base=anchor_base,
+                        anchor_concrete=anchor_concrete, lateral_stiffness=k_lat)

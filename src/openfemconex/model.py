@@ -40,6 +40,23 @@ class Section:
     t: float = 0.0
     name: str = ""
 
+    def distance(self, x: float, y: float) -> float:
+        """Distance from a point (relative to the column axis) to the steel of the section."""
+        def to_box(x0: float, y0: float, x1: float, y1: float) -> float:
+            return math.hypot(max(x0 - x, 0.0, x - x1), max(y0 - y, 0.0, y - y1))
+
+        d2, b2 = self.d / 2, self.bf / 2
+        if self.kind is SectionKind.I:
+            return min(to_box(-d2, -b2, -d2 + self.tf, b2), to_box(d2 - self.tf, -b2, d2, b2),
+                       to_box(-d2, -self.tw / 2, d2, self.tw / 2))
+        if self.kind is SectionKind.HSS_ROUND:
+            r = math.hypot(x, y)
+            return max(r - d2, d2 - self.t - r, 0.0)
+        outside = to_box(-d2, -b2, d2, b2)
+        if outside > 0:
+            return outside
+        return max(min(d2 - self.t - abs(x), b2 - self.t - abs(y)), 0.0)
+
     @property
     def min_wall(self) -> float:
         return min(self.tf, self.tw) if self.kind is SectionKind.I else self.t
@@ -192,6 +209,13 @@ class BasePlateModel:
         for a in self.anchors:
             if abs(a.x) + r > self.N / 2 or abs(a.y) + r > self.B / 2:
                 raise ValueError(f"washer of anchor at ({a.x:.1f}, {a.y:.1f}) leaves the plate")
+            if self.section.distance(a.x - self.ex, a.y - self.ey) < r:
+                raise ValueError(f"washer of anchor at ({a.x:.1f}, {a.y:.1f}) overlaps the column")
+        for i, a in enumerate(self.anchors):
+            for b in self.anchors[i + 1:]:
+                if math.hypot(a.x - b.x, a.y - b.y) < 2 * r:
+                    raise ValueError(f"washers of the anchors at ({a.x:.1f}, {a.y:.1f}) and "
+                                     f"({b.x:.1f}, {b.y:.1f}) overlap")
         if self.concrete.N < self.N or self.concrete.B < self.B:
             raise ValueError("the concrete block must be at least the plate size")
         if self.anchor.hole >= self.anchor.washer:

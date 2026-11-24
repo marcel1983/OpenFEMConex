@@ -13,6 +13,7 @@ from typing import Any
 from openconex.io.project import FORMAT_VERSION, Project
 from PySide6.QtCore import QObject, Signal
 
+from openfemconex.extras import KEY, Extras, parse_extras, split_data
 from openfemconex.mesh import Mesh
 from openfemconex.model import BasePlateModel
 from openfemconex.report import ComboReport
@@ -52,6 +53,7 @@ class ProjectState(QObject):
         self.dirty = False
         self.data: dict[str, Any] = {}
         self.project: Project | None = None
+        self.extras = Extras()
         self.model: BasePlateModel | None = None
         self.error = ""
         self.mesh: Mesh | None = None
@@ -106,6 +108,25 @@ class ProjectState(QObject):
             block[key] = value
         self._touch()
 
+    def ext(self, block: str) -> Any:
+        """One block of the OpenFEMConex additions (``anchors``, ``pedestal``, ``stiffeners``)."""
+        return self.data.get(KEY, {}).get(block)
+
+    def set_ext(self, block: str, value: Any) -> None:
+        """Replace a block of the additions; None removes it."""
+        ext = self.data.setdefault(KEY, {})
+        if value is None:
+            if block not in ext:
+                return
+            del ext[block]
+        elif ext.get(block) == value:
+            return
+        else:
+            ext[block] = copy.deepcopy(value)
+        if not ext:
+            del self.data[KEY]
+        self._touch()
+
     def set_cases(self, cases: list[dict[str, Any]]) -> None:
         if cases != self.data.get("cases"):
             self.data["cases"] = cases
@@ -138,7 +159,9 @@ class ProjectState(QObject):
 
     def _validate(self) -> None:
         try:
-            self.project = Project.model_validate(self.data)
+            base, ext = split_data(self.data)
+            self.project = Project.model_validate(base)
+            self.extras = parse_extras(self.project, ext)
             self.model = self.study().model()
             self.project.load_combinations()
             self.error = ""
@@ -151,7 +174,7 @@ class ProjectState(QObject):
     def study(self) -> Study:
         if self.project is None:
             raise ValueError(self.error or "proyecto no válido")
-        return Study(self.project, self.settings)
+        return Study(self.project, self.settings, self.extras)
 
     @property
     def valid(self) -> bool:

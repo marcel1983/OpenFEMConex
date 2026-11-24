@@ -88,13 +88,15 @@ def main(argv: list[str] | None = None) -> int:
     from openconex.units import Kind
 
     from openfemconex.checks import EDITIONS, check_fem
+    from openfemconex.extras import load_extended
     from openfemconex.mesh import build_mesh
-    from openfemconex.openconex_bridge import dg1_bending, model_from_project, project_loads
+    from openfemconex.openconex_bridge import dg1_bending, model_of, project_loads
     from openfemconex.report import ComboReport, check_title, write_report
     from openfemconex.solve import solve
 
-    project, model = model_from_project(args.project, leveling_nuts=args.leveling_nuts,
-                                        mu=args.mu)
+    project, extras = load_extended(args.project)
+    model = model_of(project, leveling_nuts=args.leveling_nuts, mu=args.mu, extras=extras)
+    free = bool(extras.anchors)
     combos = project_loads(project)
     us = project.info.units == "US"
     if args.list:
@@ -127,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         print(_report(res, us))
         reference = {}
-        if not (loads.Mx or loads.Vx or loads.Vy):
+        if not (free or loads.Mx or loads.Vx or loads.Vy):
             ref = dg1_bending(bp, loads, combo.method)
             if ref.case != "not_possible":
                 reference = {"T": ref.T, "Y": ref.Y, "fp": ref.fp_max}
@@ -135,13 +137,14 @@ def main(argv: list[str] | None = None) -> int:
                       f"T = {ref.T * f:.1f} {fu}, Y = {ref.Y * d:.2f} {du}, "
                       f"fp = {ref.fp_max * s:.2f} {su}")
         checks = check_fem(bp, res, edition, combo.method, weld_size=args.weld,
-                           strain_limit=args.strain_limit)
+                           strain_limit=args.strain_limit, extras=extras)
         print(f"  Verificaciones ({edition.aisc}, {edition.aci}):")
         for r in checks:
-            print(f"    {'OK ' if r.status.value != 'ng' else 'NO '} {r.ratio:5.2f}  "
+            mark = {"ok": "OK ", "ng": "NO "}.get(r.status.value, "-- ")
+            print(f"    {mark} {r.ratio:5.2f}  "
                   f"{check_title(r)}  [{r.clause}]")
         analytical = []
-        if edition.key == "current":
+        if edition.key == "current" and not free:
             try:
                 analytical = check_base_plate(bp, combine(combo, cases), combo.method,
                                               combo.name)

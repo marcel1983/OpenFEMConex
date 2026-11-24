@@ -175,7 +175,7 @@ class Results:
     """Compression resultant on the concrete, from the reactions of the block [N]."""
     bearing_centroid: tuple[float, float]
     friction: tuple[float, float]
-    """Shear (x, y) transferred to the concrete through the contact [N]."""
+    """Shear (x, y) the plate transfers to the concrete by friction [N]."""
     bearing_pressure_max: float
     bearing_pressure_mean: float
     """Compression resultant divided by the area in contact [MPa]."""
@@ -211,11 +211,21 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
 
     rf = dat["forces/ANCHORGND"]
     u = dat["displacements/ANCHORREF"]
+    ub = dat.get("displacements/ANCHORBASE", {})
+    uc = dat.get("displacements/ANCHORCONC", {})
+    k_lat = numbering.lateral_stiffness
     anchors = []
-    for a, g, r in zip(model.anchors, numbering.anchor_ground, numbering.anchor_ref):
-        fx, fy, fz = rf[g]
+    for i, (a, g, r) in enumerate(zip(model.anchors, numbering.anchor_ground,
+                                      numbering.anchor_ref)):
         # The reaction at the fixed end is opposite to the force the rod applies to it.
-        anchors.append(AnchorForce(a.x, a.y, tension=-fz, Vx=fx, Vy=fy, uplift=float(u[r][2])))
+        tension = -rf[g][2]
+        vx = vy = 0.0
+        if numbering.anchor_base:
+            # shear on the plate: the lateral spring resists its slip over the concrete
+            slip = ub[numbering.anchor_base[i]] - uc[numbering.anchor_concrete[i]]
+            vx, vy = -k_lat * float(slip[0]), -k_lat * float(slip[1])
+        anchors.append(AnchorForce(a.x, a.y, tension=tension, Vx=vx, Vy=vy,
+                                   uplift=float(u[r][2])))
     T = sum(a.tension for a in anchors)
     # Compression on the concrete and its line of action, from the reactions at the
     # fixed base of the block taken to the contact plane (z = 0).
@@ -272,15 +282,17 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     My = loads.My * fractions[1]
     scale = max(abs(P), abs(C), 1.0)
     # Moment about y at the plate base: compression at +x gives a positive moment.
-    # The rod shears act on the plate at the washers (z = tp).
-    M_fem = (centroid[0] * C - sum(a.x * a.tension for a in anchors)
-             - model.tp * sum(a.Vx for a in anchors))
+    # The rod shears act at the contact plane, so they add no moment about it.
+    M_fem = centroid[0] * C - sum(a.x * a.tension for a in anchors)
     m_scale = max(abs(My), abs(M_fem), 1.0)
     return Results(
         load=loads.name, converged=converged, load_fraction=fractions[1],
         applied={"P": loads.P, "Vx": loads.Vx, "Vy": loads.Vy, "Mx": loads.Mx, "My": loads.My},
         anchors=anchors, anchor_tension_total=float(T),
-        bearing_force=C, friction=(float(-brf[:, 0].sum()), float(-brf[:, 1].sum())),
+        bearing_force=C,
+        # shear through the contact: what reaches the block minus what the rods bring
+        friction=(float(-brf[:, 0].sum() + sum(a.Vx for a in anchors)),
+                  float(-brf[:, 1].sum() + sum(a.Vy for a in anchors))),
         bearing_centroid=(float(centroid[0]), float(centroid[1])),
         bearing_pressure_max=float(p.max(initial=0.0)),
         bearing_pressure_mean=C / A if A else 0.0, bearing_area=A, bearing_length_x=Y,

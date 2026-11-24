@@ -34,6 +34,14 @@ TITLES = {
     "anchor.pryout": "Concreto: desprendimiento por palanca (pryout)",
     "anchor.interaction": "Anclaje: interacción tracción y cortante",
     "base_plate.friction": "Cortante por fricción",
+    "anchor.reinforcement": "Refuerzo de anclaje a tracción (barras del pedestal)",
+    "anchor.reinforcement_development": "Refuerzo de anclaje: desarrollo sobre el cono",
+    "anchor.reinforcement_shear": "Refuerzo de anclaje a cortante (estribos superiores)",
+    "pedestal.flexure_axial": "Pedestal: flexocompresión de la sección",
+    "pedestal.min_reinforcement": "Pedestal: cuantía mínima longitudinal",
+    "fem.stiffener_plastic_strain": "Rigidizadores: deformación plástica equivalente",
+    "fem.stiffener_weld": "Rigidizadores: soldadura (punto más solicitado)",
+    "fem.stiffener_slenderness": "Rigidizadores: esbeltez del borde libre",
 }
 
 
@@ -68,7 +76,7 @@ details{margin:.3em 0 .8em}summary{cursor:pointer}small,.note{color:#555;font-si
 
 def _status(result: CheckResult) -> str:
     cls = {"ok": "ok", "ng": "ng"}.get(result.status.value, "na")
-    text = {"ok": "Cumple", "ng": "No cumple"}.get(result.status.value, "No aplica")
+    text = {"ok": "Cumple", "ng": "No cumple"}.get(result.status.value, "No rige")
     return f'<span class="{cls}">{text}</span>'
 
 
@@ -82,6 +90,7 @@ def _table(headers: list[str], rows: list[list[str]], numeric: set[int] = frozen
 
 def _checks_table(checks: list[CheckResult], units: UnitSystem) -> str:
     rows = [[escape(check_title(r)), fmt(r.demand, r.kind, units), fmt(r.capacity, r.kind, units),
+             "—" if not r.applicable else
              f"{r.ratio:.2f}" + (f" (límite {r.ratio_limit:g})" if r.ratio_limit != 1 else ""),
              _status(r), escape(r.clause)] for r in checks]
     return _table(["Verificación", "Demanda", "Capacidad", "Ratio", "Estado", "Referencia"], rows,

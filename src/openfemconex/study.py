@@ -18,6 +18,7 @@ from openconex.report.builder import fmt
 from openconex.units import Kind
 
 from openfemconex.checks import EDITIONS, Edition, check_fem
+from openfemconex.extras import Extras
 from openfemconex.mesh import Mesh, build_mesh
 from openfemconex.model import BasePlateModel, Loads, MeshSettings
 from openfemconex.openconex_bridge import dg1_bending, model_of, project_loads
@@ -45,6 +46,7 @@ class Settings:
 class Study:
     project: Project
     settings: Settings = field(default_factory=Settings)
+    extras: Extras = field(default_factory=Extras)
 
     @property
     def edition(self) -> Edition:
@@ -52,8 +54,11 @@ class Study:
 
     def model(self) -> BasePlateModel:
         model = model_of(self.project, leveling_nuts=self.settings.leveling_nuts,
-                         mu=self.settings.mu)
+                         mu=self.settings.mu, extras=self.extras)
         model.validate()
+        bp = self.project.base_plate
+        if self.extras.pedestal and not (bp.pedestal_N and bp.pedestal_B):
+            raise ValueError("defina las dimensiones del pedestal para usar su refuerzo")
         return model
 
     def mesh(self, model: BasePlateModel | None = None) -> Mesh:
@@ -74,14 +79,15 @@ class Study:
                     cancel=cancel)
         bp = self.project.base_plate_model()
         reference: dict[str, float] = {}
-        if not (loads.Mx or loads.Vx or loads.Vy):
+        free = bool(self.extras.anchors)
+        if not (free or loads.Mx or loads.Vx or loads.Vy):
             ref = dg1_bending(bp, loads, combo.method)
             if ref.case != "not_possible":
                 reference = {"T": ref.T, "Y": ref.Y, "fp": ref.fp_max}
         checks = check_fem(bp, res, self.edition, combo.method, weld_size=st.weld_size,
-                           strain_limit=st.strain_limit)
+                           strain_limit=st.strain_limit, extras=self.extras)
         analytical = []
-        if self.edition.key == "current":
+        if self.edition.key == "current" and not free:
             try:
                 analytical = check_base_plate(bp, combine(combo, self.project.case_forces()),
                                               combo.method, combo.name)
@@ -102,6 +108,21 @@ class Study:
                          + ("fisurado" if bp.cracked else "no fisurado")),
             ("Fricción", f"μ = {model.contact.mu:g}"),
         ]
+        if self.extras.anchors:
+            rows[2] = ("Anclajes", f"{len(self.extras.anchors)} de "
+                                   f"{fmt(bp.rod.diameter, Kind.LENGTH, u)} ({bp.rod.grade}) en "
+                                   f"posiciones libres, hef = {fmt(bp.hef, Kind.LENGTH, u)}")
+        r = self.extras.pedestal
+        if r is not None and bp.pedestal_N and bp.pedestal_B:
+            rows.append(("Pedestal", f"{fmt(bp.pedestal_N, Kind.LENGTH, u)} × "
+                                     f"{fmt(bp.pedestal_B, Kind.LENGTH, u)}, {r.bars} barras de "
+                                     f"{r.bar_diameter:.1f} mm, estribos de "
+                                     f"{r.tie_diameter:.1f} mm cada {r.tie_spacing:.0f} mm, "
+                                     f"fy = {fmt(r.fy, Kind.STRESS, u)}"))
+        s = self.extras.stiffeners
+        if s is not None:
+            rows.append(("Rigidizadores", f"{s.layout}: {s.length:.0f} × {s.height:.0f} × "
+                                          f"{s.thickness:.1f} mm ({s.grade})"))
         if mesh is not None:
             rows.append(("Malla", f"{len(mesh.nodes)} nodos, {mesh.element_count} hexaedros "
                                   "C3D8I"))

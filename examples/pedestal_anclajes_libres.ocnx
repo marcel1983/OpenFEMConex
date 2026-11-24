@@ -1,0 +1,49 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Pedestal reforzado con anclajes por coordenadas",
+    "number": "OFC-0002",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-23",
+    "language": "es",
+    "units": "SI_kN_m"
+  },
+  "base_plate": {
+    "column": "W12X96",
+    "N": "600 mm",
+    "B": "560 mm",
+    "tp": "50 mm",
+    "plate_grade": "ASTM A36",
+    "fc": "28 MPa",
+    "A2_over_A1": 1.4,
+    "pedestal_N": "750 mm",
+    "pedestal_B": "700 mm",
+    "grout": "40 mm",
+    "rod_diameter": "1.25 in",
+    "rod_grade": "ASTM F1554 Gr. 55",
+    "rods_per_side": 2,
+    "f": "240 mm",
+    "rod_spacing": "400 mm",
+    "hef": "500 mm",
+    "washer_thickness": "12 mm",
+    "cracked": true
+  },
+  "cases": [
+    {"name": "D", "type": "D", "P": "450 kN", "M": "110 kN*m", "V": "40 kN"},
+    {"name": "L", "type": "L", "P": "700 kN", "M": "170 kN*m", "V": "60 kN"}
+  ],
+  "combinations": {"methods": ["LRFD"]},
+  "openfemconex": {
+    "anchors": [
+      ["-240 mm", "-200 mm"], ["-240 mm", "0 mm"], ["-240 mm", "200 mm"],
+      ["240 mm", "-200 mm"], ["240 mm", "0 mm"], ["240 mm", "200 mm"]
+    ],
+    "pedestal": {
+      "bars": 12, "bar_diameter": "25 mm", "fy": "420 MPa", "cover": "40 mm",
+      "hooked": true, "tie_diameter": "10 mm", "tie_spacing": "100 mm", "tie_legs": 2,
+      "top_ties": 3, "height": "1.2 m"
+    }
+  }
+}

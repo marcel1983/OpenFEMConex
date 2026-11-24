@@ -16,9 +16,10 @@ from openconex.connections.base_plate.plate import BendingResult, rectangular_be
 from openconex.core.bolting import base_plate_hole
 from openconex.core.loads import Forces, LoadCombination, Method, combine
 from openconex.core.model import HSSKind, HSSShape, IShape
-from openconex.io.project import Project, load_project
+from openconex.io.project import Project
 from openconex.units import Kind, from_internal, to_internal
 
+from openfemconex.extras import Extras, load_extended
 from openfemconex.model import (
     Anchor,
     AnchorSpec,
@@ -33,10 +34,10 @@ from openfemconex.model import (
 
 __all__ = ["dg1_bending", "loads_from_forces", "model_from_base_plate", "model_from_project",
            "model_of",
-           "project_loads"]
+           "project_loads", "section_of"]
 
 
-def _section(column: IShape | HSSShape) -> Section:
+def section_of(column: IShape | HSSShape) -> Section:
     if isinstance(column, IShape):
         return Section(SectionKind.I, d=column.d, bf=column.bf, tf=column.tf, tw=column.tw,
                        name=column.name)
@@ -66,7 +67,7 @@ def _hole_and_washer(diameter: float) -> tuple[float, float]:
 
 def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
                           leveling_nuts: bool = False, grout: float = 0.0,
-                          title: str = "") -> BasePlateModel:
+                          title: str = "", extras: Extras | None = None) -> BasePlateModel:
     col = bp.column
     plate = bp.materials[bp.plate_grade]
     hole, washer = _hole_and_washer(bp.rod.diameter)
@@ -81,12 +82,13 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
     anchor = AnchorSpec(diameter=bp.rod.diameter, hole=hole, washer=washer, hef=hef,
                         Fu=bp.rod.material.Fu, leveling_nuts=leveling_nuts,
                         welded_washers=bp.washer_thickness is not None)
+    positions = extras.anchors if extras and extras.anchors else _rod_positions(bp)
     return BasePlateModel(
-        section=_section(col),
+        section=section_of(col),
         column_steel=Steel(col.material.Fy, col.material.Fu, name=col.grade),
         N=bp.N, B=bp.B, tp=bp.tp,
         plate_steel=Steel(plate.Fy, plate.Fu, name=bp.plate_grade),
-        anchors=tuple(Anchor(x, y) for x, y in _rod_positions(bp)),
+        anchors=tuple(Anchor(x, y) for x, y in positions),
         anchor=anchor, concrete=concrete,
         contact=ContactSettings(mu=mu if mu is not None else (0.55 if bp.grout_pad else 0.7)),
         title=title)
@@ -111,8 +113,9 @@ def model_of(project: Project, **kwargs) -> BasePlateModel:
 
 
 def model_from_project(path: str | Path, **kwargs) -> tuple[Project, BasePlateModel]:
-    project = load_project(path)
-    return project, model_of(project, **kwargs)
+    """Project and FEM model of a file, with the OpenFEMConex additions applied."""
+    project, extras = load_extended(path)
+    return project, model_of(project, extras=extras, **kwargs)
 
 
 def dg1_bending(bp: BasePlate, loads: Loads, method: Method = Method.LRFD) -> BendingResult:

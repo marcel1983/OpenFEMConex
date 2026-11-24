@@ -33,6 +33,9 @@ from openconex.kernel.anchors import (
 from openconex.kernel.design import Calc, Resistance
 from openconex.units import Kind, from_internal, to_internal
 
+from openfemconex import pedestal as ped
+from openfemconex.extras import Extras
+from openfemconex.openconex_bridge import section_of
 from openfemconex.results import Results
 
 __all__ = [
@@ -77,10 +80,12 @@ class Edition:
 _CLAUSES = {
     "current": {"steel_t": "§17.6.1.2", "breakout_t": "§17.6.2", "pullout": "§17.6.3",
                 "blowout": "§17.6.4", "steel_v": "§17.7.1", "breakout_v": "§17.7.2",
-                "pryout": "§17.7.3", "interaction": "§17.8"},
+                "pryout": "§17.7.3", "interaction": "§17.8", "reinf_t": "§17.5.2.1(a)",
+                "reinf_v": "§17.5.2.1(b)", "col_min": "§10.6.1.1", "col_pm": "§22.4"},
     "dg1-2ed": {"steel_t": "D.5.1", "breakout_t": "D.5.2", "pullout": "D.5.3",
                 "blowout": "D.5.4", "steel_v": "D.6.1", "breakout_v": "D.6.2",
-                "pryout": "D.6.3", "interaction": "D.7"},
+                "pryout": "D.6.3", "interaction": "D.7", "reinf_t": "D.5.2.9",
+                "reinf_v": "D.6.2.9", "col_min": "§10.9.1", "col_pm": "§10.3"},
 }
 
 CURRENT = Edition("current", "AISC 360-22", "ACI 318-19", "§17", anchor_steel_aisc=False,
@@ -393,20 +398,46 @@ def _edges(bp: BasePlate, group: list, model_anchors: list) -> Edges:
                  bottom=bp.pedestal_N / 2 + min(xs), top=bp.pedestal_N / 2 - max(xs))
 
 
+def _not_governing(result: CheckResult) -> CheckResult:
+    return result.model_copy(update={"applicable": False})
+
+
+def _replace_breakout(out: list[CheckResult], breakout_id: str,
+                      reinforcement: list[CheckResult]) -> None:
+    """Anchor reinforcement and concrete breakout are alternatives: one has to work.
+
+    The one that does not govern is kept in the list, marked as not applicable.
+    """
+    breakout = next((r for r in out if r.id == breakout_id), None)
+    reinforced = all(r.status.value != "ng" for r in reinforcement)
+    if breakout is None:
+        out.extend(reinforcement)
+    elif reinforced:
+        out[out.index(breakout)] = _not_governing(breakout)
+        out.extend(reinforcement)
+    elif breakout.status.value != "ng":
+        out.extend(_not_governing(r) for r in reinforcement)
+    else:
+        out.extend(reinforcement)
+
+
 def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
               method: Method = Method.LRFD, *, weld_size: float | None = None,
-              strain_limit: float = 0.05, supplementary: bool = False) -> list[CheckResult]:
+              strain_limit: float = 0.05, supplementary: bool = False,
+              extras: Extras | None = None) -> list[CheckResult]:
     """All FEM-based checks of one solved combination.
 
     In the plan of the FEM model x runs along the plate length N and y along B, so
     the group spans are passed to the breakout functions as (span along B, span along N).
     """
+    extras = extras or Extras()
     combo = res.load
     out: list[CheckResult] = []
     rod = bp.rod
     Fu = rod.material.Fu
     Fy = rod.material.Fy or Fu
     lrfd = method is Method.LRFD
+    rebar = extras.pedestal if (bp.pedestal_N and bp.pedestal_B) else None
 
     # -- concrete bearing and plate
     if res.bearing_force > 0 and res.bearing_area > 0:
@@ -416,14 +447,28 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
 
     group = _tension_group(res)
     if group:
-        # rows of rods in tension bend the plate about the nearest flange
         col = bp.column
-        for sign in (-1.0, 1.0):
-            row = [a for a in group if a.x * sign > col.d / 2]
-            if row:
-                lever = abs(sum(a.x for a in row) / len(row)) - col.d / 2 + col.tf / 2
-                out.append(plate_bending_tension(sum(a.tension for a in row), lever, bp.B, bp.tp,
-                                                 bp.Fy, ed, method, combo))
+        if extras.anchors:
+            # free layout: each rod bends the plate about the nearest column wall, over
+            # a width spread at 45 degrees (DG1) and limited by the plate
+            section = section_of(col)
+            worst = None
+            for a in group:
+                lever = max(section.distance(a.x, a.y), 1.0)
+                width = min(2 * lever, bp.N, bp.B)
+                r = plate_bending_tension(a.tension, lever, width, bp.tp, bp.Fy, ed, method,
+                                          combo)
+                if worst is None or r.ratio > worst.ratio:
+                    worst = r
+            out.append(worst)
+        else:
+            # rows of rods in tension bend the plate about the nearest flange
+            for sign in (-1.0, 1.0):
+                row = [a for a in group if a.x * sign > col.d / 2]
+                if row:
+                    lever = abs(sum(a.x for a in row) / len(row)) - col.d / 2 + col.tf / 2
+                    out.append(plate_bending_tension(sum(a.tension for a in row), lever, bp.B,
+                                                     bp.tp, bp.Fy, ed, method, combo))
         tmax = max(a.tension for a in group)
         out.append(anchor_steel_tension(rod.diameter, Fu, Fy, tmax, ed, method, combo))
         if lrfd:
@@ -438,6 +483,12 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                     bp.hef, bp.fc, total, ed, span_x=max(ys) - min(ys), span_y=max(xs) - min(xs),
                     edges=edges, eccentricity=ecc, cracked=bp.cracked,
                     supplementary=supplementary, combo=combo))
+                if rebar is not None:
+                    _replace_breakout(out, "anchor.concrete_breakout_tension",
+                                      ped.anchor_reinforcement_tension(
+                                          total, [(a.x, a.y) for a in group], rebar,
+                                          bp.pedestal_N, bp.pedestal_B, bp.hef, bp.fc,
+                                          ed.anchor("reinf_t"), combo))
             area = bp.bearing_area or heavy_hex_bearing_area(rod.diameter)
             out.append(anchor_pullout(area, bp.fc, tmax, ed, bp.cracked, combo))
             ca1 = min(edges.values(), default=None)
@@ -455,36 +506,66 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
             out.append(anchor_steel_shear(rod.diameter, Fu, Fy, rod_v, ed, method, bp.grout_pad,
                                           combo))
             if lrfd and bp.hef:
+                every = res.anchors
+                xs, ys = [a.x for a in every], [a.y for a in every]
+                all_edges = _edges(bp, every, every)
                 whole = anchor_breakout_tension(
-                    bp.hef, bp.fc, 0.0, ed, span_x=bp.rod_spacing, span_y=2 * bp.f,
-                    edges=concrete_edges(bp, True), cracked=bp.cracked, combo=combo)
+                    bp.hef, bp.fc, 0.0, ed, span_x=max(ys) - min(ys), span_y=max(xs) - min(xs),
+                    edges=all_edges, cracked=bp.cracked, combo=combo)
                 ncbg = next(s.value for s in reversed(whole.steps) if s.symbol == "N_{cbg}")
                 out.append(anchor_pryout(ncbg, bp.hef, by_rods, ed, combo))
-                edges = concrete_edges(bp, True)
-                if edges.bottom and res.applied["Vx"]:
-                    out.append(anchor_breakout_shear(
-                        rod.diameter, bp.hef, edges.bottom + 2 * bp.f, bp.fc,
-                        abs(sum(a.Vx for a in res.anchors)), ed, spacing=bp.rod_spacing,
-                        ca2=(edges.left, edges.right), cracked=bp.cracked, combo=combo))
+                # breakout towards the edge the shear pushes to, measured from the far
+                # row because welded washers make every rod work
+                vx, vy = (abs(sum(a.Vx for a in every)), abs(sum(a.Vy for a in every)))
+                if bp.pedestal_N and bp.pedestal_B:
+                    cases = []
+                    if vx > 0.05 * V:
+                        back = min(xs) if res.applied["Vx"] > 0 else -max(xs)
+                        cases.append((vx, bp.pedestal_N / 2 - back, max(ys) - min(ys),
+                                      (all_edges.left, all_edges.right)))
+                    if vy > 0.05 * V:
+                        back = min(ys) if res.applied["Vy"] > 0 else -max(ys)
+                        cases.append((vy, bp.pedestal_B / 2 - back, max(xs) - min(xs),
+                                      (all_edges.bottom, all_edges.top)))
+                    for v, ca1, spacing, ca2 in cases:
+                        out.append(anchor_breakout_shear(
+                            rod.diameter, bp.hef, ca1, bp.fc, v, ed, spacing=spacing, ca2=ca2,
+                            cracked=bp.cracked, combo=combo))
+                    if rebar is not None and cases:
+                        _replace_breakout(out, "anchor.concrete_breakout_shear",
+                                          [ped.anchor_reinforcement_shear(
+                                              by_rods, rebar, ed.anchor("reinf_v"), combo)])
         if lrfd and by_rods < 0.95 * V:
             fx, fy = res.friction
             out.append(friction(res.bearing_force, res.bearing_area, bp.fc, math.hypot(fx, fy),
                                 bp.friction_mu, ed, combo))
         if lrfd:
-            tension = [r.ratio for r in out if r.id in (
+            tension = [r.ratio for r in out if r.applicable and r.id in (
                 "anchor.steel_tension", "anchor.concrete_breakout_tension", "anchor.pullout",
-                "anchor.side_face_blowout")]
-            shear = [r.ratio for r in out if r.id in (
-                "anchor.steel_shear", "anchor.concrete_breakout_shear", "anchor.pryout")]
+                "anchor.side_face_blowout", "anchor.reinforcement")]
+            shear = [r.ratio for r in out if r.applicable and r.id in (
+                "anchor.steel_shear", "anchor.concrete_breakout_shear", "anchor.pryout",
+                "anchor.reinforcement_shear")]
             if tension and shear:
                 out.append(anchor_interaction(max(tension), max(shear), ed, combo))
+
+    # -- pedestal
+    if rebar is not None and lrfd:
+        f = res.load_fraction
+        a = res.applied
+        out.append(ped.section_check(
+            a["P"], abs(a["Mx"]) * f + abs(a["Vy"]) * f * rebar.height,
+            abs(a["My"]) * f + abs(a["Vx"]) * f * rebar.height, rebar, bp.pedestal_N,
+            bp.pedestal_B, bp.fc, ed.anchor("col_pm"), combo))
+        out.append(ped.minimum_reinforcement(rebar, bp.pedestal_N, bp.pedestal_B,
+                                             ed.anchor("col_min"), combo))
 
     # -- weld between column and plate
     if res.weld:
         fexx = (bp.electrodes[bp.electrode] if bp.electrode in bp.electrodes
                 else ELECTRODES[bp.electrode]).FEXX
         fillets = 2 if hasattr(bp.column, "k_des") else 1
-        worst: CheckResult | None = None
+        worst = None
         for w in res.weld:
             size = weld_size or bp.flange_weld or _min_fillet(min(w.thickness, bp.tp))
             r = fillet_weld_line(w.normal, w.shear, size, fexx, fillets, ed, method, combo)

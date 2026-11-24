@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
+    QScrollArea,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -33,12 +34,24 @@ from PySide6.QtWidgets import (
     QTextBrowser,
     QTreeWidget,
     QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from openfemconex import __version__
 from openfemconex.checks import EDITIONS
 from openfemconex.gui.icons import app_icon, icon
-from openfemconex.gui.panels import SECTIONS, AnalysisPanel, FormPanel, LoadsPanel, unit_presets
+from openfemconex.gui.panels import (
+    PEDESTAL_FIELDS,
+    SECTIONS,
+    STIFFENER_FIELDS,
+    AnalysisPanel,
+    AnchorTable,
+    BlockForm,
+    FormPanel,
+    LoadsPanel,
+    unit_presets,
+)
 from openfemconex.gui.ribbon import Ribbon
 from openfemconex.gui.state import ProjectState
 from openfemconex.gui.viewer import FIELDS, Viewer
@@ -113,9 +126,35 @@ class MainWindow(QMainWindow):
 
         self.properties = QStackedWidget()
         self.forms: dict[str, FormPanel] = {}
+        self.pages: dict[str, QWidget] = {}
+        self.anchor_table = AnchorTable(self.state)
+        self.pedestal_form = BlockForm(self.state, "pedestal", "Refuerzo del pedestal",
+                                       PEDESTAL_FIELDS)
+        self.stiffener_form = BlockForm(self.state, "stiffeners", "Rigidizadores",
+                                        STIFFENER_FIELDS)
+        additions = {"Anclajes": self.anchor_table, "Concreto": self.pedestal_form}
         for name, fields in SECTIONS.items():
             self.forms[name] = FormPanel(self.state, name, fields)
-            self.properties.addWidget(self.forms[name])
+            page = QWidget()
+            box = QVBoxLayout(page)
+            box.setContentsMargins(0, 0, 0, 0)
+            box.addWidget(self.forms[name])
+            if name in additions:
+                box.addWidget(additions[name], 1)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setWidget(page)
+            self.pages[name] = scroll
+            self.properties.addWidget(scroll)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        holder = QWidget()
+        box = QVBoxLayout(holder)
+        box.addWidget(self.stiffener_form)
+        box.addStretch(1)
+        scroll.setWidget(holder)
+        self.pages["Rigidizadores"] = scroll
+        self.properties.addWidget(scroll)
         self.analysis_panel = AnalysisPanel(self.state)
         self.properties.addWidget(self.analysis_panel)
         self.detail = QTextBrowser()
@@ -174,7 +213,8 @@ class MainWindow(QMainWindow):
         tab = self.ribbon.add_tab("Geometría")
         g = tab("Componentes")
         for name, pic in (("Columna", "column"), ("Placa", "plate"), ("Anclajes", "anchor"),
-                          ("Concreto", "concrete"), ("Soldadura", "weld")):
+                          ("Concreto", "concrete"), ("Soldadura", "weld"),
+                          ("Rigidizadores", "stiffener")):
             g.add_button(name, icon(pic), lambda n=name: self.show_section(n))
         g = tab("Vista")
         g.add_button("Modelo", icon("view"), lambda: self.show_model(False))
@@ -292,9 +332,13 @@ class MainWindow(QMainWindow):
         summary = {
             "Columna": str(bp.get("column", "")),
             "Placa": " × ".join(str(bp.get(k, "?")) for k in ("N", "B", "tp")),
-            "Anclajes": f"{2 * int(bp.get('rods_per_side', 2))} de {bp.get('rod_diameter', '?')}",
+            "Anclajes": (f"{len(st.ext('anchors'))} por coordenadas" if st.ext("anchors") else
+                         f"{2 * int(bp.get('rods_per_side', 2))} de "
+                         f"{bp.get('rod_diameter', '?')}"),
             "Concreto": f"f'c = {bp.get('fc', '?')}",
             "Soldadura": str(bp.get("flange_weld", "filete mínimo")),
+            "Rigidizadores": (str(st.ext("stiffeners").get("layout")) if st.ext("stiffeners")
+                              else "ninguno"),
         }
         for name, text in summary.items():
             item = QTreeWidgetItem(geometry, [f"{name}: {text}"])
@@ -333,16 +377,18 @@ class MainWindow(QMainWindow):
                 row = self.checks.rowCount()
                 self.checks.insertRow(row)
                 ok = r.status.value != "ng"
+                state = {"ok": "Cumple", "ng": "No cumple"}.get(r.status.value, "No rige")
                 cells = [name, check_title(r), fmt(r.demand, r.kind, units),
-                         fmt(r.capacity, r.kind, units), f"{r.ratio:.2f}",
-                         "Cumple" if ok else "No cumple", r.clause]
+                         fmt(r.capacity, r.kind, units),
+                         f"{r.ratio:.2f}" if r.applicable else "—", state, r.clause]
                 for c, text in enumerate(cells):
                     item = QTableWidgetItem(text)
                     if c in (2, 3, 4):
                         item.setTextAlignment(Qt.AlignmentFlag.AlignRight
                                               | Qt.AlignmentFlag.AlignVCenter)
                     if c in (4, 5):
-                        item.setForeground(QColor("#17692b" if ok else "#b00020"))
+                        item.setForeground(QColor("#777777" if not r.applicable else
+                                                  "#17692b" if ok else "#b00020"))
                     self.checks.setItem(row, c, item)
                 self._check_rows.append((name, r))
 
@@ -350,8 +396,8 @@ class MainWindow(QMainWindow):
     def _ribbon_tab(self, name: str) -> None:
         self.central.setCurrentWidget(self.loads if name == "Cargas" else self.viewer)
         if name == "Geometría":
-            if self.properties.currentWidget() not in self.forms.values():
-                self.properties.setCurrentWidget(self.forms["Columna"])
+            if self.properties.currentWidget() not in self.pages.values():
+                self.properties.setCurrentWidget(self.pages["Columna"])
             self.show_model(self._edges)
         elif name == "Análisis":
             self.properties.setCurrentWidget(self.analysis_panel)
@@ -374,7 +420,7 @@ class MainWindow(QMainWindow):
             self.show_results(name)
 
     def show_section(self, name: str) -> None:
-        self.properties.setCurrentWidget(self.forms[name])
+        self.properties.setCurrentWidget(self.pages[name])
 
     def show_analysis_settings(self) -> None:
         self.properties.setCurrentWidget(self.analysis_panel)
