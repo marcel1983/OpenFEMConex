@@ -98,7 +98,8 @@ def _material(f: TextIO, name: str, E: float, nu: float,
 
 
 def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
-              *, increments: int = 200, initial_increment: float = 0.05) -> InpNumbering:
+              *, increments: int = 200, initial_increment: float = 0.05,
+              knee: bool = False) -> InpNumbering:
     path = Path(path)
     nn = len(mesh.nodes)
     na = len(model.anchors)
@@ -252,7 +253,18 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                 f.write(f"{eid}, {r}, {g}\n")
         X = 1000.0  # mm, range of the tabulated law
         f.write("*SPRING, ELSET=RODAX, NONLINEAR\n3, 3\n")
-        f.write(f"{-ks.compression * X:.6e}, {-X:.6e}\n0., 0.\n{ks.axial * X:.6e}, {X:.6e}\n")
+        # Tension-only law. With ``knee`` the stiffness changes in steps of ten over
+        # 0.005 mm on each side of zero: it stops Newton from chattering when a rod
+        # starts to work under moment, but it hinders pure uplift, so it is the retry.
+        kt, kc, width = ks.axial, ks.compression, 0.005
+        if knee and kc < 0.01 * kt:
+            f_neg = -0.01 * kt * width
+            f_pos = 0.1 * kt * width
+            f.write(f"{f_neg - kc * (X - width):.6e}, {-X:.6e}\n{f_neg:.6e}, {-width:.6e}\n"
+                    f"0., 0.\n{f_pos:.6e}, {width:.6e}\n"
+                    f"{f_pos + kt * (X - width):.6e}, {X:.6e}\n")
+        else:
+            f.write(f"{-kc * X:.6e}, {-X:.6e}\n0., 0.\n{kt * X:.6e}, {X:.6e}\n")
         # Rods in oversized holes do not take shear (DG1): friction does. The lateral
         # springs are then only a weak restraint against rigid-body sliding. With plate
         # washers welded to the plate the rods are engaged with their bending stiffness.

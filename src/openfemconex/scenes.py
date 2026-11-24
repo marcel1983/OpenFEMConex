@@ -65,6 +65,42 @@ def _rods(plotter, model: BasePlateModel, color: str = "#b5651d") -> None:
         plotter.add_mesh(nut, color="#4a5560")
 
 
+def _lug(plotter, model: BasePlateModel) -> None:
+    """The shear lug: a plate under the base plate, through the grout into the concrete."""
+    import pyvista as pv
+
+    lug = model.lug
+    if lug is None:
+        return
+    depth = lug.embedment + model.concrete.grout
+    sizes = {"strong": [(lug.thickness, lug.width)], "weak": [(lug.width, lug.thickness)],
+             "both": [(lug.thickness, lug.width), (lug.width, lug.thickness)]}[lug.direction]
+    for sx, sy in sizes:
+        box = pv.Box(bounds=(model.ex - sx / 2, model.ex + sx / 2, model.ey - sy / 2,
+                             model.ey + sy / 2, -depth, 0.0))
+        plotter.add_mesh(box, color="#c0392b")
+        plotter.add_mesh(box.extract_feature_edges(), color="#5a1a12", line_width=1.5)
+
+
+def _anchor_labels(plotter, model: BasePlateModel, results: Results, unit_force: float,
+                   force_label: str) -> None:
+    """Axial force (tension +) and shear of every anchor rod, next to it."""
+    if not results.anchors:
+        return
+    points = np.array([[a.x, a.y, model.tp + 2.5 * model.anchor.diameter]
+                       for a in results.anchors])
+    labels = []
+    for a in results.anchors:
+        v = float(np.hypot(a.Vx, a.Vy))
+        text = f"N = {a.tension * unit_force:.1f} {force_label}"
+        if v * unit_force >= 0.05:
+            text += f"\nV = {v * unit_force:.1f} {force_label}"
+        labels.append(text)
+    plotter.add_point_labels(points, labels, font_size=12, text_color="black",
+                             shape_color="white", shape_opacity=0.85, always_visible=True,
+                             show_points=False)
+
+
 def _finish(plotter, reset: bool) -> None:
     plotter.add_axes(xlabel="x", ylabel="y", zlabel="z")
     if reset:
@@ -86,6 +122,7 @@ def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
             plotter.add_mesh(surface.extract_feature_edges(feature_angle=40), color="#2b2b2b",
                              line_width=1.2)
     _rods(plotter, model)
+    _lug(plotter, model)
     _finish(plotter, reset)
 
 
@@ -115,13 +152,8 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
                          show_edges=True, edge_color="#404040", line_width=0.2)
         plotter.add_mesh(concrete.extract_surface(), color=COLORS[3], opacity=0.3)
         _rods(plotter, model)
-    tension = [a for a in results.anchors if a.tension > 1.0]
-    if tension:
-        points = np.array([[a.x, a.y, model.tp + 2.5 * model.anchor.diameter] for a in tension])
-        labels = [f"T = {a.tension * unit_force:.1f} {force_label}" for a in tension]
-        plotter.add_point_labels(points, labels, font_size=13, text_color="black",
-                                 shape_color="white", shape_opacity=0.8, always_visible=True,
-                                 show_points=False)
+        _lug(plotter, model)
+    _anchor_labels(plotter, model, results, unit_force, force_label)
     _finish(plotter, reset)
     if name == "CPRESS":
         plotter.view_xy()

@@ -24,9 +24,16 @@ def language() -> str:
     return _current
 
 
+ES: dict[str, str] = {"strong": "eje fuerte", "weak": "eje débil", "both": "ambas (en cruz)"}
+"""Spanish texts of the few codes that are stored in English in the project file."""
+
+
 def tr(text: str, context: str = "", **values: object) -> str:
     """Text in the active language; ``context`` tells apart equal Spanish texts."""
-    out = (EN_CONTEXT.get((context, text)) or EN.get(text, text)) if _current == "en" else text
+    if _current == "en":
+        out = EN_CONTEXT.get((context, text)) or EN.get(text, text)
+    else:
+        out = ES.get(text, text)
     return out.format(**values) if values else out
 
 
@@ -170,6 +177,16 @@ EN: dict[str, str] = {
     "Visor 3D desactivado": "3D view disabled",
     "Modelo: {nodes} nodos, {elements} hexaedros": "Model: {nodes} nodes, {elements} hexahedra",
     "Resultados {combo}: {field}": "Results {combo}: {field}",
+    "Llave de cortante": "Shear lug", "Dirección del cortante que resiste":
+        "Direction of the shear it resists", "strong": "strong axis", "weak": "weak axis",
+    "both": "both (cruciform)", "Ancho de la llave": "Lug width",
+    "Empotramiento bajo el mortero": "Embedment below the grout",
+    "Filete a la placa (ambas caras)": "Fillet to the plate (both faces)",
+    "Eje fuerte: cortante a lo largo de N (la llave va a lo largo de B). Ambas: llave en cruz":
+        "Strong axis: shear along N (the lug runs along B). Both: cruciform lug",
+    "Fuerzas en anclajes": "Anchor forces", "Anclaje": "Anchor", "Axial": "Axial",
+    "Cortante Vx": "Shear Vx", "Cortante Vy": "Shear Vy", "Cortante total": "Total shear",
+    "N = {n} {u}": "N = {n} {u}", "sí": "yes",
     # 3D fields and figures
     "von Mises": "von Mises", "Deformación plástica": "Plastic strain",
     "Presión de contacto": "Contact pressure", "Desplazamiento": "Displacement",

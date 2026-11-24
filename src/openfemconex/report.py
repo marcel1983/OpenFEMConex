@@ -144,12 +144,13 @@ def _fem_summary(c: ComboReport, units: UnitSystem) -> str:
          f"{100 * r.equilibrium_error:.2f} % / {100 * r.moment_error:.2f} %", "—"],
     ]
     anchors = [[str(i), fmt(a.x, L, units), fmt(a.y, L, units), fmt(a.tension, F, units),
+                fmt(a.Vx, F, units), fmt(a.Vy, F, units),
                 fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units), f"{a.uplift:.3f} mm"]
                for i, a in enumerate(r.anchors, start=1)]
     return (_table([_("Resultado"), "FEM", _("DG1 (bloque rectangular)")], rows, {1, 2})
             + f"<h3>{_('Fuerzas en anclajes (FEM)')}</h3>"
-            + _table([_("N.º"), "x", "y", _("Tracción"), _("Cortante"), _("Levantamiento")],
-                     anchors, {1, 2, 3, 4, 5}))
+            + _table([_("N.º"), "x", "y", _("Axial"), _("Cortante Vx"), _("Cortante Vy"),
+                      _("Cortante total"), _("Levantamiento")], anchors, set(range(1, 8))))
 
 
 def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[ComboReport],

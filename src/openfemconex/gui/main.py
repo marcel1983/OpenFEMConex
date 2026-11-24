@@ -43,6 +43,7 @@ from openfemconex.checks import EDITIONS
 from openfemconex.gui.help import HelpDialog, about
 from openfemconex.gui.icons import app_icon, icon
 from openfemconex.gui.panels import (
+    LUG_FIELDS,
     PEDESTAL_FIELDS,
     SECTIONS,
     STIFFENER_FIELDS,
@@ -162,6 +163,17 @@ class MainWindow(QMainWindow):
         scroll.setWidget(holder)
         self.pages["Rigidizadores"] = scroll
         self.properties.addWidget(scroll)
+        self.lug_form = BlockForm(self.state, "shear_lug", "Llave de cortante", LUG_FIELDS,
+                                  section="base_plate")
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        holder = QWidget()
+        box = QVBoxLayout(holder)
+        box.addWidget(self.lug_form)
+        box.addStretch(1)
+        scroll.setWidget(holder)
+        self.pages["Llave de cortante"] = scroll
+        self.properties.addWidget(scroll)
         self.analysis_panel = AnalysisPanel(self.state)
         self.properties.addWidget(self.analysis_panel)
         self.detail = QTextBrowser()
@@ -189,6 +201,13 @@ class MainWindow(QMainWindow):
         self.bottom = QTabWidget()
         self.bottom.addTab(self.log, tr("Registro del solver"))
         self.bottom.addTab(self.checks, tr("Verificaciones"))
+        self.anchor_forces = QTableWidget(0, 9)
+        self.anchor_forces.setHorizontalHeaderLabels([tr(h) for h in (
+            "Combinación", "Anclaje", "x", "y", "Axial", "Cortante Vx", "Cortante Vy",
+            "Cortante total", "Levantamiento")])
+        self.anchor_forces.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.anchor_forces.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.bottom.addTab(self.anchor_forces, tr("Fuerzas en anclajes"))
         bottom = QDockWidget(tr("Resultados"), self)
         bottom.setObjectName("dockBottom")
         bottom.setWidget(self.bottom)
@@ -237,7 +256,7 @@ class MainWindow(QMainWindow):
         g = tab("Componentes")
         for name, pic in (("Columna", "column"), ("Placa", "plate"), ("Anclajes", "anchor"),
                           ("Concreto", "concrete"), ("Soldadura", "weld"),
-                          ("Rigidizadores", "stiffener")):
+                          ("Rigidizadores", "stiffener"), ("Llave de cortante", "lug")):
             g.add_button(name, icon(pic), lambda n=name: self.show_section(n))
         g = tab("Vista")
         g.add_button("Modelo", icon("view"), lambda: self.show_model(False))
@@ -360,6 +379,7 @@ class MainWindow(QMainWindow):
         if current in names:
             self.combo_box.setCurrentText(current)
         self._fill_checks()
+        self._fill_anchor_forces()
         self._fill_tree()
         self._update_status()
 
@@ -402,6 +422,8 @@ class MainWindow(QMainWindow):
             "Soldadura": str(bp.get("flange_weld", tr("filete mínimo"))),
             "Rigidizadores": (tr(str(st.ext("stiffeners").get("layout")))
                               if st.ext("stiffeners") else tr("ninguno")),
+            "Llave de cortante": (tr(str(bp["shear_lug"].get("direction", "strong")))
+                                  if bp.get("shear_lug") else tr("ninguno")),
         }
         for name, text in summary.items():
             item = QTreeWidgetItem(geometry, [f"{tr(name)}: {text}"])
@@ -455,6 +477,28 @@ class MainWindow(QMainWindow):
                                                   "#2e9e4f" if ok else "#d03040"))
                     self.checks.setItem(row, c, item)
                 self._check_rows.append((name, r))
+
+    def _fill_anchor_forces(self) -> None:
+        """Axial force (tension +) and shear of every anchor, per combination."""
+        table = self.anchor_forces
+        table.setRowCount(0)
+        if not self.state.valid:
+            return
+        units = self.state.project.info.unit_system()
+        F, L = Kind.FORCE, Kind.LENGTH
+        for name, rep in self.state.reports.items():
+            for i, a in enumerate(rep.results.anchors, start=1):
+                row = table.rowCount()
+                table.insertRow(row)
+                cells = [name, str(i), fmt(a.x, L, units), fmt(a.y, L, units),
+                         fmt(a.tension, F, units), fmt(a.Vx, F, units), fmt(a.Vy, F, units),
+                         fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units), f"{a.uplift:.3f} mm"]
+                for c, text in enumerate(cells):
+                    item = QTableWidgetItem(text)
+                    if c >= 2:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight
+                                              | Qt.AlignmentFlag.AlignVCenter)
+                    table.setItem(row, c, item)
 
     # ------------------------------------------------------------------ navigation
     def _ribbon_tab(self, name: str) -> None:

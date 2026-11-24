@@ -396,9 +396,12 @@ class BlockForm(QWidget):
     """An optional block of the OpenFEMConex additions: a switch and its fields."""
 
     def __init__(self, state: ProjectState, block: str, title: str,
-                 fields: list[BlockField]) -> None:
+                 fields: list[BlockField], section: str | None = None) -> None:
         super().__init__()
         self.state, self.block, self.fields = state, block, fields
+        self.section = section
+        """Project section holding the block (e.g. ``base_plate``); None = the
+        OpenFEMConex additions."""
         self._loading = False
         self.widgets: dict[str, QWidget] = {}
         layout = QVBoxLayout(self)
@@ -449,12 +452,23 @@ class BlockForm(QWidget):
         for w in self.widgets.values():
             w.setEnabled(self.enabled.isChecked())
         if not self._loading:
-            self.state.set_ext(self.block, self.values() if self.enabled.isChecked() else None)
+            value = self.values() if self.enabled.isChecked() else None
+            if value is not None:
+                # keep the keys of the block that this form does not edit
+                current = (self.state.get(self.section, self.block, None) if self.section
+                           else self.state.ext(self.block)) or {}
+                known = {f.key for f in self.fields}
+                value = {**{k: v for k, v in current.items() if k not in known}, **value}
+            if self.section:
+                self.state.set(self.section, self.block, value)
+            else:
+                self.state.set_ext(self.block, value)
 
     def refresh(self) -> None:
         self._loading = True
         try:
-            data = self.state.ext(self.block)
+            data = (self.state.get(self.section, self.block, None) if self.section
+                    else self.state.ext(self.block))
             self.enabled.setChecked(bool(data))
             data = data or {}
             for f in self.fields:
@@ -487,6 +501,18 @@ PEDESTAL_FIELDS = [
                tip="Estribos cerca del tope que encierran los anclajes"),
     BlockField("height", "Altura del pedestal", "1 m",
                tip="El cortante suma V·h al momento en la base del pedestal"),
+]
+
+LUG_FIELDS = [
+    BlockField("direction", "Dirección del cortante que resiste", "strong", "choice",
+               ("strong", "weak", "both"),
+               tip="Eje fuerte: cortante a lo largo de N (la llave va a lo largo de B). "
+                   "Ambas: llave en cruz"),
+    BlockField("width", "Ancho de la llave", "200 mm"),
+    BlockField("embedment", "Empotramiento bajo el mortero", "75 mm"),
+    BlockField("thickness", "Espesor", "32 mm"),
+    BlockField("weld", "Filete a la placa (ambas caras)", "8 mm"),
+    BlockField("grade", "Acero", "ASTM A36", "choice", tuple(STEELS)),
 ]
 
 STIFFENER_FIELDS = [

@@ -41,6 +41,20 @@ y desactiva Resolver.
 Los resultados se guardan junto al proyecto, en `<nombre>_fem/`. Si el `.inp`
 de una combinación no cambió, no se vuelve a correr CalculiX.
 
+## Llave de cortante y fuerzas en anclajes
+
+**Geometría › Llave de cortante** define la placa bajo la base (dirección,
+ancho, empotramiento, espesor, filete y acero) y la dibuja en el modelo.
+
+![Llave de cortante](img/gui_llave.png)
+
+Después de resolver, cada anclaje lleva rotulada su fuerza axial N (tracción
+positiva) y su cortante V. La pestaña **Fuerzas en anclajes** del panel
+inferior y la tabla del reporte dan N, Vx, Vy, el cortante total y el
+levantamiento de cada uno.
+
+![Fuerzas en anclajes](img/gui_fuerzas_anclajes.png)
+
 ## Idioma, tema y ayuda
 
 - **Proyecto › Apariencia › Idioma**: español o inglés. La ventana se vuelve a

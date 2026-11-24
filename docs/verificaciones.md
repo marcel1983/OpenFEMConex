@@ -91,6 +91,27 @@ por anclaje y ratios 0.89, 0.90 y 0.69, iguales a la guía, también en ASD) y
 palanca que la guía no considera). La llave de cortante tiene su propio ejemplo
 en `examples/llave_de_cortante.ocnx`.
 
+## Guía de Diseño 1, 3.ª edición: ejemplo 4.7-11
+
+`examples/dg1_3ed_ej_4_7_11.ocnx` (W12×96, Pu = 376 kips, Mu = 3600 kip·in,
+placa de 24 × 22 × 2 in, anclajes de 1 in a f = 9.25 in), con las normas
+vigentes:
+
+| Resultado | Guía (bloque rectangular) | FEM |
+|---|---|---|
+| Tracción total en anclajes | 42.0 kips | 65.3 kips |
+| Longitud de apoyo | 8.60 in | 9.8 in |
+| Resultante de compresión, desde el eje | 7.70 in | 6.82 in |
+
+Aquí el FEM da 55 % más tracción que la guía. La guía supone la placa rígida,
+con el bloque de presión pegado al borde; en el modelo la placa de 2 in con
+5.65 in de voladizo se flexiona y la compresión se concentra bajo el patín, a
+6.82 in del eje en vez de 7.70 in, con lo que baja el brazo de palanca. Con
+esa demanda el anclaje de 1 in no cumple a tracción (ratio 1.24), mientras
+que con el método de la guía sí. El concreto del modelo es elástico, lo que
+limita cuánto puede extenderse el apoyo; aun así es una diferencia que el
+ingeniero debe conocer al usar placas flexibles.
+
 ## Pendiente
 
 - Rotura del metal base en la soldadura (J4) y soldadura de penetración.

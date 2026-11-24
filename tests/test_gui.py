@@ -187,3 +187,21 @@ def test_english_interface(qtbot, monkeypatch):
         return {f for _, f, _, _ in string.Formatter().parse(text) if f}
 
     assert all(fields(k) == fields(v) for k, v in EN.items())
+
+
+def test_shear_lug_form_and_anchor_force_table(window):
+    st = window.state
+    assert st.model.lug is None
+    form = window.lug_form
+    form.enabled.setChecked(True)
+    assert st.valid, st.error
+    assert st.model.lug is not None and st.model.lug.direction == "strong"
+    assert st.data["base_plate"]["shear_lug"]["width"] == "200 mm"
+    form.widgets["direction"].setCurrentIndex(form.widgets["direction"].findData("both"))
+    form._commit()
+    assert st.model.lug.direction == "both"
+    form.enabled.setChecked(False)
+    assert "shear_lug" not in st.data["base_plate"] and st.model.lug is None
+    headers = [window.anchor_forces.horizontalHeaderItem(i).text()
+               for i in range(window.anchor_forces.columnCount())]
+    assert headers[4:8] == ["Axial", "Cortante Vx", "Cortante Vy", "Cortante total"]

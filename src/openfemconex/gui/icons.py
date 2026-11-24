@@ -81,6 +81,16 @@ def _stiffener(p: QPainter) -> None:
     p.drawPolygon(_poly((24, 12), (24, 48), (52, 48), (52, 40)))
 
 
+def _lug(p: QPainter) -> None:
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(CONCRETE)
+    p.drawRect(QRectF(6, 26, 52, 32))
+    p.setBrush(STEEL)
+    p.drawRect(QRectF(6, 16, 52, 10))
+    p.setBrush(RED)
+    p.drawRect(QRectF(27, 26, 10, 24))
+
+
 def _load(p: QPainter) -> None:
     p.setPen(_pen(RED, 6))
     p.drawLine(QPointF(32, 8), QPointF(32, 44))
@@ -228,7 +238,7 @@ def _info(p: QPainter) -> None:
 
 _PAINTERS: dict[str, Callable[[QPainter], None]] = {
     "column": _column, "plate": _plate, "anchor": _anchor, "concrete": _concrete,
-    "weld": _weld, "stiffener": _stiffener,
+    "weld": _weld, "stiffener": _stiffener, "lug": _lug,
     "load": _load, "combo": _combo, "mesh": _mesh, "play": _play,
     "stop": _stop, "results": _results, "check": _check, "table": _table, "report": _report,
     "help": _help, "info": _info, "new": _new, "open": _open, "save": _save,
