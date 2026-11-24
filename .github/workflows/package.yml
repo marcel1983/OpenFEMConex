@@ -23,21 +23,21 @@ jobs:
       - name: CalculiX (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y calculix-ccx libxcb-cursor0 libegl1 libglu1-mesa libxrender1 libxcursor1 libxft2 libxinerama1
-      - name: CalculiX (macOS)
-        if: runner.os == 'macOS'
-        run: brew install calculix-ccx && echo "OPENFEMCONEX_CCX=$(ls $(brew --prefix)/bin/ccx* | head -1)" >> "$GITHUB_ENV"
-      - name: CalculiX (Windows)
-        if: runner.os == 'Windows'
+      - name: CalculiX (Windows and macOS, conda-forge)
+        if: runner.os != 'Linux'
         uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: ccx
           create-args: calculix
           init-shell: none
-      - name: Locate ccx (Windows)
-        if: runner.os == 'Windows'
+      - name: Locate ccx (Windows and macOS)
+        if: runner.os != 'Linux'
         shell: bash
-        run: echo "OPENFEMCONEX_CCX=$(find "$MAMBA_ROOT_PREFIX/envs/ccx" -iname 'ccx*.exe' | head -1)" >> "$GITHUB_ENV"
-
+        run: |
+          ccx=$(find "$MAMBA_ROOT_PREFIX/envs/ccx" \( -iname 'ccx' -o -iname 'ccx*.exe' -o -iname 'ccx_*' \) -type f | head -1)
+          echo "found: $ccx"
+          test -n "$ccx"
+          echo "OPENFEMCONEX_CCX=$ccx" >> "$GITHUB_ENV"
       - name: Install
         run: python -m pip install ".[gui,dev,package]"
       - name: Tests
