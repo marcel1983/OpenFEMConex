@@ -1,6 +1,6 @@
 # Builds the application for Linux, Windows and macOS and runs the fast tests.
-# Runs on demand or on version tags. The Linux build was also done by hand
-# with the same commands; the Windows and macOS jobs need a first run to be confirmed.
+# Runs on demand or on version tags; on a tag the archives are attached to the
+# GitHub release of that tag (created if it does not exist yet).
 name: package
 on:
   workflow_dispatch:
@@ -46,7 +46,38 @@ jobs:
         run: python -m pytest -m "not ccx"
       - name: Build
         run: pyinstaller --noconfirm packaging/openfemconex.spec
+      - name: Archive (Linux)
+        if: runner.os == 'Linux'
+        run: tar -czf openfemconex-linux-x86_64.tar.gz -C dist openfemconex
+      - name: Archive (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/OpenFEMConex.app openfemconex-macos-arm64.zip
+      - name: Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/openfemconex -DestinationPath openfemconex-windows-x64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: openfemconex-${{ runner.os }}
-          path: dist/
+          path: openfemconex-*.*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --title "$TAG" --notes ""
+          gh release upload "$TAG" assets/* -R "$GITHUB_REPOSITORY" --clobber
