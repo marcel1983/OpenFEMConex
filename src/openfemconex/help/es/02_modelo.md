@@ -35,6 +35,18 @@ El tamaño fino automático es el menor espesor entre la pared de la columna y
 la placa. Se cambia en **Análisis › Ajustes**, junto con las capas en el
 espesor de la placa y los hilos de CalculiX.
 
+## Avisos antes de resolver
+
+- Junto a las paredes de la columna y a los rigidizadores el tamaño de elemento se
+  limita a 1.5 veces su espesor, para que un tubo delgado no deje elementos
+  deformados. Si aun así hay alguno, el programa lo avisa antes de llamar a
+  CalculiX.
+- Si el tramo de columna no resiste las cargas (cortante, o axial más flexión con
+  el momento V·Lc en su extremo), se avisa. Con un uso mayor que 2 la combinación
+  no se resuelve: el análisis no podría converger.
+- Con levantamiento y cortante, sin llave ni arandelas soldadas, no hay fricción:
+  el cortante lo toman los anclajes tras deslizar la placa en los agujeros.
+
 ## Resultados
 
 - **von Mises** y **deformación plástica** en el acero, con la deformada.

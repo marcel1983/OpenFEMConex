@@ -210,8 +210,20 @@ class MeshSettings:
     """Concrete element size in plan (default: 1.5 × size_coarse)."""
     concrete_layers: int = 10
 
+    def wall_size(self, model: BasePlateModel) -> float:
+        """Element size next to the column walls and the stiffeners.
+
+        A quadrilateral much wider than the wall it spans comes out distorted, and
+        CalculiX rejects it ("nonpositive jacobian"), so the size there is at most
+        1.5 times the thinnest wall, whatever size_fine is.
+        """
+        walls = [model.section.min_wall] + [s.thickness for s in model.stiffeners]
+        return min(self.size_fine or 1e9, 1.5 * min(walls))
+
     def resolved(self, model: BasePlateModel) -> MeshSettings:
-        fine = self.size_fine or max(4.0, min(model.section.min_wall, model.tp))
+        # The column walls get their own size (see wall_size), so a very thin wall does
+        # not force the whole plate to a tiny mesh.
+        fine = self.size_fine or max(8.0, min(model.section.min_wall, model.tp))
         coarse = self.size_coarse or 3.0 * fine
         return MeshSettings(
             size_fine=fine, size_coarse=coarse, plate_layers=max(3, self.plate_layers),

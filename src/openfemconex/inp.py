@@ -99,7 +99,7 @@ def _material(f: TextIO, name: str, E: float, nu: float,
 
 def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
               *, increments: int = 200, initial_increment: float = 0.05,
-              knee: bool = False) -> InpNumbering:
+              knee: bool = False, min_increment: float = 1e-6) -> InpNumbering:
     path = Path(path)
     nn = len(mesh.nodes)
     na = len(model.anchors)
@@ -118,7 +118,13 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
     anchor_concrete = tuple(
         int(surface[np.argmin(np.hypot(sxy[:, 0] - a.x, sxy[:, 1] - a.y))])
         for a in model.anchors)
-    k_lat = ks.lateral if model.anchor.welded_washers else 1e-3 * ks.lateral
+    # Rods in oversized holes take shear only with welded washers, or when there is no
+    # compression to give friction (net uplift with shear, no lug): then the plate slides
+    # in the holes until the rods bear (DG1). Otherwise friction carries it and the
+    # springs are only a weak restraint against rigid-body sliding.
+    no_friction = loads.P <= 0 and (loads.Vx or loads.Vy) and model.lug is None
+    k_lat = (ks.lateral if model.anchor.welded_washers or no_friction
+             else 1e-3 * ks.lateral)
     lug_nodes: tuple[int, ...] = ()
     lug_plate: list[int] = []
     lug_conc: list[int] = []
@@ -265,9 +271,6 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                     f"{f_pos + kt * (X - width):.6e}, {X:.6e}\n")
         else:
             f.write(f"{-kc * X:.6e}, {-X:.6e}\n0., 0.\n{kt * X:.6e}, {X:.6e}\n")
-        # Rods in oversized holes do not take shear (DG1): friction does. The lateral
-        # springs are then only a weak restraint against rigid-body sliding. With plate
-        # washers welded to the plate the rods are engaged with their bending stiffness.
         f.write(f"*SPRING, ELSET=RODX\n1, 1\n{k_lat:.6e}\n")
         f.write(f"*SPRING, ELSET=RODY\n2, 2\n{k_lat:.6e}\n")
 
@@ -311,7 +314,8 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         for k, cloads in enumerate(steps):
             last = k == len(steps) - 1
             first, largest = (initial_increment, 0.2) if last else (1.0, 1.0)
-            f.write(f"*STEP, INC={increments}\n*STATIC\n{first:.4e}, 1., 1e-6, {largest:.4e}\n")
+            f.write(f"*STEP, INC={increments}\n*STATIC\n{first:.4e}, 1., {min_increment:.1e}, "
+                    f"{largest:.4e}\n")
             f.write("*CLOAD\n")
             for node, dof, value in cloads:
                 f.write(f"{node}, {dof}, {value:.8e}\n")
@@ -322,7 +326,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             if lug_nodes:
                 prints.append(("LUGNODES", "U"))
             for nset, key in prints:
-                f.write(f"*NODE PRINT, NSET={nset}, FREQUENCY=100000\n{key}\n")
+                # every increment: if the step stops early the last converged state is
+                # still in the .dat file
+                f.write(f"*NODE PRINT, NSET={nset}\n{key}\n")
             f.write("*END STEP\n")
 
     return InpNumbering(load_ref, load_rot, anchor_ref, anchor_ground, spring_axial,

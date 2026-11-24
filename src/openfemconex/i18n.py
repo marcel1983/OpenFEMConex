@@ -187,6 +187,23 @@ EN: dict[str, str] = {
     "Fuerzas en anclajes": "Anchor forces", "Anclaje": "Anchor", "Axial": "Axial",
     "Cortante Vx": "Shear Vx", "Cortante Vy": "Shear Vy", "Cortante total": "Total shear",
     "N = {n} {u}": "N = {n} {u}", "sí": "yes",
+    "La columna {col} no resiste las cargas de {combo}: uso plástico {u} (cortante {v}, "
+    "axial y flexión {m}). El tramo de columna del modelo fluye por completo y CalculiX no "
+    "puede converger. Revise el perfil o las cargas.":
+        "Column {col} cannot carry the loads of {combo}: plastic usage {u} (shear {v}, axial "
+        "and bending {m}). The modelled column stub yields completely and CalculiX cannot "
+        "converge. Check the section or the loads.",
+    "En {combo} hay cortante sin compresión: no hay fricción. Sin llave de cortante ni "
+    "arandelas soldadas, el modelo supone que los anclajes toman el cortante después de "
+    "deslizar la placa en los agujeros (DG1).":
+        "In {combo} there is shear without compression: no friction. Without a shear lug or "
+        "welded washers, the model assumes the anchors take the shear after the plate slides "
+        "in the holes (DG1).",
+    "Aviso: {msg}": "Warning: {msg}",
+    "{name}: no se resolvió porque la columna no resiste las cargas.":
+        "{name}: not solved because the column cannot carry the loads.",
+    "no se resolvió porque la columna no resiste las cargas.":
+        "not solved because the column cannot carry the loads.",
     # 3D fields and figures
     "von Mises": "von Mises", "Deformación plástica": "Plastic strain",
     "Presión de contacto": "Contact pressure", "Desplazamiento": "Displacement",

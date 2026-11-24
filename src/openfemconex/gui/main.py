@@ -617,6 +617,8 @@ class MainWindow(QMainWindow):
         self.worker.combo_done.connect(self._combo_done)
         self.worker.combo_failed.connect(
             lambda n, msg: self.log.appendPlainText(tr("{name}: falló. {msg}", name=n, msg=msg)))
+        self.worker.combo_warning.connect(
+            lambda n, msg: self.log.appendPlainText(tr("Aviso: {msg}", msg=msg)))
         self.worker.cancelled.connect(
             lambda: self.log.appendPlainText(tr("Análisis detenido.")))
         self.worker.finished.connect(self._solve_finished)

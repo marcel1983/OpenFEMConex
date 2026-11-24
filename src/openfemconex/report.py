@@ -210,6 +210,8 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
             f"<p>P = {fmt(a['P'], Kind.FORCE, units)}, My = {fmt(a['My'], Kind.MOMENT, units)}, "
             f"Mx = {fmt(a['Mx'], Kind.MOMENT, units)}, Vx = {fmt(a['Vx'], Kind.FORCE, units)}, "
             f"Vy = {fmt(a['Vy'], Kind.FORCE, units)}.{state}</p>",
+            "".join(f'<p class="ng">{escape(_("Aviso: {msg}", msg=w))}</p>'
+                    for w in r.warnings),
             f"<h3>{_('Resultados del modelo FEM')}</h3>", _fem_summary(c, units),
             gallery(r.load, "Gráficos de resultados"),
             f"<h3>{_('Verificaciones con demandas del FEM')}</h3>",

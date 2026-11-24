@@ -19,7 +19,7 @@ import numpy as np
 
 from openfemconex.model import BasePlateModel, MeshSettings, SectionKind
 
-__all__ = ["Mesh", "build_mesh", "plan_mesh"]
+__all__ = ["Mesh", "MeshError", "build_mesh", "distorted_elements", "plan_mesh"]
 
 # C3D8 faces (Abaqus/CalculiX numbering): S1 = nodes 1-2-3-4 (bottom), S2 = 5-8 (top).
 FACE_BOTTOM = "S1"
@@ -164,7 +164,22 @@ def plan_mesh(model: BasePlateModel, settings: MeshSettings) -> PlanMesh:
         fld.setNumber(f2, "SizeMax", st.size_coarse)
         fld.setNumber(f2, "DistMin", st.size_fine)
         fld.setNumber(f2, "DistMax", 0.25 * max(model.N, model.B))
-        fld.setAsBackgroundMesh(f2)
+        # Column walls and stiffeners: size limited by their thickness (wall_size).
+        wall = st.wall_size(model)
+        walls = gmsh.model.getBoundary([(2, t) for t in column_surfs | set(stiff_surfs)],
+                                       combined=False, oriented=False)
+        f3 = fld.add("Distance")
+        fld.setNumbers(f3, "CurvesList", sorted({abs(t) for _, t in walls}))
+        fld.setNumber(f3, "Sampling", 400)
+        f4 = fld.add("Threshold")
+        fld.setNumber(f4, "InField", f3)
+        fld.setNumber(f4, "SizeMin", wall)
+        fld.setNumber(f4, "SizeMax", st.size_coarse)
+        fld.setNumber(f4, "DistMin", wall)
+        fld.setNumber(f4, "DistMax", max(0.25 * max(model.N, model.B), 4 * st.size_fine))
+        f5 = fld.add("Min")
+        fld.setNumbers(f5, "FieldsList", [f2, f4])
+        fld.setAsBackgroundMesh(f5)
         for opt, val in (("Mesh.MeshSizeFromPoints", 0), ("Mesh.MeshSizeFromCurvature", 0),
                          ("Mesh.MeshSizeExtendFromBoundary", 0), ("Mesh.Algorithm", 8),
                          ("Mesh.RecombineAll", 1), ("Mesh.RecombinationAlgorithm", 1)):
@@ -175,6 +190,8 @@ def plan_mesh(model: BasePlateModel, settings: MeshSettings) -> PlanMesh:
             gmsh.model.mesh.clear()
             fld.setNumber(f2, "SizeMin", 2 * st.size_fine)
             fld.setNumber(f2, "SizeMax", 2 * st.size_coarse)
+            fld.setNumber(f4, "SizeMin", 2 * wall)
+            fld.setNumber(f4, "SizeMax", 2 * st.size_coarse)
             gmsh.option.setNumber("Mesh.SubdivisionAlgorithm", 1)
             gmsh.model.mesh.generate(2)
 
@@ -251,6 +268,34 @@ def _column_levels(length: float, first: float, growth: float = 1.3,
     if len(sizes) > 1 and sizes[-1] < 0.5 * sizes[-2]:
         sizes[-2] += sizes.pop()
     return np.concatenate([[0.0], np.cumsum(sizes)])
+
+
+# Natural coordinates of the C3D8 nodes.
+_XI = np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+                [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], dtype=float)
+
+
+def distorted_elements(nodes: np.ndarray, conn: np.ndarray) -> np.ndarray:
+    """Rows of ``conn`` whose Jacobian is not positive at some integration point.
+
+    CalculiX evaluates it at the 2 × 2 × 2 Gauss points and stops with "nonpositive
+    jacobian determinant" when one is negative (an inverted or folded hexahedron).
+    """
+    p = nodes[conn - 1]  # (m, 8, 3)
+    bad = np.zeros(len(conn), dtype=bool)
+    g = 1 / np.sqrt(3)
+    for gp in np.array(np.meshgrid([-g, g], [-g, g], [-g, g])).T.reshape(-1, 3):
+        # derivatives of the trilinear shape functions at the point, (8, 3)
+        f = 1 + _XI * gp
+        dn = np.column_stack([_XI[:, 0] * f[:, 1] * f[:, 2], _XI[:, 1] * f[:, 0] * f[:, 2],
+                              _XI[:, 2] * f[:, 0] * f[:, 1]]) / 8
+        jac = np.einsum("ki,mkj->mij", dn, p)  # (m, 3, 3)
+        bad |= np.linalg.det(jac) <= 0
+    return np.nonzero(bad)[0]
+
+
+class MeshError(ValueError):
+    pass
 
 
 def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> Mesh:
@@ -361,8 +406,15 @@ def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> M
     for j in range(4):
         np.add.at(nodal_area, quads[:, j], area / 4)
 
+    all_nodes = np.vstack(nodes)
+    for name, conn in parts.items():
+        bad = distorted_elements(all_nodes, conn)
+        if len(bad):
+            raise MeshError(
+                f"the mesh has {len(bad)} distorted elements in {name} (first: element "
+                f"{first[name] + int(bad[0])}); use a smaller mesh size")
     return Mesh(
-        nodes=np.vstack(nodes),
+        nodes=all_nodes,
         parts=parts,
         first_element=first,
         plate_bottom_elements=first["PLATE"] + np.arange(m2),

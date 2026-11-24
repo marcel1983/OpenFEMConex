@@ -90,11 +90,13 @@ def main(argv: list[str] | None = None) -> int:
     from openconex.units import Kind
 
     from openfemconex.checks import EDITIONS, check_fem
+    from openfemconex.diagnostics import diagnose
     from openfemconex.extras import load_extended
+    from openfemconex.i18n import tr
     from openfemconex.mesh import build_mesh
     from openfemconex.openconex_bridge import dg1_bending, model_of, project_loads
     from openfemconex.report import ComboReport, check_title, write_report
-    from openfemconex.solve import solve
+    from openfemconex.solve import ColumnOverloaded, solve
 
     project, extras = load_extended(args.project)
     from openfemconex.i18n import set_language
@@ -127,8 +129,16 @@ def main(argv: list[str] | None = None) -> int:
     units = project.info.unit_system()
     reports = []
     for combo, loads in combos:
-        res = solve(model, loads, out, mesh=mesh, threads=args.threads, ccx=args.ccx,
-                    only_write=args.only_inp, reuse=args.reuse)
+        for note in diagnose(model, loads):
+            print(tr("Aviso: {msg}", msg=note))
+        try:
+            res = solve(model, loads, out, mesh=mesh, threads=args.threads, ccx=args.ccx,
+                        only_write=args.only_inp, reuse=args.reuse)
+        except ColumnOverloaded:
+            print(tr("{name}: no se resolvió porque la columna no resiste las cargas.",
+                     name=loads.name))
+            status = 1
+            continue
         if isinstance(res, Path):
             print(f"Escrito {res}")
             continue

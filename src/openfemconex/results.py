@@ -245,6 +245,8 @@ class Results:
     lug_shear: tuple[float, float] = (0.0, 0.0)
     """Shear (x, y) the plate transfers to the concrete through the shear lug [N]."""
     weld: list[WeldPoint] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    """Notes from the pre-analysis diagnostics (see openfemconex.diagnostics)."""
     stiffener_weld: list[WeldPoint] = field(default_factory=list)
     stiffener_von_mises_max: float = 0.0
     stiffener_peeq_element: float = 0.0

@@ -35,6 +35,17 @@ The automatic fine size is the thinner of the column wall and the plate. It is
 changed in **Analysis › Settings**, together with the layers through the plate
 and the CalculiX threads.
 
+## Warnings before solving
+
+- Next to the column walls and the stiffeners the element size is limited to 1.5
+  times their thickness, so that a thin tube does not leave distorted elements.
+  If one remains, the program says so before calling CalculiX.
+- If the column stub cannot carry the loads (shear, or axial force plus bending
+  with the moment V·Lc at its top), a warning is given. Above a usage of 2 the
+  combination is not solved: the analysis could not converge.
+- With uplift and shear, and no lug or welded washers, there is no friction: the
+  anchors take the shear after the plate slides in the holes.
+
 ## Results
 
 - **von Mises** and **plastic strain** in the steel, with the deformed shape.

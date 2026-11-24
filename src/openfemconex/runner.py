@@ -74,6 +74,15 @@ def _read_sta(path: Path) -> tuple[int, float, int, int]:
     return step, step_time, incs, iters
 
 
+def _log_says(log: Path, text: str) -> bool:
+    try:
+        with log.open("rb") as f:
+            f.seek(max(0, log.stat().st_size - 20000))
+            return text.encode() in f.read()
+    except OSError:
+        return False
+
+
 def run_ccx(inp: str | Path, *, steps: int = 1, threads: int | None = None,
             executable: str | None = None, timeout: float | None = None,
             cancel: threading.Event | None = None) -> CcxRun:
@@ -88,11 +97,18 @@ def run_ccx(inp: str | Path, *, steps: int = 1, threads: int | None = None,
     with log.open("w") as out:
         proc = subprocess.Popen([ccx, "-i", inp.stem], cwd=inp.parent, env=env, stdout=out,
                                 stderr=subprocess.STDOUT)
+        polls = 0
         while proc.poll() is None:
             if cancel is not None and cancel.is_set():
                 proc.kill()
                 proc.wait()
                 raise CcxCancelled("analysis cancelled")
+            polls += 1
+            if polls % 10 == 0 and _log_says(log, "nonpositive jacobian"):
+                proc.kill()
+                proc.wait()
+                raise CcxError(f"CalculiX found distorted elements (nonpositive jacobian); "
+                               f"use a smaller mesh size (see {log})")
             if timeout is not None and time.monotonic() - t0 > timeout:
                 proc.kill()
                 proc.wait()
@@ -100,6 +116,9 @@ def run_ccx(inp: str | Path, *, steps: int = 1, threads: int | None = None,
             time.sleep(0.1)
     seconds = time.monotonic() - t0
     text = log.read_text(errors="replace")
+    if "nonpositive jacobian" in text:
+        raise CcxError(f"CalculiX found distorted elements (nonpositive jacobian); use a "
+                       f"smaller mesh size (see {log})")
     if "*ERROR" in text and not inp.with_suffix(".sta").exists():
         first = next(line for line in text.splitlines() if "*ERROR" in line)
         raise CcxError(f"ccx rejected the input: {first.strip()} (see {log})")

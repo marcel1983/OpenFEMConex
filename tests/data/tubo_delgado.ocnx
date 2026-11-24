@@ -1,0 +1,95 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Llave de cortante (datos del ejemplo 4.9 de la DG1 2a ed.)",
+    "number": "OFC-0006",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-24",
+    "language": "es",
+    "units": "US"
+  },
+  "base_plate": {
+    "column": "HSS6.000X0.125",
+    "N": "14 in",
+    "B": "14 in",
+    "tp": "1.25 in",
+    "plate_grade": "ASTM A572 Gr. 50",
+    "fc": "4 ksi",
+    "A2_over_A1": 4.0,
+    "grout": "1.5 in",
+    "rod_diameter": "0.875 in",
+    "rod_grade": "ASTM F1554 Gr. 36",
+    "rods_per_side": 2,
+    "f": "4 in",
+    "rod_spacing": "6 in",
+    "hef": "13 in",
+    "flange_weld": "0.1875 in",
+    "cracked": false,
+    "pedestal_N": "600 mm",
+    "pedestal_B": "600 mm"
+  },
+  "cases": [
+    {
+      "name": "D",
+      "type": "D",
+      "P": "22 kip"
+    },
+    {
+      "name": "W",
+      "type": "W",
+      "P": "-56 kip",
+      "V": "23 kip"
+    }
+  ],
+  "combinations": {
+    "methods": [
+      "LRFD"
+    ],
+    "include_code": false,
+    "custom": [
+      {
+        "name": "LRFD-U",
+        "method": "LRFD",
+        "factors": {
+          "D": 0.9,
+          "W": 1.6
+        },
+        "source": "DG1 Ej. 4.9"
+      },
+      {
+        "name": "LRFD-C",
+        "method": "LRFD",
+        "factors": {
+          "D": 1.2,
+          "W": -1.6
+        },
+        "source": "compresión con el mismo cortante"
+      }
+    ]
+  },
+  "openfemconex": {
+    "pedestal": {
+      "bars": 16,
+      "bar_diameter": "25 mm",
+      "fy": "420 MPa",
+      "cover": "40 mm",
+      "hooked": true,
+      "tie_diameter": "10 mm",
+      "tie_spacing": "150 mm",
+      "tie_legs": 2,
+      "top_ties": 2,
+      "height": "1 m"
+    },
+    "stiffeners": {
+      "layout": "radial",
+      "count": 4,
+      "length": "80 mm",
+      "height": "300 mm",
+      "end_height": "10 mm",
+      "thickness": "12 mm",
+      "grade": "ASTM A36"
+    }
+  }
+}
