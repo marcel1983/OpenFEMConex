@@ -1,5 +1,5 @@
 # Builds the application for Linux, Windows and macOS and runs the fast tests.
-# Not yet exercised: the repository has no remote. The Linux build was done by hand
+# Runs on demand or on version tags. The Linux build was also done by hand
 # with the same commands; the Windows and macOS jobs need a first run to be confirmed.
 name: package
 on:
@@ -16,10 +16,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: marcel1983/openconex
-          path: openconex
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -43,7 +39,7 @@ jobs:
         run: echo "OPENFEMCONEX_CCX=$(find "$MAMBA_ROOT_PREFIX/envs/ccx" -iname 'ccx*.exe' | head -1)" >> "$GITHUB_ENV"
 
       - name: Install
-        run: python -m pip install ./openconex ".[gui,dev,package]"
+        run: python -m pip install ".[gui,dev,package]"
       - name: Tests
         env:
           QT_QPA_PLATFORM: offscreen

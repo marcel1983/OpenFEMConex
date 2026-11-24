@@ -12,7 +12,7 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.26",
     "gmsh>=4.12",
-    "openconex>=0.5.20",
+    "openconex @ git+https://github.com/marcel1983/openconex.git",
 ]
 
 [project.optional-dependencies]
