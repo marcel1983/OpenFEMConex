@@ -14,6 +14,7 @@ from openconex.io.project import FORMAT_VERSION, Project
 from PySide6.QtCore import QObject, Signal
 
 from openfemconex.extras import KEY, Extras, parse_extras, split_data
+from openfemconex.i18n import tr
 from openfemconex.mesh import Mesh
 from openfemconex.model import BasePlateModel
 from openfemconex.report import ComboReport
@@ -173,7 +174,7 @@ class ProjectState(QObject):
     # ---------------------------------------------------------------- analysis
     def study(self) -> Study:
         if self.project is None:
-            raise ValueError(self.error or "proyecto no válido")
+            raise ValueError(self.error or tr("proyecto no válido"))
         return Study(self.project, self.settings, self.extras)
 
     @property
@@ -197,5 +198,5 @@ class ProjectState(QObject):
         self.results_changed.emit()
 
     def title(self) -> str:
-        name = self.path.name if self.path else "sin título"
+        name = self.path.name if self.path else tr("sin título")
         return f"{name}{' *' if self.dirty else ''} — OpenFEMConex"

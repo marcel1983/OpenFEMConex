@@ -33,6 +33,11 @@ A partir de un proyecto de [OpenConex](https://github.com/marcel1983/openconex)
 
 Perfiles admitidos: W, M, S, HP, HSS rectangular y cuadrado, HSS circular y Pipe.
 
+También: anclajes en posiciones libres, refuerzo del pedestal, rigidizadores
+(perfiles W y tubos circulares), llave de cortante, levantamiento neto,
+combinaciones LRFD y ASD, interfaz en español e inglés, tema oscuro y ayuda
+integrada.
+
 ## Instalación
 
 Requiere Python 3.12, CalculiX y una copia local de OpenConex.

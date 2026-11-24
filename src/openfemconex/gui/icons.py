@@ -204,12 +204,35 @@ def _view(p: QPainter) -> None:
     p.drawPolygon(_poly((54, 20), (32, 32), (32, 56), (54, 44)))
 
 
+def _help(p: QPainter) -> None:
+    p.setPen(_pen(STEEL, 3))
+    p.setBrush(QColor("#c9d6e8"))
+    p.drawEllipse(QPointF(32, 32), 24, 24)
+    p.setPen(_pen(STEEL, 6))
+    path = QPainterPath(QPointF(24, 24))
+    path.cubicTo(24, 12, 42, 12, 41, 24)
+    path.cubicTo(40, 31, 32, 31, 32, 39)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPath(path)
+    p.drawPoint(QPointF(32, 48))
+
+
+def _info(p: QPainter) -> None:
+    p.setPen(_pen(STEEL, 3))
+    p.setBrush(QColor("#c9d6e8"))
+    p.drawEllipse(QPointF(32, 32), 24, 24)
+    p.setPen(_pen(STEEL, 6))
+    p.drawLine(QPointF(32, 28), QPointF(32, 46))
+    p.drawPoint(QPointF(32, 19))
+
+
 _PAINTERS: dict[str, Callable[[QPainter], None]] = {
     "column": _column, "plate": _plate, "anchor": _anchor, "concrete": _concrete,
     "weld": _weld, "stiffener": _stiffener,
     "load": _load, "combo": _combo, "mesh": _mesh, "play": _play,
     "stop": _stop, "results": _results, "check": _check, "table": _table, "report": _report,
-    "new": _new, "open": _open, "save": _save, "browser": _browser, "pdf": _pdf, "view": _view,
+    "help": _help, "info": _info, "new": _new, "open": _open, "save": _save,
+    "browser": _browser, "pdf": _pdf, "view": _view,
 }
 
 

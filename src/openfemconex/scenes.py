@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
+from openfemconex.i18n import tr
 from openfemconex.mesh import Mesh
 from openfemconex.model import BasePlateModel
 from openfemconex.results import Results
@@ -29,6 +30,8 @@ FIELDS = {
     "Desplazamiento": ("U", "Desplazamiento [mm]", "cividis"),
 }
 COLORS = {1: "#8fa7c4", 2: "#5b7ba6", 3: "#c8c8c8", 4: "#d98c3f"}
+STYLE = {"text": "black"}
+"""Colour of texts drawn in the scene (the viewer sets it for the dark theme)."""
 
 
 def grid_from_mesh(mesh: Mesh):
@@ -93,9 +96,9 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
 
     name, title, cmap = FIELDS[field]
     grid = pv.read(str(vtu))
-    bar = {"title": title + "\n", "vertical": True, "position_x": 0.84, "position_y": 0.25,
+    bar = {"title": tr(title) + "\n", "vertical": True, "position_x": 0.84, "position_y": 0.25,
            "height": 0.5, "width": 0.06, "title_font_size": 14, "label_font_size": 12,
-           "color": "black", "n_labels": 5, "fmt": "%.3g"}
+           "color": STYLE["text"], "n_labels": 5, "fmt": "%.3g"}
     part = grid.cell_data["part"]
     steel = grid.extract_cells(np.nonzero(part != 3)[0])
     concrete = grid.threshold([2.5, 3.5], scalars="part")
@@ -103,7 +106,7 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
         plate = grid.threshold([0.5, 1.5], scalars="part").extract_surface()
         bottom = plate.clip(normal="z", origin=(0, 0, 1e-3), invert=True)
         plotter.add_mesh(bottom, scalars="CPRESS", cmap=cmap, scalar_bar_args=bar)
-        plotter.add_mesh(plate.extract_feature_edges(feature_angle=40), color="black")
+        plotter.add_mesh(plate.extract_feature_edges(feature_angle=40), color=STYLE["text"])
         column = grid.extract_cells(np.nonzero((part == 2) | (part == 4))[0])
         plotter.add_mesh(column.extract_surface(), color="#5b7ba6", opacity=0.15)
     else:
@@ -143,6 +146,9 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
     out.mkdir(parents=True, exist_ok=True)
     figures: dict[str, list[tuple[str, str]]] = {}
 
+    previous = STYLE["text"]
+    STYLE["text"] = "black"  # the report pages are white
+
     def shot(name: str, draw) -> str | None:
         plotter = pv.Plotter(off_screen=True, window_size=list(size))
         try:
@@ -155,16 +161,16 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
 
     try:
         figures[""] = [
-            ("Geometría del modelo", shot("fig_geometria.png",
+            (tr("Geometría del modelo"), shot("fig_geometria.png",
                                           lambda p: draw_model(p, model, mesh))),
-            ("Malla de elementos finitos", shot("fig_malla.png",
+            (tr("Malla de elementos finitos"), shot("fig_malla.png",
                                                 lambda p: draw_model(p, model, mesh, True))),
         ]
         captions = {
-            "von Mises": f"Esfuerzo de von Mises (deformada × {scale:g})",
-            "Deformación plástica": "Deformación plástica equivalente",
-            "Desplazamiento": f"Desplazamiento total (deformada × {scale:g})",
-            "Presión de contacto": "Presión de contacto bajo la placa",
+            "von Mises": tr("Esfuerzo de von Mises (deformada × {s})", s=f"{scale:g}"),
+            "Deformación plástica": tr("Deformación plástica equivalente"),
+            "Desplazamiento": tr("Desplazamiento total (deformada × {s})", s=f"{scale:g}"),
+            "Presión de contacto": tr("Presión de contacto bajo la placa"),
         }
         for combo, vtu, results in solved:
             stem = "".join(ch if ch.isalnum() else "_" for ch in combo)
@@ -175,4 +181,6 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
                 for field, caption in captions.items()]
     except Exception:  # no OpenGL context (headless machine): the report goes without figures
         return figures if figures.get("") else {}
+    finally:
+        STYLE["text"] = previous
     return figures

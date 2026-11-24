@@ -39,6 +39,11 @@ los puntos de la tabla.
 | Cortante por fricción | Cortante que pasa por el contacto | φ·μ·C con sus topes; C es la compresión FEM |
 | Anclaje a cortante, arrancamiento y palanca | Cortante de los anclajes, solo con arandelas soldadas | Vsa, Vcbg, Vcpg |
 | Interacción tracción-cortante | Ratios anteriores | suma ≤ 1.2 |
+| Anclaje con arandela soldada | Tracción y cortante de cada anclaje, flexión con brazo (tp + tw/2)/2 | F'nt reducido, AISC J3.7 (360-05) o J3.8 (360-22) |
+| Refuerzo de anclaje (pedestal) | Tracción del grupo y cortante de los anclajes | φ·As·fy con φ = 0.75; reemplaza al arrancamiento si cumple |
+| Pedestal | P y M de la combinación, más V·h | Flexocompresión biaxial por compatibilidad de deformaciones y cuantía mínima de 1 % |
+| Llave de cortante | Todo el cortante en su dirección | Verificaciones de OpenConex (ACI 318-19 §17.11, AISC J4 y J2.4) |
+| Rigidizadores | Deformación plástica media por elemento y fuerzas en sus soldaduras | Límite de PEEQ, filete con aumento direccional y b/t ≤ 0.56√(E/Fy) |
 | Soldadura columna-placa | Fuerza por unidad de longitud en la pared de la columna justo sobre la placa, en el punto más solicitado | Filete con aumento direccional (J2.4) |
 
 Las verificaciones del concreto son de resistencia última y solo se evalúan en
@@ -80,9 +85,14 @@ concreto del modelo es elástico y no redistribuye; un concreto con plastificaci
 local llevaría ese 3 % a los anclajes. Se intentó con una ley de contacto con
 meseta en ccx y no convergió; queda pendiente.
 
+Otros ejemplos de la guía resueltos por FEM: 4.5 (levantamiento neto: 17.5 kips
+por anclaje y ratios 0.89, 0.90 y 0.69, iguales a la guía, también en ASD) y
+4.11 (tracción, cortante y flexión del anclaje; en el FEM aparece efecto
+palanca que la guía no considera). La llave de cortante tiene su propio ejemplo
+en `examples/llave_de_cortante.ocnx`.
+
 ## Pendiente
 
 - Rotura del metal base en la soldadura (J4) y soldadura de penetración.
-- Refuerzo de anclaje y refuerzo suplementario (hoy solo cambia φ).
-- Diseño sísmico, llave de cortante y verificación ASD del concreto.
-- Reporte en PDF.
+- Diseño sísmico y verificación ASD del concreto.
+- Rigidizadores en HSS rectangular.

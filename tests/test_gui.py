@@ -128,3 +128,62 @@ def test_solve_check_and_report(window, qtbot, tmp_path):
     window.state.set("base_plate", "tp", "2.5 in")
     assert window.state.stale
     assert "desactualizados" in window.status_label.text()
+
+
+@pytest.fixture
+def isolated_settings(monkeypatch, tmp_path):
+    from PySide6.QtCore import QSettings
+
+    import openfemconex.gui.main as gui_main
+
+    store = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    monkeypatch.setattr(gui_main, "settings", lambda: store)
+    return store
+
+
+def test_dark_theme(window, isolated_settings):
+    from PySide6.QtGui import QPalette
+    from PySide6.QtWidgets import QApplication
+
+    window.set_dark(True)
+    window_color = QApplication.instance().palette().color(QPalette.ColorRole.Window)
+    assert window_color.lightness() < 80
+    assert isolated_settings.value("dark", type=bool) is True
+    window.set_dark(False)
+    assert QApplication.instance().palette().color(QPalette.ColorRole.Window).lightness() > 150
+
+
+def test_help_topics_in_both_languages():
+    from openfemconex.gui.help import HelpDialog, topics
+
+    es, en = topics("es"), topics("en")
+    assert len(es) == len(en) >= 4
+    assert es[0][0] == "Inicio rápido" and en[0][0] == "Quick start"
+    dialog = HelpDialog(None, 2)
+    assert dialog.index.count() == len(es)
+    assert "Verificaciones" in dialog.page.toPlainText()
+
+
+def test_english_interface(qtbot, monkeypatch):
+    from openfemconex.i18n import EN, set_language, tr
+
+    set_language("en")
+    try:
+        w = MainWindow()
+        qtbot.addWidget(w)
+        monkeypatch.setattr(w, "_confirm_discard", lambda: True)
+        assert [w.ribbon.tabs.tabText(i) for i in range(w.ribbon.tabs.count())] == [
+            "Project", "Geometry", "Loads", "Analysis", "Checks", "Report", "Help"]
+        assert "Ready" in w.status_label.text()
+        assert tr("Datos no válidos: {error}", error="x") == "Invalid data: x"
+        w.ribbon.select("Geometría")  # internal names stay in Spanish
+        assert w.central.currentWidget() is w.viewer
+    finally:
+        set_language("es")
+    # every English text has its fields in common with the Spanish one
+    import string
+
+    def fields(text):
+        return {f for _, f, _, _ in string.Formatter().parse(text) if f}
+
+    assert all(fields(k) == fields(v) for k, v in EN.items())

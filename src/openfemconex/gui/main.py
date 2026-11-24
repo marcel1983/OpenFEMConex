@@ -11,7 +11,7 @@ from pathlib import Path
 
 from openconex.report.builder import fmt
 from openconex.units import Kind
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import QProcess, Qt, QTimer, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QPageLayout, QPageSize, QTextDocument
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 
 from openfemconex import __version__
 from openfemconex.checks import EDITIONS
+from openfemconex.gui.help import HelpDialog, about
 from openfemconex.gui.icons import app_icon, icon
 from openfemconex.gui.panels import (
     PEDESTAL_FIELDS,
@@ -52,14 +53,17 @@ from openfemconex.gui.panels import (
     LoadsPanel,
     unit_presets,
 )
+from openfemconex.gui.ribbon import STYLE as RIBBON_STYLE
 from openfemconex.gui.ribbon import Ribbon
 from openfemconex.gui.state import ProjectState
+from openfemconex.gui.theme import apply_theme, settings
 from openfemconex.gui.viewer import FIELDS, Viewer
 from openfemconex.gui.worker import SolveWorker
+from openfemconex.i18n import LANGUAGES, language, set_language, tr
 from openfemconex.report import check_title
 from openfemconex.runner import CcxError, find_ccx
 
-EDITION_LABELS = {"current": "AISC 360-22 / ACI 318-19", "dg1-2ed": "DG1 2.ª ed. (360-05 / 318-08)"}
+EDITION_LABELS = {"current": "AISC 360-22 / ACI 318-19", "dg1-2ed": "DG1 2nd ed. (360-05 / 318-08)"}
 _LATEX = [(r"\\frac\{([^{}]*)\}\{([^{}]*)\}", r"(\1)/(\2)"), (r"\\sqrt\{([^{}]*)\}", r"√(\1)"),
           (r"\\left|\\right|\\,|\\ ", " "), (r"\\phi", "φ"), (r"\\psi", "ψ"), (r"\\mu", "μ"),
           (r"\\pi", "π"), (r"\\theta", "θ"), (r"\\Omega", "Ω"), (r"\\varepsilon", "ε"),
@@ -80,6 +84,7 @@ def plain_math(latex: str) -> str:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
+        self.dark = settings().value("dark", False, type=bool)
         self.state = ProjectState()
         self.worker: SolveWorker | None = None
         self._view = "model"
@@ -113,13 +118,15 @@ class MainWindow(QMainWindow):
         self._on_loaded()
         self._on_changed()
         self._on_results()
+        apply_theme(self.dark)
+        self.viewer.set_dark(self.dark)
 
     # ------------------------------------------------------------------ construction
     def _build_docks(self) -> None:
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.itemClicked.connect(self._tree_clicked)
-        left = QDockWidget("Proyecto", self)
+        left = QDockWidget(tr("Proyecto"), self)
         left.setObjectName("dockProject")
         left.setWidget(self.tree)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, left)
@@ -160,7 +167,7 @@ class MainWindow(QMainWindow):
         self.detail = QTextBrowser()
         self.detail.setOpenExternalLinks(True)
         self.properties.addWidget(self.detail)
-        right = QDockWidget("Propiedades", self)
+        right = QDockWidget(tr("Propiedades"), self)
         right.setObjectName("dockProperties")
         right.setWidget(self.properties)
         right.setMinimumWidth(360)
@@ -170,8 +177,9 @@ class MainWindow(QMainWindow):
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(5000)
         self.checks = QTableWidget(0, 7)
-        self.checks.setHorizontalHeaderLabels(["Combinación", "Verificación", "Demanda",
-                                               "Capacidad", "Ratio", "Estado", "Referencia"])
+        self.checks.setHorizontalHeaderLabels([tr(h, "column") for h in (
+            "Combinación", "Verificación", "Demanda", "Capacidad", "Ratio", "Estado",
+            "Referencia")])
         header = self.checks.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -179,9 +187,9 @@ class MainWindow(QMainWindow):
         self.checks.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.checks.itemSelectionChanged.connect(self._check_selected)
         self.bottom = QTabWidget()
-        self.bottom.addTab(self.log, "Registro del solver")
-        self.bottom.addTab(self.checks, "Verificaciones")
-        bottom = QDockWidget("Resultados", self)
+        self.bottom.addTab(self.log, tr("Registro del solver"))
+        self.bottom.addTab(self.checks, tr("Verificaciones"))
+        bottom = QDockWidget(tr("Resultados"), self)
         bottom.setObjectName("dockBottom")
         bottom.setWidget(self.bottom)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, bottom)
@@ -209,6 +217,21 @@ class MainWindow(QMainWindow):
         self.edition_box.activated.connect(
             lambda i: self.state.set_setting("edition", self.edition_box.itemData(i)))
         g.add_widget("Normas", self.edition_box)
+
+        g = tab("Apariencia")
+        self.language_box = QComboBox()
+        for code, name in LANGUAGES.items():
+            self.language_box.addItem(name, code)
+        self.language_box.setCurrentIndex(self.language_box.findData(language()))
+        self.language_box.activated.connect(
+            lambda i: self.change_language(self.language_box.itemData(i)))
+        g.add_widget("Idioma", self.language_box)
+        self.theme_box = QComboBox()
+        self.theme_box.addItem(tr("Claro"), False)
+        self.theme_box.addItem(tr("Oscuro"), True)
+        self.theme_box.setCurrentIndex(1 if self.dark else 0)
+        self.theme_box.activated.connect(lambda i: self.set_dark(self.theme_box.itemData(i)))
+        g.add_widget("Tema", self.theme_box)
 
         tab = self.ribbon.add_tab("Geometría")
         g = tab("Componentes")
@@ -240,8 +263,9 @@ class MainWindow(QMainWindow):
         self.combo_box.textActivated.connect(self.show_results)
         g.add_widget("Combinación", self.combo_box)
         self.field_box = QComboBox()
-        self.field_box.addItems(list(FIELDS))
-        self.field_box.textActivated.connect(lambda _: self.show_results())
+        for name in FIELDS:
+            self.field_box.addItem(tr(name), name)
+        self.field_box.activated.connect(lambda _: self.show_results())
         g.add_widget("Resultado", self.field_box)
         self.scale_box = QDoubleSpinBox()
         self.scale_box.setRange(0.0, 500.0)
@@ -261,8 +285,47 @@ class MainWindow(QMainWindow):
         g.add_button("Abrir", icon("browser"), self.open_report,
                      "Abre el reporte completo en el navegador")
         g.add_button("Exportar PDF", icon("pdf"), self.export_pdf)
+        tab = self.ribbon.add_tab("Ayuda")
+        g = tab("Ayuda")
+        g.add_button("Manual", icon("help"), self.show_help,
+                     "Manual de uso, verificaciones y validación")
+        g.add_button("Acerca de", icon("info"), lambda: about(self))
         self.ribbon.tab_changed.connect(self._ribbon_tab)
         self.ribbon.select("Geometría")
+
+    # ------------------------------------------------------------------ appearance and help
+    def set_dark(self, dark: bool) -> None:
+        self.dark = bool(dark)
+        apply_theme(self.dark)
+        self.viewer.set_dark(self.dark)
+        self.ribbon.setStyleSheet(RIBBON_STYLE)  # re-resolve the palette() colours
+        settings().setValue("dark", self.dark)
+        self._update_status()
+        self._fill_tree()
+        if self._view == "results":
+            self.show_results()
+        else:
+            self._refresh_view()
+
+    def change_language(self, code: str) -> None:
+        if code == language():
+            return
+        settings().setValue("language", code)
+        if not self._confirm_discard():
+            self.language_box.setCurrentIndex(self.language_box.findData(language()))
+            return
+        # the window is built again in the new language, on the same project
+        args = [sys.executable, "-m", "openfemconex.gui.main"]
+        if getattr(sys, "frozen", False):
+            args = [sys.executable]
+        if self.state.path is not None:
+            args.append(str(self.state.path))
+        self.state.dirty = False
+        QProcess.startDetached(args[0], args[1:])
+        self.close()
+
+    def show_help(self, topic: int = 0) -> None:
+        HelpDialog(self, topic).exec()
 
     def _build_status(self) -> None:
         self.status_label = QLabel()
@@ -303,23 +366,23 @@ class MainWindow(QMainWindow):
     def _update_status(self) -> None:
         st = self.state
         if not st.valid:
-            text, color = f"Datos no válidos: {st.error}", "#b00020"
+            text, color = tr("Datos no válidos: {error}", error=st.error), "#d03040"
         elif st.stale:
-            text, color = ("Los resultados están desactualizados: cambió la geometría, las "
-                           "cargas o los ajustes. Vuelva a resolver."), "#a05a00"
+            text, color = tr("Los resultados están desactualizados: cambió la geometría, las "
+                             "cargas o los ajustes. Vuelva a resolver."), "#d08020"
         elif st.reports:
             worst = max((r for rep in st.reports.values() for r in rep.fem_checks),
                         key=lambda r: r.ratio / r.ratio_limit, default=None)
             ok = all(r.status.value != "ng" for rep in st.reports.values()
                      for r in rep.fem_checks)
-            text = ("Cumple" if ok else "No cumple") + (
-                f". Gobierna: {check_title(worst)}, ratio {worst.ratio:.2f} ({worst.combo})"
-                if worst else "")
-            color = "#17692b" if ok else "#b00020"
+            text = tr("Cumple" if ok else "No cumple") + (
+                ". " + tr("Gobierna: {check}, ratio {ratio} ({combo})", check=check_title(worst),
+                          ratio=f"{worst.ratio:.2f}", combo=worst.combo) if worst else "")
+            color = "#2e9e4f" if ok else "#d03040"
         else:
-            text, color = "Listo. Sin resultados: use Análisis › Resolver.", "#333333"
+            text, color = tr("Listo. Sin resultados: use Análisis › Resolver."), ""
         self.status_label.setText(text)
-        self.status_label.setStyleSheet(f"color: {color};")
+        self.status_label.setStyleSheet(f"color: {color};" if color else "")
         self.solve_button.setEnabled(st.valid and self.worker is None)
 
     def _fill_tree(self) -> None:
@@ -327,40 +390,41 @@ class MainWindow(QMainWindow):
         self.tree.clear()
         root = QTreeWidgetItem([str(st.get("info", "name", "Proyecto"))])
         self.tree.addTopLevelItem(root)
-        geometry = QTreeWidgetItem(root, ["Geometría"])
+        geometry = QTreeWidgetItem(root, [tr("Geometría")])
         bp = st.data.get("base_plate", {})
         summary = {
             "Columna": str(bp.get("column", "")),
             "Placa": " × ".join(str(bp.get(k, "?")) for k in ("N", "B", "tp")),
-            "Anclajes": (f"{len(st.ext('anchors'))} por coordenadas" if st.ext("anchors") else
-                         f"{2 * int(bp.get('rods_per_side', 2))} de "
-                         f"{bp.get('rod_diameter', '?')}"),
+            "Anclajes": (f"{len(st.ext('anchors'))} {tr('por coordenadas')}" if st.ext("anchors")
+                         else tr("{n} de {d}", n=2 * int(bp.get("rods_per_side", 2)),
+                                 d=bp.get("rod_diameter", "?"))),
             "Concreto": f"f'c = {bp.get('fc', '?')}",
-            "Soldadura": str(bp.get("flange_weld", "filete mínimo")),
-            "Rigidizadores": (str(st.ext("stiffeners").get("layout")) if st.ext("stiffeners")
-                              else "ninguno"),
+            "Soldadura": str(bp.get("flange_weld", tr("filete mínimo"))),
+            "Rigidizadores": (tr(str(st.ext("stiffeners").get("layout")))
+                              if st.ext("stiffeners") else tr("ninguno")),
         }
         for name, text in summary.items():
-            item = QTreeWidgetItem(geometry, [f"{name}: {text}"])
+            item = QTreeWidgetItem(geometry, [f"{tr(name)}: {text}"])
             item.setData(0, Qt.ItemDataRole.UserRole, ("section", name))
-        loads = QTreeWidgetItem(root, ["Cargas"])
+        loads = QTreeWidgetItem(root, [tr("Cargas")])
         loads.setData(0, Qt.ItemDataRole.UserRole, ("loads", ""))
         for case in st.data.get("cases", []):
             item = QTreeWidgetItem(loads, [f"{case.get('name')} ({case.get('type')})"])
             item.setData(0, Qt.ItemDataRole.UserRole, ("loads", ""))
-        analysis = QTreeWidgetItem(root, ["Combinaciones"])
+        analysis = QTreeWidgetItem(root, [tr("Combinaciones")])
         if st.valid:
             for combo, _ in st.study().combinations():
                 rep = st.reports.get(combo.name)
                 if rep is None:
-                    text, color = "sin resolver", "#777777"
+                    text, color = tr("sin resolver"), "#888888"
                 elif not rep.results.converged:
-                    text, color = "no convergió", "#b00020"
+                    text, color = tr("no convergió"), "#d03040"
                 else:
                     worst = max((r.ratio / r.ratio_limit for r in rep.fem_checks), default=0.0)
                     ok = all(r.status.value != "ng" for r in rep.fem_checks)
-                    text = f"ratio máx. {worst:.2f}" + (" (desactualizado)" if st.stale else "")
-                    color = "#17692b" if ok else "#b00020"
+                    text = (tr("ratio máx. {ratio}", ratio=f"{worst:.2f}")
+                            + (tr(" (desactualizado)") if st.stale else ""))
+                    color = "#2e9e4f" if ok else "#d03040"
                 item = QTreeWidgetItem(analysis, [f"{combo.name}: {text}"])
                 item.setForeground(0, QColor(color))
                 item.setData(0, Qt.ItemDataRole.UserRole, ("combo", combo.name))
@@ -377,7 +441,7 @@ class MainWindow(QMainWindow):
                 row = self.checks.rowCount()
                 self.checks.insertRow(row)
                 ok = r.status.value != "ng"
-                state = {"ok": "Cumple", "ng": "No cumple"}.get(r.status.value, "No rige")
+                state = tr({"ok": "Cumple", "ng": "No cumple"}.get(r.status.value, "No rige"))
                 cells = [name, check_title(r), fmt(r.demand, r.kind, units),
                          fmt(r.capacity, r.kind, units),
                          f"{r.ratio:.2f}" if r.applicable else "—", state, r.clause]
@@ -387,8 +451,8 @@ class MainWindow(QMainWindow):
                         item.setTextAlignment(Qt.AlignmentFlag.AlignRight
                                               | Qt.AlignmentFlag.AlignVCenter)
                     if c in (4, 5):
-                        item.setForeground(QColor("#777777" if not r.applicable else
-                                                  "#17692b" if ok else "#b00020"))
+                        item.setForeground(QColor("#888888" if not r.applicable else
+                                                  "#2e9e4f" if ok else "#d03040"))
                     self.checks.setItem(row, c, item)
                 self._check_rows.append((name, r))
 
@@ -443,13 +507,14 @@ class MainWindow(QMainWindow):
             try:
                 st.mesh = st.study().mesh(st.model)
             except Exception as exc:
-                self.log.appendPlainText(f"No se pudo mallar: {exc}")
-                self.status_label.setText(f"No se pudo mallar: {exc}")
+                self.log.appendPlainText(tr("No se pudo mallar: {error}", error=exc))
+                self.status_label.setText(tr("No se pudo mallar: {error}", error=exc))
                 return False
             m = st.mesh
             self.analysis_panel.info.setText(
-                f"Malla actual: {len(m.nodes)} nodos y {m.element_count} hexaedros "
-                f"(tamaño fino {m.settings.size_fine:.1f} mm).")
+                tr("Malla actual: {nodes} nodos y {elements} hexaedros (tamaño fino {size} mm).",
+                   nodes=len(m.nodes), elements=m.element_count,
+                   size=f"{m.settings.size_fine:.1f}"))
         return True
 
     def show_model(self, edges: bool = False) -> None:
@@ -476,7 +541,7 @@ class MainWindow(QMainWindow):
         units = st.project.info.unit_system()
         sample = fmt(1000.0, Kind.FORCE, units, 6).split()
         self.viewer.show_results(vtu, st.model, st.reports[name].results,
-                                 self.field_box.currentText(), self.scale_box.value(),
+                                 self.field_box.currentData(), self.scale_box.value(),
                                  unit_force=float(sample[0]) / 1000.0, force_label=sample[-1],
                                  reset=first)
 
@@ -493,22 +558,23 @@ class MainWindow(QMainWindow):
         selected = set(self.loads.selected())
         combos = [(c, ld) for c, ld in st.study().combinations() if c.name in selected]
         if not combos:
-            QMessageBox.information(self, "Resolver", "Marque al menos una combinación en la "
-                                                      "pestaña Cargas.")
+            QMessageBox.information(self, tr("Resolver"),
+                                    tr("Marque al menos una combinación en la pestaña Cargas."))
             return
         out = st.output_dir()
         out.mkdir(parents=True, exist_ok=True)
         st.clear_results()
         self.bottom.setCurrentWidget(self.log)
         self.log.appendPlainText(
-            f"Malla: {len(st.mesh.nodes)} nodos, {st.mesh.element_count} hexaedros. "
-            f"Salida: {out}")
+            tr("Malla: {nodes} nodos, {elements} hexaedros. Salida: {out}",
+               nodes=len(st.mesh.nodes), elements=st.mesh.element_count, out=out))
         self.worker = SolveWorker(st.study(), combos, out, st.model, st.mesh)
         self.worker.started_combo.connect(self._combo_started)
         self.worker.combo_done.connect(self._combo_done)
         self.worker.combo_failed.connect(
-            lambda n, msg: self.log.appendPlainText(f"{n}: falló. {msg}"))
-        self.worker.cancelled.connect(lambda: self.log.appendPlainText("Análisis detenido."))
+            lambda n, msg: self.log.appendPlainText(tr("{name}: falló. {msg}", name=n, msg=msg)))
+        self.worker.cancelled.connect(
+            lambda: self.log.appendPlainText(tr("Análisis detenido.")))
         self.worker.finished.connect(self._solve_finished)
         self._done, self._total = 0, len(combos)
         self.progress.setValue(0)
@@ -524,7 +590,7 @@ class MainWindow(QMainWindow):
 
     def _combo_started(self, name: str) -> None:
         self._running = name
-        self.log.appendPlainText(f"{name}: resolviendo con CalculiX…")
+        self.log.appendPlainText(tr("{name}: resolviendo con CalculiX…", name=name))
 
     def _poll_progress(self) -> None:
         name = getattr(self, "_running", None)
@@ -547,13 +613,16 @@ class MainWindow(QMainWindow):
         units = self.state.project.info.unit_system()
         worst = max(report.fem_checks, key=lambda r: r.ratio / r.ratio_limit, default=None)
         self.log.appendPlainText(
-            f"{name}: " + ("convergió" if res.converged else
-                           f"NO convergió ({100 * res.load_fraction:.0f} % de la carga)")
-            + f" en {res.solver.get('seconds', 0):.0f} s. Tracción total en anclajes "
-            f"{fmt(res.anchor_tension_total, Kind.FORCE, units)}, compresión "
-            f"{fmt(res.bearing_force, Kind.FORCE, units)}, equilibrio "
-            f"{100 * res.equilibrium_error:.2f} %."
-            + (f" Gobierna {check_title(worst)}: {worst.ratio:.2f}." if worst else ""))
+            f"{name}: " + (tr("convergió") if res.converged else
+                           tr("NO convergió ({pct} % de la carga)",
+                              pct=f"{100 * res.load_fraction:.0f}"))
+            + tr(" en {s} s. Tracción total en anclajes {t}, compresión {c}, equilibrio {e} %.",
+                 s=f"{res.solver.get('seconds', 0):.0f}",
+                 t=fmt(res.anchor_tension_total, Kind.FORCE, units),
+                 c=fmt(res.bearing_force, Kind.FORCE, units),
+                 e=f"{100 * res.equilibrium_error:.2f}")
+            + (tr(" Gobierna {check}: {ratio}.", check=check_title(worst),
+                  ratio=f"{worst.ratio:.2f}") if worst else ""))
         self.state.set_report(name, report)
         self.show_results(name)
 
@@ -578,26 +647,27 @@ class MainWindow(QMainWindow):
             f"<td align='right'>{escape(fmt(s.value, s.kind, units))}</td></tr>" for s in r.steps)
         ok = r.status.value != "ng"
         self.detail.setHtml(
-            f"<h3>{escape(check_title(r))}</h3><p>Combinación {escape(name)}. "
-            f"Referencia: {escape(r.clause)}.</p>"
-            f"<p>Demanda {escape(fmt(r.demand, r.kind, units))}, capacidad "
-            f"{escape(fmt(r.capacity, r.kind, units))}, ratio <b>{r.ratio:.2f}</b>: "
-            f"<span style='color:{'#17692b' if ok else '#b00020'}'>"
-            f"{'cumple' if ok else 'no cumple'}</span>.</p>"
-            f"<table cellspacing='0' cellpadding='4' border='1'><tr><th>Símbolo</th>"
-            f"<th>Expresión</th><th>Valor</th></tr>{lines}</table>"
-            "<p><small>El reporte completo muestra las fórmulas con notación matemática."
-            "</small></p>")
+            f"<h3>{escape(check_title(r))}</h3><p>"
+            + escape(tr("Combinación {name}. Referencia: {clause}.", name=name, clause=r.clause))
+            + "</p><p>" + tr("Demanda {d}, capacidad {c}, ratio <b>{r}</b>:",
+                             d=escape(fmt(r.demand, r.kind, units)),
+                             c=escape(fmt(r.capacity, r.kind, units)), r=f"{r.ratio:.2f}")
+            + f" <span style='color:{'#2e9e4f' if ok else '#d03040'}'>"
+            f"{tr('cumple') if ok else tr('no cumple')}</span>.</p>"
+            f"<table cellspacing='0' cellpadding='4' border='1'><tr><th>{tr('Símbolo')}</th>"
+            f"<th>{tr('Expresión')}</th><th>{tr('Valor')}</th></tr>{lines}</table>"
+            "<p><small>" + tr("El reporte completo muestra las fórmulas con notación matemática.")
+            + "</small></p>")
 
     def _report_html(self, traces: bool = True, figure_base: str = "") -> str | None:
         st = self.state
         if not st.reports or not st.valid:
-            QMessageBox.information(self, "Reporte", "Primero resuelva el modelo.")
+            QMessageBox.information(self, tr("Reporte"), tr("Primero resuelva el modelo."))
             return None
         reports = list(st.reports.values())
         figures = {}
         if self.viewer.plotter is not None and self._ensure_mesh():
-            self.status_label.setText("Generando los gráficos del reporte…")
+            self.status_label.setText(tr("Generando los gráficos del reporte…"))
             QApplication.processEvents()
             figures = st.study().figures(st.output_dir(), reports, st.model, st.mesh)
         return st.study().report_html(reports, st.model, st.mesh, traces=traces,
@@ -609,8 +679,8 @@ class MainWindow(QMainWindow):
             return None
         path = self.state.output_dir() / "reporte.html"
         path.write_text(html, encoding="utf-8")
-        self.log.appendPlainText(f"Reporte escrito en {path}")
-        self.status_label.setText(f"Reporte escrito en {path}")
+        self.log.appendPlainText(tr("Reporte escrito en {path}", path=path))
+        self.status_label.setText(tr("Reporte escrito en {path}", path=path))
         return path
 
     def open_report(self) -> None:
@@ -624,7 +694,7 @@ class MainWindow(QMainWindow):
             return None
         if not path:
             default = str(self.state.output_dir() / "reporte.pdf")
-            path, _ = QFileDialog.getSaveFileName(self, "Exportar PDF", default, "PDF (*.pdf)")
+            path, _ = QFileDialog.getSaveFileName(self, tr("Exportar PDF"), default, "PDF (*.pdf)")
         if not path:
             return None
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
@@ -635,7 +705,7 @@ class MainWindow(QMainWindow):
         document = QTextDocument()
         document.setHtml(html.replace('width="470"', 'width="330"'))
         document.print_(printer)
-        self.log.appendPlainText(f"PDF escrito en {path}")
+        self.log.appendPlainText(tr("PDF escrito en {path}", path=path))
         return Path(path)
 
     # ------------------------------------------------------------------ files
@@ -643,7 +713,8 @@ class MainWindow(QMainWindow):
         if not self.state.dirty:
             return True
         answer = QMessageBox.question(
-            self, "Cambios sin guardar", "El proyecto tiene cambios sin guardar. ¿Descartarlos?",
+            self, tr("Cambios sin guardar"),
+            tr("El proyecto tiene cambios sin guardar. ¿Descartarlos?"),
             QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
         return answer == QMessageBox.StandardButton.Discard
 
@@ -655,14 +726,15 @@ class MainWindow(QMainWindow):
         if not path:
             if not self._confirm_discard():
                 return
-            path, _ = QFileDialog.getOpenFileName(self, "Abrir proyecto", "",
-                                                  "Proyecto OpenConex (*.ocnx *.json)")
+            path, _ = QFileDialog.getOpenFileName(self, tr("Abrir proyecto"), "",
+                                                  tr("Proyecto OpenConex (*.ocnx *.json)"))
         if not path:
             return
         try:
             self.state.open(path)
         except Exception as exc:
-            QMessageBox.critical(self, "Abrir proyecto", f"No se pudo abrir {path}:\n{exc}")
+            QMessageBox.critical(self, tr("Abrir proyecto"),
+                                 tr("No se pudo abrir {path}:\n{error}", path=path, error=exc))
             return
         self.ribbon.select("Geometría")
 
@@ -673,8 +745,8 @@ class MainWindow(QMainWindow):
             self.state.save()
 
     def save_project_as(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "Guardar proyecto", "",
-                                              "Proyecto OpenConex (*.ocnx)")
+        path, _ = QFileDialog.getSaveFileName(self, tr("Guardar proyecto"), "",
+                                              tr("Proyecto OpenConex (*.ocnx)"))
         if path:
             self.state.save(path if path.endswith(".ocnx") else path + ".ocnx")
 
@@ -692,6 +764,7 @@ class MainWindow(QMainWindow):
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
     app = QApplication.instance() or QApplication(argv)
+    set_language(str(settings().value("language", "es")))
     app.setApplicationName("OpenFEMConex")
     app.setApplicationVersion(__version__)
     window = MainWindow()

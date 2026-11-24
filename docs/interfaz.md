@@ -21,7 +21,8 @@ El ribbon tiene una pestaña por etapa, en el orden de trabajo.
 | Cargas | Tabla de casos (P, V, M en los dos ejes) y combinaciones ASCE 7 generadas, LRFD y ASD. Se marcan las que se van a resolver |
 | Análisis | Ajustes de malla, resolver con CalculiX en segundo plano (con avance y botón de detener) y resultados en 3D: von Mises, deformación plástica, presión de contacto y desplazamiento, con la deformada amplificada y la tracción de cada anclaje |
 | Verificación | Tabla de verificaciones con demanda, capacidad, ratio y referencia; al seleccionar una fila se ve su traza de cálculo |
-| Reporte | Genera el reporte HTML (con la vista 3D actual), lo abre en el navegador o exporta un PDF resumido |
+| Reporte | Genera el reporte HTML con gráficos de geometría, malla, esfuerzos, deformación plástica, desplazamiento y presión de contacto; lo abre en el navegador o exporta un PDF resumido |
+| Ayuda | Manual en el idioma de la interfaz y datos del programa |
 
 A la izquierda está el árbol del proyecto, que también sirve para navegar; a la
 derecha, las propiedades de lo seleccionado; abajo, el registro del solver y
@@ -39,6 +40,27 @@ y desactiva Resolver.
 
 Los resultados se guardan junto al proyecto, en `<nombre>_fem/`. Si el `.inp`
 de una combinación no cambió, no se vuelve a correr CalculiX.
+
+## Idioma, tema y ayuda
+
+- **Proyecto › Apariencia › Idioma**: español o inglés. La ventana se vuelve a
+  abrir con el mismo proyecto en el idioma elegido; el reporte sale en ese
+  idioma. Desde la línea de comandos el idioma del reporte es el del proyecto
+  (`info.language`).
+- **Proyecto › Apariencia › Tema**: claro u oscuro, también para el visor 3D.
+  Las dos preferencias se recuerdan entre sesiones.
+- **Ayuda › Manual**: inicio rápido, modelo FEM, verificaciones y validación,
+  en el idioma de la interfaz. **Ayuda › Acerca de**: versión y licencias.
+
+![Interfaz en inglés con el tema oscuro](img/gui_en_oscuro.png)
+
+## Datos que agrega OpenFEMConex
+
+Además de los datos de OpenConex, el `.ocnx` puede llevar un bloque
+`"openfemconex"` con anclajes por coordenadas (Geometría › Anclajes), refuerzo
+del pedestal (Geometría › Concreto) y rigidizadores (Geometría ›
+Rigidizadores). Un archivo con ese bloque solo se abre en OpenFEMConex. La
+llave de cortante usa el campo `shear_lug` de OpenConex.
 
 ## Empaquetado
 

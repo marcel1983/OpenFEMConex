@@ -28,7 +28,7 @@ if ccx:
 
 datas = (collect_data_files("openconex") + collect_data_files("pyvista")
          + collect_data_files("latex2mathml") + collect_data_files("pint")
-         + collect_data_files("docx"))
+         + collect_data_files("docx") + collect_data_files("openfemconex"))
 hidden = collect_submodules("openconex") + ["vtkmodules.all", "pyvistaqt"]
 
 a = Analysis(

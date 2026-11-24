@@ -97,6 +97,9 @@ def main(argv: list[str] | None = None) -> int:
     from openfemconex.solve import solve
 
     project, extras = load_extended(args.project)
+    from openfemconex.i18n import set_language
+
+    set_language(project.info.language)
     model = model_of(project, leveling_nuts=args.leveling_nuts, mu=args.mu, extras=extras)
     free = bool(extras.anchors)
     combos = project_loads(project)

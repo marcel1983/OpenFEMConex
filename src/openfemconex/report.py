@@ -16,6 +16,8 @@ from openconex.report.html import latex_to_mathml
 from openconex.units import Kind, UnitSystem
 
 from openfemconex.checks import Edition
+from openfemconex.i18n import language
+from openfemconex.i18n import tr as _
 from openfemconex.results import Results
 
 __all__ = ["ComboReport", "TITLES", "check_title", "render_report", "write_report"]
@@ -49,8 +51,10 @@ TITLES = {
 
 def check_title(result: CheckResult) -> str:
     if result.id in TITLES:
-        return TITLES[result.id]
-    title = tr(result.text_id, "es")
+        return _(TITLES[result.id])
+    title = tr(result.text_id, language())
+    if title == result.text_id:
+        title = tr(result.text_id, "es")
     return result.id if title == result.text_id else title
 
 
@@ -80,7 +84,7 @@ details{margin:.3em 0 .8em}summary{cursor:pointer}small,.note{color:#555;font-si
 
 def _status(result: CheckResult) -> str:
     cls = {"ok": "ok", "ng": "ng"}.get(result.status.value, "na")
-    text = {"ok": "Cumple", "ng": "No cumple"}.get(result.status.value, "No rige")
+    text = {"ok": _("Cumple"), "ng": _("No cumple")}.get(result.status.value, _("No rige"))
     return f'<span class="{cls}">{text}</span>'
 
 
@@ -95,10 +99,11 @@ def _table(headers: list[str], rows: list[list[str]], numeric: set[int] = frozen
 def _checks_table(checks: list[CheckResult], units: UnitSystem) -> str:
     rows = [[escape(check_title(r)), fmt(r.demand, r.kind, units), fmt(r.capacity, r.kind, units),
              "—" if not r.applicable else
-             f"{r.ratio:.2f}" + (f" (límite {r.ratio_limit:g})" if r.ratio_limit != 1 else ""),
+             f"{r.ratio:.2f}" + (_(" (límite {limit})", limit=f"{r.ratio_limit:g}")
+                                 if r.ratio_limit != 1 else ""),
              _status(r), escape(r.clause)] for r in checks]
-    return _table(["Verificación", "Demanda", "Capacidad", "Ratio", "Estado", "Referencia"], rows,
-                  {1, 2, 3})
+    return _table([_(h, "column") for h in ("Verificación", "Demanda", "Capacidad", "Ratio",
+                                            "Estado", "Referencia")], rows, {1, 2, 3})
 
 
 def _trace(checks: list[CheckResult], units: UnitSystem) -> str:
@@ -108,9 +113,11 @@ def _trace(checks: list[CheckResult], units: UnitSystem) -> str:
             f"<tr><td>{latex_to_mathml(s.symbol)}</td><td>{latex_to_mathml(s.expression)}</td>"
             f'<td class="n">{fmt(s.value, s.kind, units)}</td><td>{escape(s.clause)}</td></tr>'
             for s in r.steps)
+        heads = "".join(f"<th>{_(h)}</th>" for h in ("Símbolo", "Expresión", "Valor",
+                                                     "Referencia"))
         out.append(f"<details><summary>{escape(check_title(r))}: ratio {r.ratio:.2f}</summary>"
-                   f"<table><thead><tr><th>Símbolo</th><th>Expresión</th><th>Valor</th>"
-                   f"<th>Referencia</th></tr></thead><tbody>{lines}</tbody></table></details>")
+                   f"<table><thead><tr>{heads}</tr></thead><tbody>{lines}</tbody></table>"
+                   "</details>")
     return "".join(out)
 
 
@@ -118,31 +125,31 @@ def _fem_summary(c: ComboReport, units: UnitSystem) -> str:
     r = c.results
     F, S, L = Kind.FORCE, Kind.STRESS, Kind.LENGTH
     rows = [
-        ["Tracción total en anclajes", fmt(r.anchor_tension_total, F, units),
+        [_("Tracción total en anclajes"), fmt(r.anchor_tension_total, F, units),
          fmt(c.reference["T"], F, units) if "T" in c.reference else "—"],
-        ["Compresión sobre el concreto", fmt(r.bearing_force, F, units),
+        [_("Compresión sobre el concreto"), fmt(r.bearing_force, F, units),
          fmt(c.reference["T"] + r.applied["P"], F, units) if "T" in c.reference else "—"],
-        ["Longitud de apoyo", fmt(r.bearing_length_x, L, units),
+        [_("Longitud de apoyo"), fmt(r.bearing_length_x, L, units),
          fmt(c.reference["Y"], L, units) if "Y" in c.reference else "—"],
-        ["Presión de contacto media", fmt(r.bearing_pressure_mean, S, units),
+        [_("Presión de contacto media"), fmt(r.bearing_pressure_mean, S, units),
          fmt(c.reference["fp"], S, units) if "fp" in c.reference else "—"],
-        ["Presión de contacto máxima (concreto elástico)", fmt(r.bearing_pressure_max, S, units),
-         "—"],
-        ["von Mises máximo en la placa", fmt(r.plate_von_mises_max, S, units), "—"],
-        ["Deformación plástica en la placa (media por elemento / pico nodal)",
+        [_("Presión de contacto máxima (concreto elástico)"),
+         fmt(r.bearing_pressure_max, S, units), "—"],
+        [_("von Mises máximo en la placa"), fmt(r.plate_von_mises_max, S, units), "—"],
+        [_("Deformación plástica en la placa (media por elemento / pico nodal)"),
          f"{100 * r.plate_peeq_element:.2f} % / {100 * r.plate_peeq_max:.2f} %", "—"],
-        ["Cortante transferido por fricción",
+        [_("Cortante transferido por fricción"),
          fmt((r.friction[0] ** 2 + r.friction[1] ** 2) ** 0.5, F, units), "—"],
-        ["Error de equilibrio vertical / de momento",
+        [_("Error de equilibrio vertical / de momento"),
          f"{100 * r.equilibrium_error:.2f} % / {100 * r.moment_error:.2f} %", "—"],
     ]
     anchors = [[str(i), fmt(a.x, L, units), fmt(a.y, L, units), fmt(a.tension, F, units),
                 fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units), f"{a.uplift:.3f} mm"]
                for i, a in enumerate(r.anchors, start=1)]
-    return (_table(["Resultado", "FEM", "DG1 (bloque rectangular)"], rows, {1, 2})
-            + "<h3>Fuerzas en anclajes (FEM)</h3>"
-            + _table(["N.º", "x", "y", "Tracción", "Cortante", "Levantamiento"], anchors,
-                     {1, 2, 3, 4, 5}))
+    return (_table([_("Resultado"), "FEM", _("DG1 (bloque rectangular)")], rows, {1, 2})
+            + f"<h3>{_('Fuerzas en anclajes (FEM)')}</h3>"
+            + _table([_("N.º"), "x", "y", _("Tracción"), _("Cortante"), _("Levantamiento")],
+                     anchors, {1, 2, 3, 4, 5}))
 
 
 def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[ComboReport],
@@ -154,18 +161,22 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
     every = [r for c in combos for r in c.fem_checks]
     ok = all(r.status.value != "ng" for r in every)
     worst = max(every, key=lambda r: r.ratio / r.ratio_limit, default=None)
+    codes = f"{edition.aisc}, {edition.aci}, {edition.guide}"
     parts = [
-        f"<!doctype html><html lang='es'><head><meta charset='utf-8'><title>{escape(title)}"
-        f"</title><style>{_CSS}</style></head><body>",
+        f"<!doctype html><html lang='{language()}'><head><meta charset='utf-8'>"
+        f"<title>{escape(title)}</title><style>{_CSS}</style></head><body>",
         f"<h1>{escape(title)}</h1>",
-        f"<p>Verificación de placa base por elementos finitos (CalculiX). Normas: "
-        f"{escape(edition.aisc)}, {escape(edition.aci)} y {escape(edition.guide)}. "
-        f"Fecha: {today.isoformat()}.</p>",
-        "<p>Resultado global: " + ('<span class="ok">Cumple</span>' if ok
-                                   else '<span class="ng">No cumple</span>')
-        + (f". Gobierna: {escape(check_title(worst))} ({escape(worst.combo)}), "
-           f"ratio {worst.ratio:.2f}." if worst else ".") + "</p>",
-        "<h2>Datos</h2>", _table(["Dato", "Valor"], [[escape(k), escape(v)] for k, v in inputs]),
+        "<p>" + escape(_("Verificación de placa base por elementos finitos (CalculiX). Normas: "
+                         "{codes}. Fecha: {date}.", codes=codes, date=today.isoformat()))
+        + "</p>",
+        f"<p>{_('Resultado global:')} "
+        + (f'<span class="ok">{_("Cumple")}</span>' if ok
+           else f'<span class="ng">{_("No cumple")}</span>')
+        + (". " + escape(_("Gobierna: {check} ({combo}), ratio {ratio}.",
+                           check=check_title(worst), combo=worst.combo,
+                           ratio=f"{worst.ratio:.2f}")) if worst else ".") + "</p>",
+        f"<h2>{_('Datos')}</h2>",
+        _table([_("Dato"), _("Valor")], [[escape(k), escape(v)] for k, v in inputs]),
     ]
     figures = figures or {}
 
@@ -180,51 +191,55 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
                 f'alt="{escape(caption)}"><br><small>{escape(caption)}</small></td>'
                 for caption, name in items[i:i + 2])
             rows += f"<tr>{cells}</tr>"
-        return f"<h3>{heading}</h3><table class='figs'>{rows}</table>"
+        return f"<h3>{_(heading)}</h3><table class='figs'>{rows}</table>"
 
     parts.append(gallery("", "Geometría y malla"))
     if image:
-        parts.append(f'<p><img src="{escape(image)}" alt="Resultados FEM" style="max-width:100%">'
-                     "</p>")
+        parts.append(f'<p><img src="{escape(image)}" alt="FEM" style="max-width:100%"></p>')
     for c in combos:
         r = c.results
         a = r.applied
         state = "" if r.converged else (
-            f' <span class="ng">El análisis no convergió: llegó al '
-            f"{100 * r.load_fraction:.0f} % de momentos y cortantes.</span>")
+            ' <span class="ng">' + escape(_(
+                "El análisis no convergió: llegó al {pct} % de momentos y cortantes.",
+                pct=f"{100 * r.load_fraction:.0f}")) + "</span>")
         parts += [
-            f"<h2>Combinación {escape(r.load)} ({escape(c.method)})</h2>",
+            "<h2>" + escape(_("Combinación {name} ({method})", name=r.load, method=c.method))
+            + "</h2>",
             f"<p>P = {fmt(a['P'], Kind.FORCE, units)}, My = {fmt(a['My'], Kind.MOMENT, units)}, "
             f"Mx = {fmt(a['Mx'], Kind.MOMENT, units)}, Vx = {fmt(a['Vx'], Kind.FORCE, units)}, "
             f"Vy = {fmt(a['Vy'], Kind.FORCE, units)}.{state}</p>",
-            "<h3>Resultados del modelo FEM</h3>", _fem_summary(c, units),
+            f"<h3>{_('Resultados del modelo FEM')}</h3>", _fem_summary(c, units),
             gallery(r.load, "Gráficos de resultados"),
-            "<h3>Verificaciones con demandas del FEM</h3>", _checks_table(c.fem_checks, units),
+            f"<h3>{_('Verificaciones con demandas del FEM')}</h3>",
+            _checks_table(c.fem_checks, units),
             _trace(c.fem_checks, units) if traces else "",
         ]
         if c.analytical:
             parts += [
-                "<h3>Camino analítico (OpenConex: DG1 3.ª ed., AISC 360-22, ACI 318-19)</h3>",
-                '<p class="note">Mismas cargas con el método de la guía (placa rígida y bloque '
-                "de esfuerzos). Sirve para ver dónde coincide con el FEM y dónde no.</p>",
+                f"<h3>{_('Camino analítico (OpenConex: DG1 3.ª ed., AISC 360-22, ACI 318-19)')}"
+                "</h3>",
+                '<p class="note">' + _("Mismas cargas con el método de la guía (placa rígida y "
+                                       "bloque de esfuerzos). Sirve para ver dónde coincide con "
+                                       "el FEM y dónde no.") + "</p>",
                 _checks_table(c.analytical, units)]
-    parts.append(
-        '<h2>Alcance y limitaciones</h2><ul class="note">'
-        "<li>Las demandas de anclajes, apoyo, placa y soldadura salen del modelo FEM; las "
-        "capacidades, de las fórmulas de la norma indicada en cada fila.</li>"
-        "<li>El aplastamiento reparte la compresión del FEM en el mayor bloque rectangular "
-        "centrado en su resultante, como el bloque de esfuerzos de la guía. La presión media y "
-        "el pico del modelo se informan aparte: el concreto del modelo es elástico y no "
-        "redistribuye.</li>"
-        "<li>La deformación plástica de la placa usa la media por elemento y un límite de "
-        "referencia configurable (5 %); AISC no fija ese límite.</li>"
-        "<li>La soldadura se revisa a tracción y cortante en el punto más solicitado; la "
-        "compresión se supone transmitida por contacto. Si el proyecto no da el tamaño del "
-        "filete se usa el mínimo de la Tabla J2.4.</li>"
-        "<li>Las verificaciones del concreto (ACI) son de resistencia última y solo se evalúan "
-        "en combinaciones LRFD.</li>"
-        "<li>Herramienta de apoyo: la responsabilidad del diseño es del profesional que lo "
-        "firma.</li></ul></body></html>")
+    notes = [
+        "Las demandas de anclajes, apoyo, placa y soldadura salen del modelo FEM; las "
+        "capacidades, de las fórmulas de la norma indicada en cada fila.",
+        "El aplastamiento reparte la compresión del FEM en el mayor bloque rectangular centrado en "
+        "su resultante, como el bloque de esfuerzos de la guía. La presión media y el pico del "
+        "modelo se informan aparte: el concreto del modelo es elástico y no redistribuye.",
+        "La deformación plástica de la placa usa la media por elemento y un límite de referencia "
+        "configurable (5 %); AISC no fija ese límite.",
+        "La soldadura se revisa a tracción y cortante en el punto más solicitado; la compresión se "
+        "supone transmitida por contacto. Si el proyecto no da el tamaño del filete se usa el "
+        "mínimo de la Tabla J2.4.",
+        "Las verificaciones del concreto (ACI) son de resistencia última y solo se evalúan en "
+        "combinaciones LRFD.",
+        "Herramienta de apoyo: la responsabilidad del diseño es del profesional que lo firma.",
+    ]
+    parts.append(f"<h2>{_('Alcance y limitaciones')}</h2><ul class=\"note\">"
+                 + "".join(f"<li>{escape(_(n))}</li>" for n in notes) + "</ul></body></html>")
     return "".join(parts)
 
 

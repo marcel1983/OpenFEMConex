@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from openfemconex.gui.state import ProjectState
+from openfemconex.i18n import tr
 
 COLUMN_TYPES = ("W", "M", "S", "HP", "HSS", "PIPE")
 
@@ -103,16 +104,16 @@ class FormPanel(QWidget):
         self.widgets: dict[str, QWidget] = {}
         self._loading = False
         layout = QVBoxLayout(self)
-        heading = QLabel(f"<b>{title}</b>")
+        heading = QLabel(f"<b>{tr(title)}</b>")
         layout.addWidget(heading)
         form = QFormLayout()
         layout.addLayout(form)
         layout.addStretch(1)
         for field in fields:
             widget = self._make(field)
-            widget.setToolTip(field.tip)
+            widget.setToolTip(tr(field.tip))
             self.widgets[field.key] = widget
-            form.addRow(field.label, widget)
+            form.addRow(tr(field.label), widget)
         state.loaded.connect(self.refresh)
         self.refresh()
 
@@ -147,7 +148,7 @@ class FormPanel(QWidget):
             dspin.valueChanged.connect(lambda v, f=f: self._commit(f, round(v, 4)))
             return dspin
         edit = QLineEdit()
-        edit.setPlaceholderText("valor con unidad, p. ej. 22 in o 560 mm")
+        edit.setPlaceholderText(tr("valor con unidad, p. ej. 22 in o 560 mm"))
         edit.editingFinished.connect(lambda f=f, e=edit: self._commit(f, e.text().strip()))
         return edit
 
@@ -196,14 +197,14 @@ class LoadsPanel(QWidget):
         self.state = state
         self._loading = False
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("<b>Casos de carga</b> (valores con unidad, p. ej. 100 kip)"))
+        layout.addWidget(QLabel(tr("<b>Casos de carga</b> (valores con unidad, p. ej. 100 kip)")))
         self.cases = QTableWidget(0, len(CASE_COLUMNS))
-        self.cases.setHorizontalHeaderLabels([label for _, label in CASE_COLUMNS])
+        self.cases.setHorizontalHeaderLabels([tr(label) for _, label in CASE_COLUMNS])
         self.cases.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.cases.itemChanged.connect(self._cases_edited)
         layout.addWidget(self.cases, 2)
         row = QHBoxLayout()
-        add, remove = QPushButton("Agregar caso"), QPushButton("Quitar caso")
+        add, remove = QPushButton(tr("Agregar caso")), QPushButton(tr("Quitar caso"))
         add.clicked.connect(self._add_case)
         remove.clicked.connect(self._remove_case)
         self.lrfd, self.asd = QCheckBox("LRFD"), QCheckBox("ASD")
@@ -212,13 +213,13 @@ class LoadsPanel(QWidget):
         for w in (add, remove):
             row.addWidget(w)
         row.addStretch(1)
-        row.addWidget(QLabel("Combinaciones ASCE 7:"))
+        row.addWidget(QLabel(tr("Combinaciones ASCE 7:")))
         row.addWidget(self.lrfd)
         row.addWidget(self.asd)
         layout.addLayout(row)
-        layout.addWidget(QLabel("<b>Combinaciones</b> (marque las que se resuelven)"))
+        layout.addWidget(QLabel(tr("<b>Combinaciones</b> (marque las que se resuelven)")))
         self.combos = QTableWidget(0, 5)
-        self.combos.setHorizontalHeaderLabels(["Combinación", "Método", "P", "V", "M"])
+        self.combos.setHorizontalHeaderLabels([tr("Combinación"), tr("Método"), "P", "V", "M"])
         self.combos.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.combos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.combos.itemChanged.connect(lambda _: self.selection_changed.emit())
@@ -341,15 +342,15 @@ class AnalysisPanel(QWidget):
         super().__init__()
         self.state = state
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("<b>Ajustes de malla y análisis</b>"))
+        layout.addWidget(QLabel(tr("<b>Ajustes de malla y análisis</b>")))
         form = QFormLayout()
         layout.addLayout(form)
         self.size = QDoubleSpinBox()
         self.size.setRange(0.0, 100.0)
         self.size.setSuffix(" mm")
-        self.size.setSpecialValueText("automático")
-        self.size.setToolTip("Tamaño de elemento junto a la columna y los agujeros. Automático: "
-                             "el menor espesor entre la pared de la columna y la placa.")
+        self.size.setSpecialValueText(tr("automático"))
+        self.size.setToolTip(tr("Tamaño de elemento junto a la columna y los agujeros. Automático: "
+                                "el menor espesor entre la pared de la columna y la placa."))
         self.size.valueChanged.connect(lambda v: state.set_setting("size", v or None))
         self.layers = QSpinBox()
         self.layers.setRange(3, 8)
@@ -359,18 +360,18 @@ class AnalysisPanel(QWidget):
         self.threads.setRange(1, 64)
         self.threads.setValue(state.settings.threads)
         self.threads.valueChanged.connect(lambda v: state.set_setting("threads", v))
-        self.nuts = QCheckBox("Los anclajes también toman compresión")
+        self.nuts = QCheckBox(tr("Los anclajes también toman compresión"))
         self.nuts.toggled.connect(lambda on: state.set_setting("leveling_nuts", on))
         self.strain = QDoubleSpinBox()
         self.strain.setRange(0.1, 20.0)
         self.strain.setSuffix(" %")
         self.strain.setValue(100 * state.settings.strain_limit)
         self.strain.valueChanged.connect(lambda v: state.set_setting("strain_limit", v / 100))
-        form.addRow("Tamaño fino de malla", self.size)
-        form.addRow("Capas en el espesor de la placa", self.layers)
-        form.addRow("Hilos de CalculiX", self.threads)
-        form.addRow("Tuercas de nivelación", self.nuts)
-        form.addRow("Límite de deformación plástica", self.strain)
+        form.addRow(tr("Tamaño fino de malla"), self.size)
+        form.addRow(tr("Capas en el espesor de la placa"), self.layers)
+        form.addRow(tr("Hilos de CalculiX"), self.threads)
+        form.addRow(tr("Tuercas de nivelación"), self.nuts)
+        form.addRow(tr("Límite de deformación plástica"), self.strain)
         self.info = QLabel()
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
@@ -401,7 +402,7 @@ class BlockForm(QWidget):
         self._loading = False
         self.widgets: dict[str, QWidget] = {}
         layout = QVBoxLayout(self)
-        self.enabled = QCheckBox(title)
+        self.enabled = QCheckBox(tr(title))
         self.enabled.setStyleSheet("font-weight: bold;")
         self.enabled.toggled.connect(self._commit)
         layout.addWidget(self.enabled)
@@ -411,7 +412,8 @@ class BlockForm(QWidget):
             w: QWidget
             if f.kind == "choice":
                 w = QComboBox()
-                w.addItems(f.options)
+                for option in f.options:
+                    w.addItem(tr(option), option)
                 w.textActivated.connect(self._commit)
             elif f.kind == "int":
                 w = QSpinBox()
@@ -423,9 +425,9 @@ class BlockForm(QWidget):
             else:
                 w = QLineEdit()
                 w.editingFinished.connect(self._commit)
-            w.setToolTip(f.tip)
+            w.setToolTip(tr(f.tip))
             self.widgets[f.key] = w
-            form.addRow(f.label, w)
+            form.addRow(tr(f.label), w)
         state.loaded.connect(self.refresh)
         self.refresh()
 
@@ -434,7 +436,7 @@ class BlockForm(QWidget):
         for f in self.fields:
             w = self.widgets[f.key]
             if isinstance(w, QComboBox):
-                out[f.key] = w.currentText()
+                out[f.key] = w.currentData()
             elif isinstance(w, QSpinBox):
                 out[f.key] = w.value()
             elif isinstance(w, QCheckBox):
@@ -459,7 +461,7 @@ class BlockForm(QWidget):
                 value = data.get(f.key, f.default)
                 w = self.widgets[f.key]
                 if isinstance(w, QComboBox):
-                    w.setCurrentIndex(max(0, w.findText(str(value))))
+                    w.setCurrentIndex(max(0, w.findData(str(value))))
                 elif isinstance(w, QSpinBox):
                     w.setValue(int(value))
                 elif isinstance(w, QCheckBox):
@@ -508,10 +510,10 @@ class AnchorTable(QWidget):
         self.state = state
         self._loading = False
         layout = QVBoxLayout(self)
-        self.enabled = QCheckBox("Posiciones por coordenadas")
+        self.enabled = QCheckBox(tr("Posiciones por coordenadas"))
         self.enabled.setStyleSheet("font-weight: bold;")
-        self.enabled.setToolTip("x a lo largo del peralte de la columna, y a lo largo del "
-                                "patín, desde el centro de la placa")
+        self.enabled.setToolTip(tr("x a lo largo del peralte de la columna, y a lo largo del "
+                                   "patín, desde el centro de la placa"))
         self.enabled.toggled.connect(self._toggled)
         layout.addWidget(self.enabled)
         self.table = QTableWidget(0, 2)
@@ -520,7 +522,7 @@ class AnchorTable(QWidget):
         self.table.itemChanged.connect(self._commit)
         layout.addWidget(self.table)
         row = QHBoxLayout()
-        self.add_button, self.remove_button = QPushButton("Agregar"), QPushButton("Quitar")
+        self.add_button, self.remove_button = QPushButton(tr("Agregar")), QPushButton(tr("Quitar"))
         self.add_button.clicked.connect(self._add)
         self.remove_button.clicked.connect(self._remove)
         row.addWidget(self.add_button)

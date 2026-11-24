@@ -19,6 +19,7 @@ from openconex.units import Kind
 
 from openfemconex.checks import EDITIONS, Edition, check_fem
 from openfemconex.extras import Extras
+from openfemconex.i18n import tr
 from openfemconex.mesh import Mesh, build_mesh
 from openfemconex.model import BasePlateModel, Loads, MeshSettings
 from openfemconex.openconex_bridge import dg1_bending, model_of, project_loads
@@ -99,34 +100,37 @@ class Study:
     def inputs(self, model: BasePlateModel, mesh: Mesh | None = None) -> list[tuple[str, str]]:
         bp = self.project.base_plate_model()
         u = self.project.info.unit_system()
+        cracked = tr("fisurado") if bp.cracked else tr("no fisurado")
         rows = [
-            ("Columna", f"{bp.column.name} ({bp.column.grade})"),
-            ("Placa", f"{fmt(bp.N, Kind.LENGTH, u)} × {fmt(bp.B, Kind.LENGTH, u)} × "
-                      f"{fmt(bp.tp, Kind.THICKNESS, u)} ({bp.plate_grade})"),
-            ("Anclajes", f"{bp.rods} de {fmt(bp.rod.diameter, Kind.LENGTH, u)} "
-                         f"({bp.rod.grade}), hef = {fmt(bp.hef, Kind.LENGTH, u)}"),
-            ("Concreto", f"f'c = {fmt(bp.fc, Kind.STRESS, u)}, A2/A1 = {bp.A2_over_A1:g}, "
-                         + ("fisurado" if bp.cracked else "no fisurado")),
-            ("Fricción", f"μ = {model.contact.mu:g}"),
+            (tr("Columna"), f"{bp.column.name} ({bp.column.grade})"),
+            (tr("Placa"), f"{fmt(bp.N, Kind.LENGTH, u)} × {fmt(bp.B, Kind.LENGTH, u)} × "
+                          f"{fmt(bp.tp, Kind.THICKNESS, u)} ({bp.plate_grade})"),
+            (tr("Anclajes"), tr("{n} de {d} ({grade}), hef = {hef}", n=bp.rods,
+                                d=fmt(bp.rod.diameter, Kind.LENGTH, u), grade=bp.rod.grade,
+                                hef=fmt(bp.hef, Kind.LENGTH, u))),
+            (tr("Concreto"), f"f'c = {fmt(bp.fc, Kind.STRESS, u)}, A2/A1 = {bp.A2_over_A1:g}, "
+                             + cracked),
+            (tr("Fricción"), f"μ = {model.contact.mu:g}"),
         ]
         if self.extras.anchors:
-            rows[2] = ("Anclajes", f"{len(self.extras.anchors)} de "
-                                   f"{fmt(bp.rod.diameter, Kind.LENGTH, u)} ({bp.rod.grade}) en "
-                                   f"posiciones libres, hef = {fmt(bp.hef, Kind.LENGTH, u)}")
+            rows[2] = (tr("Anclajes"), tr("{n} de {d} ({grade}) en posiciones libres, hef = {hef}",
+                                          n=len(self.extras.anchors),
+                                          d=fmt(bp.rod.diameter, Kind.LENGTH, u),
+                                          grade=bp.rod.grade, hef=fmt(bp.hef, Kind.LENGTH, u)))
         r = self.extras.pedestal
         if r is not None and bp.pedestal_N and bp.pedestal_B:
-            rows.append(("Pedestal", f"{fmt(bp.pedestal_N, Kind.LENGTH, u)} × "
-                                     f"{fmt(bp.pedestal_B, Kind.LENGTH, u)}, {r.bars} barras de "
-                                     f"{r.bar_diameter:.1f} mm, estribos de "
-                                     f"{r.tie_diameter:.1f} mm cada {r.tie_spacing:.0f} mm, "
-                                     f"fy = {fmt(r.fy, Kind.STRESS, u)}"))
+            rows.append((tr("Pedestal"), f"{fmt(bp.pedestal_N, Kind.LENGTH, u)} × "
+                                         f"{fmt(bp.pedestal_B, Kind.LENGTH, u)}, " + tr(
+                "{n} barras de {d} mm, estribos de {t} mm cada {s} mm, fy = {fy}", n=r.bars,
+                d=f"{r.bar_diameter:.1f}", t=f"{r.tie_diameter:.1f}", s=f"{r.tie_spacing:.0f}",
+                fy=fmt(r.fy, Kind.STRESS, u))))
         s = self.extras.stiffeners
         if s is not None:
-            rows.append(("Rigidizadores", f"{s.layout}: {s.length:.0f} × {s.height:.0f} × "
-                                          f"{s.thickness:.1f} mm ({s.grade})"))
+            rows.append((tr("Rigidizadores"), f"{tr(s.layout)}: {s.length:.0f} × {s.height:.0f} × "
+                                              f"{s.thickness:.1f} mm ({s.grade})"))
         if mesh is not None:
-            rows.append(("Malla", f"{len(mesh.nodes)} nodos, {mesh.element_count} hexaedros "
-                                  "C3D8I"))
+            rows.append((tr("Malla"), tr("{nodes} nodos, {elements} hexaedros C3D8I",
+                                         nodes=len(mesh.nodes), elements=mesh.element_count)))
         return rows
 
     def force_unit(self) -> tuple[float, str]:
@@ -151,13 +155,15 @@ class Study:
             res = r.results
             top = max(abs(v) for v in res.column_top_displacement)
             peaks = {
-                "von_Mises": "máx. placa " + fmt(res.plate_von_mises_max, Kind.STRESS, u)
-                             + ", columna " + fmt(res.column_von_mises_max, Kind.STRESS, u),
-                "PEEQ": f"máx. placa {100 * res.plate_peeq_max:.2f} %, columna "
-                        f"{100 * res.column_peeq_max:.2f} %",
-                "_U": f"cabeza de la columna {top:.2f} mm",
-                "CPRESS": "máx. " + fmt(res.bearing_pressure_max, Kind.STRESS, u)
-                          + ", media " + fmt(res.bearing_pressure_mean, Kind.STRESS, u),
+                "von_Mises": tr("máx. placa {p}, columna {c}",
+                                p=fmt(res.plate_von_mises_max, Kind.STRESS, u),
+                                c=fmt(res.column_von_mises_max, Kind.STRESS, u)),
+                "PEEQ": tr("máx. placa {p}, columna {c}", p=f"{100 * res.plate_peeq_max:.2f} %",
+                           c=f"{100 * res.column_peeq_max:.2f} %"),
+                "_U": tr("cabeza de la columna {d} mm", d=f"{top:.2f}"),
+                "CPRESS": tr("máx. {m}, media {a}",
+                             m=fmt(res.bearing_pressure_max, Kind.STRESS, u),
+                             a=fmt(res.bearing_pressure_mean, Kind.STRESS, u)),
             }
             figures[res.load] = [
                 (caption + next((f": {text}" for key, text in peaks.items()

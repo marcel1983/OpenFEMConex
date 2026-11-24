@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from openfemconex.i18n import tr
+
 STYLE = """
 #ribbon { background: palette(window); border-bottom: 1px solid palette(mid); }
 #ribbonGroup { border-right: 1px solid palette(mid); }
@@ -41,7 +43,7 @@ class RibbonGroup(QFrame):
         self._row = QHBoxLayout()
         self._row.setSpacing(2)
         outer.addLayout(self._row, 1)
-        label = QLabel(title)
+        label = QLabel(tr(title))
         label.setObjectName("ribbonGroupTitle")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(label)
@@ -50,12 +52,12 @@ class RibbonGroup(QFrame):
                    checkable: bool = False) -> QToolButton:
         button = QToolButton()
         button.setObjectName("ribbonButton")
-        button.setText(text)
+        button.setText(tr(text))
         button.setIcon(icon)
         button.setIconSize(QSize(30, 30))
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         button.setMinimumWidth(64)
-        button.setToolTip(tip or text)
+        button.setToolTip(tr(tip or text))
         button.setCheckable(checkable)
         button.clicked.connect(lambda _=False: slot())
         self._row.addWidget(button)
@@ -64,7 +66,7 @@ class RibbonGroup(QFrame):
     def add_widget(self, label: str, widget: QWidget) -> QWidget:
         box = QVBoxLayout()
         box.setSpacing(1)
-        caption = QLabel(label)
+        caption = QLabel(tr(label))
         caption.setObjectName("ribbonGroupTitle")
         box.addStretch(1)
         box.addWidget(caption)
@@ -106,7 +108,7 @@ class Ribbon(QWidget):
         row.addStretch(1)
         self.pages.addWidget(page)
         self._names.append(name)
-        self.tabs.addTab(name)
+        self.tabs.addTab(tr(name))
 
         def add_group(title: str) -> RibbonGroup:
             group = RibbonGroup(title)
