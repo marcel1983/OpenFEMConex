@@ -116,6 +116,25 @@ def _rebar(plotter, model: BasePlateModel) -> None:
         k += 1
 
 
+def _hairpins(plotter, model: BasePlateModel) -> None:
+    """Inverted U bars over every anchor, in green."""
+    import pyvista as pv
+
+    h = model.hairpins
+    if h is None:
+        return
+    top = -(h.cover + h.diameter / 2)
+    bottom = top - h.leg_length
+    for a in model.anchors:
+        for k in range(h.count):
+            dy = (k - (h.count - 1) / 2) * 3 * h.diameter
+            y = a.y + dy
+            path = np.array([(a.x - h.offset, y, bottom), (a.x - h.offset, y, top),
+                             (a.x + h.offset, y, top), (a.x + h.offset, y, bottom)])
+            plotter.add_mesh(pv.MultipleLines(path).tube(radius=h.diameter / 2, n_sides=10),
+                             color="#2e9e4f")
+
+
 def _hook(plotter, r, x: float, y: float, top: float) -> None:
     """Standard hook at the top of a pedestal bar, turned towards the section centre.
 
@@ -185,6 +204,7 @@ def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
     _rods(plotter, model)
     _lug(plotter, model)
     _rebar(plotter, model)
+    _hairpins(plotter, model)
     _finish(plotter, reset)
 
 
@@ -216,6 +236,7 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
         _rods(plotter, model)
         _lug(plotter, model)
         _rebar(plotter, model)
+        _hairpins(plotter, model)
     _anchor_labels(plotter, model, results, unit_force, force_label)
     _finish(plotter, reset)
     if name == "CPRESS":

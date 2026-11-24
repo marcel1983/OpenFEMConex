@@ -43,6 +43,7 @@ from openfemconex.checks import EDITIONS
 from openfemconex.gui.help import HelpDialog, about
 from openfemconex.gui.icons import app_icon, icon
 from openfemconex.gui.panels import (
+    HAIRPIN_FIELDS,
     LUG_FIELDS,
     PEDESTAL_FIELDS,
     SECTIONS,
@@ -74,7 +75,8 @@ _LATEX = [(r"\\frac\{([^{}]*)\}\{([^{}]*)\}", r"(\1)/(\2)"), (r"\\sqrt\{([^{}]*)
 
 def plain_math(latex: str) -> str:
     """Readable text for a LaTeX fragment (the full report uses MathML)."""
-    text = re.sub(r"([_^])\{([^{}]*)\}", r"\1\2", latex)
+    text = re.sub(r"\\text\{([^{}]*)\}", r"\1", latex)
+    text = re.sub(r"([_^])\{([^{}]*)\}", r"\1\2", text)
     for _ in range(3):
         text = re.sub(_LATEX[0][0], _LATEX[0][1], text)
     for pattern, repl in _LATEX[1:]:
@@ -182,12 +184,22 @@ class MainWindow(QMainWindow):
             "Si cumplen, reemplazan al arrancamiento del concreto. Requiere las dimensiones del "
             "pedestal (Geometría › Concreto)."))
         note.setWordWrap(True)
+        self.hairpin_form = BlockForm(self.state, "hairpins", "Horquillas en U", HAIRPIN_FIELDS)
+        hairpin_note = QLabel(tr(
+            "Horquillas en U invertida sobre cada anclaje, con sus dos patas a cada lado del "
+            "anclaje. Cuentan como refuerzo de anclaje a tracción si las patas quedan a menos "
+            "de 0.5·hef y se desarrollan sobre y bajo el cono (ACI 318-19 §17.5.2.1). No "
+            "requieren pedestal."))
+        hairpin_note.setWordWrap(True)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         holder = QWidget()
         box = QVBoxLayout(holder)
         box.addWidget(self.pedestal_form)
         box.addWidget(note)
+        box.addSpacing(12)
+        box.addWidget(self.hairpin_form)
+        box.addWidget(hairpin_note)
         box.addStretch(1)
         scroll.setWidget(holder)
         self.pages["Refuerzo del pedestal"] = scroll
@@ -439,10 +451,11 @@ class MainWindow(QMainWindow):
                                  d=bp.get("rod_diameter", "?"))),
             "Concreto": f"f'c = {bp.get('fc', '?')}",
             "Soldadura": str(bp.get("flange_weld", tr("filete mínimo"))),
-            "Refuerzo del pedestal": (
+            "Refuerzo del pedestal": ", ".join(filter(None, [
                 tr("{n} barras de {d}", n=st.ext("pedestal").get("bars", "?"),
                    d=st.ext("pedestal").get("bar_diameter", "?"))
-                if st.ext("pedestal") else tr("ninguno")),
+                if st.ext("pedestal") else "",
+                tr("horquillas en U") if st.ext("hairpins") else ""])) or tr("ninguno"),
             "Rigidizadores": (tr(str(st.ext("stiffeners").get("layout")))
                               if st.ext("stiffeners") else tr("ninguno")),
             "Llave de cortante": (tr(str(bp["shear_lug"].get("direction", "strong")))
@@ -715,14 +728,20 @@ class MainWindow(QMainWindow):
             f"<td>{escape(plain_math(s.expression))}</td>"
             f"<td align='right'>{escape(fmt(s.value, s.kind, units))}</td></tr>" for s in r.steps)
         ok = r.status.value != "ng"
+        verdict = (tr("cumple") if ok else tr("no cumple")) if r.applicable else tr("no rige")
+        color = ("#2e9e4f" if ok else "#d03040") if r.applicable else "#888888"
+        why = ""
+        if not r.applicable and r.id.startswith("anchor.reinforcement"):
+            why = ("<p>" + escape(tr(
+                "No rige: ninguna barra del pedestal está a menos de 0.5·hef de un anclaje en "
+                "tracción; rige el arrancamiento del concreto.")) + "</p>")
         self.detail.setHtml(
             f"<h3>{escape(check_title(r))}</h3><p>"
             + escape(tr("Combinación {name}. Referencia: {clause}.", name=name, clause=r.clause))
             + "</p><p>" + tr("Demanda {d}, capacidad {c}, ratio <b>{r}</b>:",
                              d=escape(fmt(r.demand, r.kind, units)),
                              c=escape(fmt(r.capacity, r.kind, units)), r=f"{r.ratio:.2f}")
-            + f" <span style='color:{'#2e9e4f' if ok else '#d03040'}'>"
-            f"{tr('cumple') if ok else tr('no cumple')}</span>.</p>"
+            + f" <span style='color:{color}'>{verdict}</span>.</p>" + why +
             f"<table cellspacing='0' cellpadding='4' border='1'><tr><th>{tr('Símbolo')}</th>"
             f"<th>{tr('Expresión')}</th><th>{tr('Valor')}</th></tr>{lines}</table>"
             "<p><small>" + tr("El reporte completo muestra las fórmulas con notación matemática.")

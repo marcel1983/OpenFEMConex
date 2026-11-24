@@ -18,7 +18,8 @@ from openconex.kernel.anchors import hooked_bar_ldh, straight_bar_ld
 from openconex.kernel.design import Calc, Resistance
 from openconex.units import Kind
 
-from openfemconex.extras import PedestalRebar
+from openfemconex.extras import Hairpins, PedestalRebar
+from openfemconex.i18n import tr
 
 __all__ = ["anchor_reinforcement_shear", "anchor_reinforcement_tension", "interaction_point",
            "minimum_reinforcement", "section_capacity", "section_check"]
@@ -38,50 +39,102 @@ def minimum_reinforcement(rebar: PedestalRebar, N: float, B: float, clause: str,
     return c.result("pedestal.min_reinforcement", clause, need, ast, Kind.AREA)
 
 
+def _development(c: Calc, fy: float, fc: float, db: float, hooked: bool, cover: float,
+                 clause: str) -> float:
+    if hooked:
+        return c.step("l_{dh}", r"\frac{f_y \psi_c}{55\sqrt{f'_c}} d_b^{1.5}",
+                      hooked_bar_ldh(fy, fc, db).ldh, Kind.LENGTH, "ACI 318-19 Eq. 25.4.3.1a")
+    return c.step("l_d", r"\frac{3}{40}\frac{f_y\psi_t\psi_e\psi_s\psi_g}{\lambda\sqrt{f'_c}}"
+                  r"\frac{d_b}{(c_b+K_{tr})/d_b}",
+                  straight_bar_ld(fy, fc, db, cover + db / 2).ld, Kind.LENGTH,
+                  "ACI 318-19 Eq. 25.4.2.4a")
+
+
 def anchor_reinforcement_tension(demand: float, anchors: list[tuple[float, float]],
-                                 rebar: PedestalRebar, N: float, B: float, hef: float,
-                                 fc: float, clause: str, combo: str = "") -> list[CheckResult]:
-    """Longitudinal bars within 0.5 hef of the anchors in tension: φ As fy with φ = 0.75.
+                                 rebar: PedestalRebar | None, N: float, B: float, hef: float,
+                                 fc: float, clause: str, combo: str = "",
+                                 hairpins: Hairpins | None = None) -> list[CheckResult]:
+    """Anchor reinforcement in tension: bars within 0.5 hef of the anchors, φ As fy, φ = 0.75.
 
-    Returns the strength check and the development of the bars above the breakout
-    surface: ``hef - cover - g/1.5`` must reach l_dh (hooked) or l_d (straight), where
-    ``g`` is the largest distance from a counted bar to its nearest anchor.
+    Two kinds of bars count: the longitudinal bars of the pedestal (``rebar``) and the
+    legs of hairpins placed over the anchors (``hairpins``). Besides the strength, each
+    kind must be developed on both sides of the breakout surface (ACI 318-19
+    §17.5.2.1): above it, ``hef - cover - g/1.5`` against l_dh (hook or the bend of the
+    hairpin) or l_d; below it, the rest of the hairpin leg against l_d. ``g`` is the
+    largest distance from a counted bar to its anchor.
     """
-    bars = rebar.positions(N, B)
-    near = []
-    for bx, by in bars:
-        g = min(math.hypot(bx - ax, by - ay) for ax, ay in anchors)
-        if g <= 0.5 * hef:
-            near.append(g)
-    c = Calc(Method.LRFD, combo)
-    n = c.step("n", r"\text{bars within } 0.5 h_{ef}", float(len(near)), clause=clause)
-    area = c.step("A_s", "n A_b", n * rebar.bar_area, Kind.AREA, clause)
-    rn = c.step("N_n", "A_s f_y", area * rebar.fy, Kind.FORCE, clause)
-    cap = c.available(rn, ANCHOR_REINFORCEMENT, Kind.FORCE, clause, "N_n")
-    strength = c.result("anchor.reinforcement", clause, demand, cap, Kind.FORCE)
+    bars = rebar.positions(N, B) if rebar is not None else []
+    legs = hairpins.legs(anchors) if hairpins is not None else []
 
+    def counted(points):
+        out = []
+        for bx, by in points:
+            g = min(math.hypot(bx - ax, by - ay) for ax, ay in anchors)
+            if g <= 0.5 * hef:
+                out.append(g)
+        return out
+
+    near_bars, near_legs = counted(bars), counted(legs)
+    closest = min((math.hypot(bx - ax, by - ay) for bx, by in bars + legs
+                   for ax, ay in anchors), default=math.inf)
     c = Calc(Method.LRFD, combo)
-    g = c.step("g", r"\max \text{ anchor-bar distance}", max(near, default=0.0), Kind.LENGTH,
-               clause)
-    top_cover = rebar.cover + rebar.tie_diameter
-    available = c.step("l_{disp}", r"h_{ef} - c_c - \frac{g}{1.5}",
-                       max(hef - top_cover - g / 1.5, 0.0), Kind.LENGTH, clause)
-    if rebar.hooked:
-        # the same development length for 90° and 180° standard hooks (§25.4.3)
-        c.step(r"\text{hook}", f"{rebar.hook}^\\circ", float(rebar.hook),
-               clause="ACI 318-19 Table 25.3.1")
-        need = c.step("l_{dh}", r"\frac{f_y \psi_c}{55\sqrt{f'_c}} d_b^{1.5}",
-                      hooked_bar_ldh(rebar.fy, fc, rebar.bar_diameter).ldh, Kind.LENGTH,
-                      "ACI 318-19 Eq. 25.4.3.1a")
-    else:
-        need = c.step("l_d", r"\frac{3}{40}\frac{f_y\psi_t\psi_e\psi_s\psi_g}{\lambda\sqrt{f'_c}}"
-                      r"\frac{d_b}{(c_b+K_{tr})/d_b}",
-                      straight_bar_ld(rebar.fy, fc, rebar.bar_diameter,
-                                      top_cover + rebar.bar_diameter / 2).ld, Kind.LENGTH,
-                      "ACI 318-19 Eq. 25.4.2.4a")
-    development = c.result("anchor.reinforcement_development", clause, need, available,
-                           Kind.LENGTH)
-    return [strength, development]
+    c.step(r"g_{min}", r"\text{" + tr("barra más cercana a un anclaje en tracción") + "}",
+           closest, Kind.LENGTH, clause)
+    c.step(r"0.5\,h_{ef}", r"\text{" + tr("distancia máxima para contar una barra") + "}",
+           0.5 * hef, Kind.LENGTH, clause)
+    area = 0.0
+    fy_area = 0.0
+    if rebar is not None:
+        n = c.step("n", r"\text{" + tr("barras con") + r"} g \le 0.5\,h_{ef}",
+                   float(len(near_bars)), clause=clause)
+        area_bars = c.step("A_{s,b}", "n A_b", n * rebar.bar_area, Kind.AREA, clause)
+        area += area_bars
+        fy_area += area_bars * rebar.fy
+    if hairpins is not None:
+        n = c.step("n_h", r"\text{" + tr("patas de horquilla con") + r"} g \le 0.5\,h_{ef}",
+                   float(len(near_legs)), clause=clause)
+        area_legs = c.step("A_{s,h}", "n_h A_b", n * hairpins.bar_area, Kind.AREA, clause)
+        area += area_legs
+        fy_area += area_legs * hairpins.fy
+    rn = c.step("N_n", r"\sum A_s f_y", fy_area, Kind.FORCE, clause)
+    cap = c.available(rn, ANCHOR_REINFORCEMENT, Kind.FORCE, clause, "N_n")
+    any_bar = bool(near_bars or near_legs)
+    out = [c.result("anchor.reinforcement", clause, demand, cap, Kind.FORCE,
+                    applicable=any_bar)]
+    if rebar is not None and (near_bars or not any_bar):
+        c = Calc(Method.LRFD, combo)
+        g = c.step("g", r"\max \text{ " + tr("distancia anclaje-barra contada") + "}",
+                   max(near_bars, default=0.0), Kind.LENGTH, clause)
+        top_cover = rebar.cover + rebar.tie_diameter
+        available = c.step("l_{disp}", r"h_{ef} - c_c - \frac{g}{1.5}",
+                           max(hef - top_cover - g / 1.5, 0.0), Kind.LENGTH, clause)
+        if rebar.hooked:
+            # the same development length for 90° and 180° standard hooks (§25.4.3)
+            c.step(r"\text{hook}", f"{rebar.hook}^\\circ", float(rebar.hook),
+                   clause="ACI 318-19 Table 25.3.1")
+        need = _development(c, rebar.fy, fc, rebar.bar_diameter, rebar.hooked, top_cover,
+                            clause)
+        out.append(c.result("anchor.reinforcement_development", clause, need, available,
+                            Kind.LENGTH, applicable=bool(near_bars)))
+    if hairpins is not None and (near_legs or not any_bar):
+        h = hairpins
+        g = max(near_legs, default=h.offset)
+        cone = max(hef - h.cover - g / 1.5, 0.0)  # leg length from the bend to the cone
+        c = Calc(Method.LRFD, combo)
+        c.step("g", r"\text{" + tr("distancia anclaje-pata") + "}", g, Kind.LENGTH, clause)
+        available = c.step("l_{disp}", r"h_{ef} - c_c - \frac{g}{1.5}", cone, Kind.LENGTH,
+                           clause)
+        # the bend of the hairpin anchors it above the cone like a standard hook
+        need = _development(c, h.fy, fc, h.diameter, True, h.cover, clause)
+        out.append(c.result("anchor.hairpin_development_top", clause, need, available,
+                            Kind.LENGTH, applicable=bool(near_legs)))
+        c = Calc(Method.LRFD, combo)
+        below = c.step("l_{inf}", r"L_{pata} - (h_{ef} - c_c - \frac{g}{1.5})",
+                       max(h.leg_length - cone, 0.0), Kind.LENGTH, clause)
+        need = _development(c, h.fy, fc, h.diameter, False, h.cover, clause)
+        out.append(c.result("anchor.hairpin_development_bottom", clause, need, below,
+                            Kind.LENGTH, applicable=bool(near_legs)))
+    return out
 
 
 def anchor_reinforcement_shear(demand: float, rebar: PedestalRebar, clause: str,

@@ -27,6 +27,12 @@ Además de los datos de OpenConex, el archivo `.ocnx` puede llevar:
 - **Rigidizadores** (Geometría › Rigidizadores): en línea con el alma o tres
   por patín para perfiles W, y radiales para tubos circulares.
 
+**Horquillas en U** (en la misma página): U invertidas sobre cada anclaje, con una
+pata a cada lado. Cuentan como refuerzo de anclaje a tracción si las patas quedan
+a menos de 0.5·hef; se verifica su desarrollo sobre el cono (el doblez hace de
+gancho) y bajo el cono (largo de las patas). No requieren pedestal. Se dibujan en
+verde.
+
 Las barras del pedestal terminan arriba en gancho de 90°, de 180° o rectas
 (Terminación arriba). Los ganchos de 90° y 180° tienen el mismo largo de
 desarrollo l_dh (ACI 318-19 §25.4.3); una barra recta necesita l_d, más largo.

@@ -19,8 +19,8 @@ from typing import Any
 from openconex.io.project import FORMAT_VERSION, Project
 from openconex.units import Kind
 
-__all__ = ["KEY", "Extras", "PedestalRebar", "StiffenerSpec", "load_extended", "parse_extras",
-           "split_data"]
+__all__ = ["KEY", "Extras", "Hairpins", "PedestalRebar", "StiffenerSpec", "load_extended",
+           "parse_extras", "split_data"]
 
 KEY = "openfemconex"
 STIFFENER_LAYOUTS = ("alma", "alma y bordes", "radial")
@@ -101,10 +101,45 @@ class StiffenerSpec:
 
 
 @dataclass(frozen=True)
+class Hairpins:
+    """Inverted U bars (hairpins) placed over each anchor as anchor reinforcement.
+
+    Each hairpin straddles its anchor along x: two vertical legs at ``offset`` on each
+    side, joined by the bend near the top of the concrete. Both legs cross the
+    breakout cone of the anchor.
+    """
+
+    count: int
+    """Hairpins per anchor."""
+    diameter: float
+    fy: float
+    offset: float
+    """Horizontal distance from the anchor axis to each leg [mm]."""
+    leg_length: float
+    """Length of each leg below the bend [mm]."""
+    cover: float = 50.0
+    """Clear cover from the top of the concrete to the bend [mm]."""
+
+    @property
+    def bar_area(self) -> float:
+        return math.pi * self.diameter**2 / 4
+
+    def legs(self, anchors: list[tuple[float, float]]) -> list[tuple[float, float]]:
+        """Plan position of every leg; the hairpins of one anchor are spaced 3 db in y."""
+        out = []
+        for ax, ay in anchors:
+            for k in range(self.count):
+                dy = (k - (self.count - 1) / 2) * 3 * self.diameter
+                out += [(ax - self.offset, ay + dy), (ax + self.offset, ay + dy)]
+        return out
+
+
+@dataclass(frozen=True)
 class Extras:
     anchors: tuple[tuple[float, float], ...] | None = None
     pedestal: PedestalRebar | None = None
     stiffeners: StiffenerSpec | None = None
+    hairpins: Hairpins | None = None
 
 
 def split_data(data: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -157,7 +192,16 @@ def parse_extras(project: Project, ext: dict[str, Any]) -> Extras:
             weld=q(s["weld"], Kind.THICKNESS) if s.get("weld") else None)
         if stiffeners.end_height > stiffeners.height:
             raise ValueError("la altura del extremo del rigidizador supera la altura total")
-    return Extras(anchors=anchors, pedestal=pedestal, stiffeners=stiffeners)
+    hairpins = None
+    h = ext.get("hairpins")
+    if h:
+        hairpins = Hairpins(
+            count=int(h.get("count", 1)), diameter=q(h.get("diameter", "16 mm")),
+            fy=q(h.get("fy", "420 MPa"), Kind.STRESS), offset=q(h.get("offset", "75 mm")),
+            leg_length=q(h.get("leg_length", "600 mm")), cover=q(h.get("cover", "50 mm")))
+        if hairpins.count < 1:
+            raise ValueError("se necesita al menos una horquilla por anclaje")
+    return Extras(anchors=anchors, pedestal=pedestal, stiffeners=stiffeners, hairpins=hairpins)
 
 
 def load_extended(path: str | Path) -> tuple[Project, Extras]:

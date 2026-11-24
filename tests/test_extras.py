@@ -156,3 +156,54 @@ def test_hook_type_and_development_length():
     with pytest.raises(ValueError, match="gancho"):
         from openfemconex.extras import _hook
         _hook({"hook": "45"})
+
+
+def test_no_bar_near_the_anchors_leaves_breakout_governing():
+    """Bars of a large pedestal far from the anchors: no anchor reinforcement (n = 0)."""
+    from openfemconex.checks import _replace_breakout, anchor_breakout_tension
+
+    anchors = [(-100.0, -75.0), (-100.0, 75.0)]
+    strength, development = ped.anchor_reinforcement_tension(
+        300e3, anchors, REBAR, 900.0, 900.0, 330.0, 28.0, "ACI 318-19 §17.5.2.1(a)")
+    steps = {s.symbol: s.value for s in strength.steps}
+    assert steps["n"] == 0 and steps["g_{min}"] > steps[r"0.5\,h_{ef}"]
+    assert not strength.applicable and not development.applicable
+    assert strength.status.value == "n/a"
+    breakout = anchor_breakout_tension(330.0, 28.0, 300e3, span_y=200.0, span_x=150.0)
+    out = [breakout]
+    _replace_breakout(out, "anchor.concrete_breakout_tension", [strength, development])
+    assert out[0] is breakout and out[0].applicable
+    assert all(not r.applicable for r in out[1:])
+
+
+def test_hairpins_count_as_anchor_reinforcement():
+    """Hairpins over each anchor: 2 legs per hairpin within 0.5 hef count."""
+    from openfemconex.extras import Hairpins
+
+    hp = Hairpins(count=2, diameter=16.0, fy=420.0, offset=75.0, leg_length=700.0, cover=50.0)
+    anchors = [(-100.0, -75.0), (-100.0, 75.0)]
+    assert len(hp.legs(anchors)) == 8
+    out = ped.anchor_reinforcement_tension(
+        300e3, anchors, REBAR, 900.0, 900.0, 330.0, 28.0, "ACI 318-19 §17.5.2.1(a)",
+        hairpins=hp)
+    ids = [r.id for r in out]
+    assert ids == ["anchor.reinforcement", "anchor.hairpin_development_top",
+                   "anchor.hairpin_development_bottom"]  # the far pedestal bars drop out
+    strength = out[0]
+    assert strength.applicable
+    assert strength.capacity == pytest.approx(0.75 * 8 * hp.bar_area * 420.0)
+    top = out[1]
+    g = (75.0**2 + (1.5 * 16.0) ** 2) ** 0.5  # two hairpins per anchor, 3 db apart
+    assert top.capacity == pytest.approx(330.0 - 50.0 - g / 1.5)
+    bottom = out[2]
+    assert bottom.capacity == pytest.approx(700.0 - top.capacity)
+
+
+def test_hairpins_too_far_do_not_count():
+    from openfemconex.extras import Hairpins
+
+    hp = Hairpins(count=1, diameter=16.0, fy=420.0, offset=200.0, leg_length=700.0)
+    out = ped.anchor_reinforcement_tension(
+        300e3, [(0.0, 0.0)], None, 0.0, 0.0, 330.0, 28.0, "ACI 318-19 §17.5.2.1(a)",
+        hairpins=hp)
+    assert not any(r.applicable for r in out)

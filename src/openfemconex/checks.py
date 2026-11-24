@@ -463,6 +463,10 @@ def _replace_breakout(out: list[CheckResult], breakout_id: str,
     The one that does not govern is kept in the list, marked as not applicable.
     """
     breakout = next((r for r in out if r.id == breakout_id), None)
+    if not all(r.applicable for r in reinforcement):
+        # no reinforcement close enough to the anchors: the breakout check stands
+        out.extend(r.model_copy(update={"applicable": False}) for r in reinforcement)
+        return
     reinforced = all(r.status.value != "ng" for r in reinforcement)
     if breakout is None:
         out.extend(reinforcement)
@@ -544,12 +548,13 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                     bp.hef, bp.fc, total, ed, span_x=max(ys) - min(ys), span_y=max(xs) - min(xs),
                     edges=edges, eccentricity=ecc, cracked=bp.cracked,
                     supplementary=supplementary, combo=combo))
-                if rebar is not None:
+                if rebar is not None or extras.hairpins is not None:
                     _replace_breakout(out, "anchor.concrete_breakout_tension",
                                       ped.anchor_reinforcement_tension(
                                           total, [(a.x, a.y) for a in group], rebar,
-                                          bp.pedestal_N, bp.pedestal_B, bp.hef, bp.fc,
-                                          ed.anchor("reinf_t"), combo))
+                                          bp.pedestal_N or 0.0, bp.pedestal_B or 0.0, bp.hef,
+                                          bp.fc, ed.anchor("reinf_t"), combo,
+                                          hairpins=extras.hairpins))
             area = bp.bearing_area or heavy_hex_bearing_area(rod.diameter)
             out.append(anchor_pullout(area, bp.fc, tmax, ed, bp.cracked, combo))
             ca1 = min(edges.values(), default=None)

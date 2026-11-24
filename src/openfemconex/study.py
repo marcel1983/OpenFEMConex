@@ -124,6 +124,12 @@ class Study:
                 "{n} barras de {d} mm, estribos de {t} mm cada {s} mm, fy = {fy}", n=r.bars,
                 d=f"{r.bar_diameter:.1f}", t=f"{r.tie_diameter:.1f}", s=f"{r.tie_spacing:.0f}",
                 fy=fmt(r.fy, Kind.STRESS, u))))
+        h = self.extras.hairpins
+        if h is not None:
+            rows.append((tr("Horquillas en U"), tr(
+                "{n} por anclaje de {d} mm, patas a {o} mm del anclaje, largo {L} mm, fy = {fy}",
+                n=h.count, d=f"{h.diameter:.0f}", o=f"{h.offset:.0f}", L=f"{h.leg_length:.0f}",
+                fy=fmt(h.fy, Kind.STRESS, u))))
         s = self.extras.stiffeners
         if s is not None:
             rows.append((tr("Rigidizadores"), f"{tr(s.layout)}: {s.length:.0f} × {s.height:.0f} × "

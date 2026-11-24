@@ -120,6 +120,7 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
         stiffener_steel = Steel(grade.Fy, grade.Fu, name=extras.stiffeners.grade)
     return BasePlateModel(
         section=section, stiffeners=stiffeners, stiffener_steel=stiffener_steel,
+        hairpins=extras.hairpins if extras else None,
         rebar=(extras.pedestal if extras and extras.pedestal and bp.pedestal_N
                and bp.pedestal_B else None),
         lug=(ShearLug(bp.shear_lug.width, bp.shear_lug.thickness, bp.shear_lug.embedment,

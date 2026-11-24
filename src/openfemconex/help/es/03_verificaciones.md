@@ -14,7 +14,7 @@ norma. Las ediciones se eligen en **Proyecto › Normas**:
 | Anclajes | Acero a tracción y cortante, extracción, desprendimiento lateral |
 | Anclajes | Tracción, cortante y flexión con arandela soldada (AISC J3.7/J3.8) |
 | Concreto | Arrancamiento en tracción y en cortante, palanca (pryout), interacción |
-| Pedestal | Refuerzo de anclaje a tracción y cortante, flexocompresión, cuantía mínima |
+| Pedestal | Refuerzo de anclaje a tracción (barras y horquillas en U) y cortante, flexocompresión, cuantía mínima |
 | Cortante | Fricción, o llave de cortante (aplastamiento, acero y soldadura) |
 | Soldadura | Columna-placa y rigidizadores, con aumento direccional (J2.4) |
 | Rigidizadores | Deformación plástica y esbeltez del borde libre |

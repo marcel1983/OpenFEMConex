@@ -204,6 +204,13 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    "barra más cercana a un anclaje en tracción": "bar closest to an anchor in tension",
+    "distancia máxima para contar una barra": "largest distance for a bar to count",
+    "barras con": "bars with", "distancia anclaje-barra contada": "anchor to counted bar distance",
+    "No rige: ninguna barra del pedestal está a menos de 0.5·hef de un anclaje en tracción; "
+    "rige el arrancamiento del concreto.": "Not governing: no pedestal bar is within 0.5·hef "
+        "of an anchor in tension; concrete breakout governs.",
+    "no rige": "not governing",
     "{n} barras de {d}": "{n} bars of {d}",
     "Las barras longitudinales a menos de 0.5·hef de los anclajes en tracción y desarrolladas "
     "sobre el cono trabajan como refuerzo de anclaje a tracción; los estribos superiores, como "
@@ -243,8 +250,27 @@ EN: dict[str, str] = {
     "Concreto: desprendimiento por palanca (pryout)": "Concrete: pryout",
     "Anclaje: interacción tracción y cortante": "Anchor: tension and shear interaction",
     "Cortante por fricción": "Shear by friction",
-    "Refuerzo de anclaje a tracción (barras del pedestal)":
-        "Anchor reinforcement in tension (pedestal bars)",
+    "Refuerzo de anclaje a tracción (barras y horquillas)":
+        "Anchor reinforcement in tension (bars and hairpins)",
+    "Horquillas: desarrollo sobre el cono (doblez)":
+        "Hairpins: development above the cone (bend)",
+    "Horquillas: desarrollo bajo el cono (patas)": "Hairpins: development below the cone (legs)",
+    "patas de horquilla con": "hairpin legs with",
+    "distancia anclaje-pata": "anchor to leg distance",
+    "Horquillas en U": "U hairpins", "horquillas en U": "U hairpins",
+    "{n} por anclaje de {d} mm, patas a {o} mm del anclaje, largo {L} mm, fy = {fy}":
+        "{n} per anchor of {d} mm, legs {o} mm from the anchor, length {L} mm, fy = {fy}",
+    "Horquillas por anclaje": "Hairpins per anchor",
+    "Distancia del anclaje a cada pata": "Distance from the anchor to each leg",
+    "Largo de cada pata": "Length of each leg", "Recubrimiento sobre el doblez":
+        "Cover above the bend",
+    "Debe ser menor que 0.5·hef para que cuente": "Must be less than 0.5·hef to count",
+    "Horquillas en U invertida sobre cada anclaje, con sus dos patas a cada lado del anclaje. "
+    "Cuentan como refuerzo de anclaje a tracción si las patas quedan a menos de 0.5·hef y se "
+    "desarrollan sobre y bajo el cono (ACI 318-19 §17.5.2.1). No requieren pedestal.":
+        "Inverted U hairpins over each anchor, with one leg on each side of it. They count as "
+        "anchor reinforcement in tension when the legs are within 0.5·hef and developed above "
+        "and below the cone (ACI 318-19 §17.5.2.1). No pedestal is needed.",
     "Refuerzo de anclaje: desarrollo sobre el cono":
         "Anchor reinforcement: development above the cone",
     "Refuerzo de anclaje a cortante (estribos superiores)":

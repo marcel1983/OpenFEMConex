@@ -14,7 +14,7 @@ formula. The editions are chosen in **Project › Codes**:
 | Anchors | Steel in tension and shear, pullout, side-face blowout |
 | Anchors | Tension, shear and bending with welded washer (AISC J3.7/J3.8) |
 | Concrete | Breakout in tension and shear, pryout, interaction |
-| Pedestal | Anchor reinforcement in tension and shear, axial force and bending, minimum steel |
+| Pedestal | Anchor reinforcement in tension (bars and U hairpins) and shear, axial force and bending, minimum steel |
 | Shear | Friction, or shear lug (bearing, steel and weld) |
 | Weld | Column-to-plate and stiffeners, with directional increase (J2.4) |
 | Stiffeners | Plastic strain and slenderness of the free edge |

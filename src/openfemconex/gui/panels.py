@@ -524,6 +524,16 @@ LUG_FIELDS = [
     BlockField("grade", "Acero", "ASTM A36", "choice", tuple(STEELS)),
 ]
 
+HAIRPIN_FIELDS = [
+    BlockField("count", "Horquillas por anclaje", 1, "int"),
+    BlockField("diameter", "Diámetro de barra", "16 mm"),
+    BlockField("fy", "fy del refuerzo", "420 MPa"),
+    BlockField("offset", "Distancia del anclaje a cada pata", "75 mm",
+               tip="Debe ser menor que 0.5·hef para que cuente"),
+    BlockField("leg_length", "Largo de cada pata", "600 mm"),
+    BlockField("cover", "Recubrimiento sobre el doblez", "50 mm"),
+]
+
 STIFFENER_FIELDS = [
     BlockField("layout", "Disposición", "alma", "choice", ("alma", "alma y bordes", "radial"),
                tip="Perfiles W: en línea con el alma o tres por patín. Tubos: radial"),

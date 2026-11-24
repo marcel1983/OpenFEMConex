@@ -27,6 +27,11 @@ Besides the OpenConex data, the `.ocnx` file can hold:
 - **Stiffeners** (Geometry › Stiffeners): in line with the web or three per
   flange for W shapes, radial for round tubes.
 
+**U hairpins** (same page): inverted U bars over each anchor, one leg on each
+side. They count as anchor reinforcement in tension when the legs are within
+0.5·hef; their development is checked above the cone (the bend acts as a hook)
+and below it (leg length). No pedestal is needed. They are drawn in green.
+
 The pedestal bars end at the top in a 90° hook, a 180° hook or straight (Top
 end). 90° and 180° hooks share the development length l_dh (ACI 318-19
 §25.4.3); a straight bar needs the longer l_d.

@@ -260,6 +260,8 @@ class BasePlateModel:
     """Column eccentricity on the plate."""
     stiffeners: tuple[Stiffener, ...] = ()
     lug: ShearLug | None = None
+    hairpins: object | None = None
+    """Hairpins over the anchors (extras.Hairpins); drawn and checked, not in the FEM."""
     rebar: object | None = None
     """Pedestal reinforcement (extras.PedestalRebar). It is not part of the FEM model
     (the concrete is a plain elastic block): it is drawn and used by the checks."""
