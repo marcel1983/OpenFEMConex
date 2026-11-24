@@ -27,6 +27,10 @@ Besides the OpenConex data, the `.ocnx` file can hold:
 - **Stiffeners** (Geometry › Stiffeners): in line with the web or three per
   flange for W shapes, radial for round tubes.
 
+The pedestal bars end at the top in a 90° hook, a 180° hook or straight (Top
+end). 90° and 180° hooks share the development length l_dh (ACI 318-19
+§25.4.3); a straight bar needs the longer l_d.
+
 The pedestal reinforcement is drawn inside the concrete (ties taking shear in
 orange), but it is not part of the FEM model: it enters only the checks.
 

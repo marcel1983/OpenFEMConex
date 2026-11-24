@@ -24,6 +24,7 @@ __all__ = ["KEY", "Extras", "PedestalRebar", "StiffenerSpec", "load_extended", "
 
 KEY = "openfemconex"
 STIFFENER_LAYOUTS = ("alma", "alma y bordes", "radial")
+HOOKS = ("90", "180", "recta")
 
 
 @dataclass(frozen=True)
@@ -40,10 +41,15 @@ class PedestalRebar:
     """Tie legs crossing the shear breakout plane."""
     top_ties: int = 2
     """Ties within the top of the pedestal that act as anchor reinforcement in shear."""
-    hooked: bool = True
-    """Longitudinal bars end in a standard hook at the top of the pedestal."""
+    hook: str = "90"
+    """End of the longitudinal bars at the top: ``90`` or ``180`` (standard hooks,
+    ACI 318-19 Table 25.3.1) or ``recta`` (straight bar)."""
     height: float = 0.0
     """Pedestal height: shears add V·h to the moment at its base [mm]."""
+
+    @property
+    def hooked(self) -> bool:
+        return self.hook in HOOKS[:2]
 
     @property
     def bar_area(self) -> float:
@@ -107,6 +113,14 @@ def split_data(data: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     return {k: v for k, v in data.items() if k != KEY}, ext
 
 
+def _hook(block: dict[str, Any]) -> str:
+    """Hook of the pedestal bars; older files have ``hooked`` (true = 90°)."""
+    hook = str(block.get("hook", "90" if block.get("hooked", True) else "recta"))
+    if hook not in HOOKS:
+        raise ValueError(f"gancho desconocido: {hook}")
+    return hook
+
+
 def parse_extras(project: Project, ext: dict[str, Any]) -> Extras:
     """Convert the texts of the block (values with units) to internal units."""
     def q(value: Any, kind: Kind = Kind.LENGTH) -> float:
@@ -125,7 +139,7 @@ def parse_extras(project: Project, ext: dict[str, Any]) -> Extras:
             cover=q(p.get("cover", "40 mm")), fy=q(p.get("fy", "420 MPa"), Kind.STRESS),
             tie_diameter=q(p.get("tie_diameter", "10 mm")),
             tie_spacing=q(p.get("tie_spacing", "150 mm")), tie_legs=int(p.get("tie_legs", 2)),
-            top_ties=int(p.get("top_ties", 2)), hooked=bool(p.get("hooked", True)),
+            top_ties=int(p.get("top_ties", 2)), hook=_hook(p),
             height=q(p.get("height", 0.0)))
         if pedestal.bars < 4:
             raise ValueError("el pedestal necesita al menos 4 barras longitudinales")

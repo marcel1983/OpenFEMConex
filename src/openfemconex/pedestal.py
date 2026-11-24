@@ -67,6 +67,9 @@ def anchor_reinforcement_tension(demand: float, anchors: list[tuple[float, float
     available = c.step("l_{disp}", r"h_{ef} - c_c - \frac{g}{1.5}",
                        max(hef - top_cover - g / 1.5, 0.0), Kind.LENGTH, clause)
     if rebar.hooked:
+        # the same development length for 90° and 180° standard hooks (§25.4.3)
+        c.step(r"\text{hook}", f"{rebar.hook}^\\circ", float(rebar.hook),
+               clause="ACI 318-19 Table 25.3.1")
         need = c.step("l_{dh}", r"\frac{f_y \psi_c}{55\sqrt{f'_c}} d_b^{1.5}",
                       hooked_bar_ldh(rebar.fy, fc, rebar.bar_diameter).ldh, Kind.LENGTH,
                       "ACI 318-19 Eq. 25.4.3.1a")

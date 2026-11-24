@@ -97,18 +97,13 @@ def _rebar(plotter, model: BasePlateModel) -> None:
     if not bars:
         return
     top = -(r.cover + r.tie_diameter + r.bar_diameter / 2)
+    if r.hook == "180":
+        top -= 3.5 * r.bar_diameter  # the bend rises this much above the straight bar
     bottom = -c.H
     for x, y in bars:
         line = pv.Line((x, y, bottom), (x, y, top))
         plotter.add_mesh(line.tube(radius=r.bar_diameter / 2, n_sides=10), color="#55606b")
-        if r.hooked:
-            # standard hook towards the centre of the section
-            length = 12 * r.bar_diameter
-            dx, dy = -x, -y
-            norm = (dx * dx + dy * dy) ** 0.5 or 1.0
-            end = (x + dx / norm * length, y + dy / norm * length, top)
-            plotter.add_mesh(pv.Line((x, y, top), end).tube(radius=r.bar_diameter / 2,
-                                                            n_sides=10), color="#55606b")
+        _hook(plotter, r, x, y, top)
     inset = r.cover + r.tie_diameter / 2
     a, b = c.N / 2 - inset, c.B / 2 - inset
     z = -(r.cover + r.tie_diameter / 2)
@@ -119,6 +114,33 @@ def _rebar(plotter, model: BasePlateModel) -> None:
         plotter.add_mesh(loop.tube(radius=r.tie_diameter / 2, n_sides=8), color=color)
         z -= r.tie_spacing
         k += 1
+
+
+def _hook(plotter, r, x: float, y: float, top: float) -> None:
+    """Standard hook at the top of a pedestal bar, turned towards the section centre.
+
+    90°: horizontal extension of 12 db. 180°: bend of inside diameter 6 db and a
+    straight extension of max(4 db, 65 mm) back down (ACI 318-19 Table 25.3.1).
+    """
+    import pyvista as pv
+
+    if not r.hooked:
+        return
+    db = r.bar_diameter
+    norm = (x * x + y * y) ** 0.5 or 1.0
+    u = np.array([-x / norm, -y / norm, 0.0])
+    start = np.array([x, y, top])
+    if r.hook == "90":
+        path = [start, start + 12 * db * u]
+    else:
+        radius = 3 * db + db / 2
+        centre = start + radius * u
+        angles = np.linspace(np.pi, 0.0, 13)
+        path = [centre + radius * np.cos(t) * u + radius * np.sin(t) * np.array([0, 0, 1.0])
+                for t in angles]
+        path.append(path[-1] - np.array([0, 0, max(4 * db, 65.0)]))
+    line = pv.MultipleLines(np.array(path)) if len(path) > 2 else pv.Line(path[0], path[1])
+    plotter.add_mesh(line.tube(radius=db / 2, n_sides=10), color="#55606b")
 
 
 def _anchor_labels(plotter, model: BasePlateModel, results: Results, unit_force: float,

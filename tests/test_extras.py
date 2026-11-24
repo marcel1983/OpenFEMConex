@@ -130,3 +130,29 @@ def test_pedestal_rebar_reaches_the_model_but_not_the_deck(tmp_path):
     write_inp(tmp_path / "a.inp", with_bars, mesh, loads)
     write_inp(tmp_path / "b.inp", without, mesh, loads)
     assert (tmp_path / "a.inp").read_text() == (tmp_path / "b.inp").read_text()
+
+
+@pytest.mark.parametrize("block, hook", [({"hook": "180"}, "180"), ({"hook": "recta"}, "recta"),
+                                         ({"hooked": True}, "90"), ({"hooked": False}, "recta"),
+                                         ({}, "90")])
+def test_pedestal_bar_hooks(block, hook):
+    from openfemconex.extras import _hook
+
+    assert _hook(block) == hook
+
+
+def test_hook_type_and_development_length():
+    """90° and 180° standard hooks share l_dh; a straight bar needs l_d."""
+    import dataclasses
+
+    anchors = [(-150.0, -150.0), (-150.0, 150.0)]
+    lengths = {}
+    for hook in ("90", "180", "recta"):
+        rebar = dataclasses.replace(REBAR, hook=hook)
+        _, development = ped.anchor_reinforcement_tension(
+            200e3, anchors, rebar, 500.0, 500.0, 400.0, 28.0, "ACI 318-19 §17.5.2.1(a)")
+        lengths[hook] = development.demand
+    assert lengths["90"] == lengths["180"] < lengths["recta"]
+    with pytest.raises(ValueError, match="gancho"):
+        from openfemconex.extras import _hook
+        _hook({"hook": "45"})

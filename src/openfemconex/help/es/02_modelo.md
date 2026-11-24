@@ -27,6 +27,10 @@ Además de los datos de OpenConex, el archivo `.ocnx` puede llevar:
 - **Rigidizadores** (Geometría › Rigidizadores): en línea con el alma o tres
   por patín para perfiles W, y radiales para tubos circulares.
 
+Las barras del pedestal terminan arriba en gancho de 90°, de 180° o rectas
+(Terminación arriba). Los ganchos de 90° y 180° tienen el mismo largo de
+desarrollo l_dh (ACI 318-19 §25.4.3); una barra recta necesita l_d, más largo.
+
 El refuerzo del pedestal se dibuja dentro del concreto (estribos que toman
 cortante en naranja), pero no forma parte del modelo FEM: solo entra en las
 verificaciones.

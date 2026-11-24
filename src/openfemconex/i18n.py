@@ -24,7 +24,8 @@ def language() -> str:
     return _current
 
 
-ES: dict[str, str] = {"strong": "eje fuerte", "weak": "eje débil", "both": "ambas (en cruz)"}
+ES: dict[str, str] = {"strong": "eje fuerte", "weak": "eje débil", "both": "ambas (en cruz)",
+                      "90": "gancho de 90°", "180": "gancho de 180°", "recta": "recta"}
 """Spanish texts of the few codes that are stored in English in the project file."""
 
 
@@ -138,7 +139,10 @@ EN: dict[str, str] = {
     "Barras longitudinales": "Longitudinal bars", "Diámetro de barra": "Bar diameter",
     "fy del refuerzo": "Reinforcement fy",
     "Recubrimiento libre a estribos": "Clear cover to the ties",
-    "Barras con gancho arriba": "Bars hooked at the top", "Diámetro de estribo": "Tie diameter",
+    "Barras con gancho arriba": "Bars hooked at the top", "Terminación arriba": "Top end",
+    "90": "90° hook", "180": "180° hook", "recta": "straight",
+    "Gancho estándar de 90° o de 180°, o barra recta":
+        "Standard 90° or 180° hook, or straight bar", "Diámetro de estribo": "Tie diameter",
     "Separación de estribos": "Tie spacing", "Ramas por estribo": "Legs per tie",
     "Estribos superiores que toman cortante": "Top ties taking shear",
     "Altura del pedestal": "Pedestal height",

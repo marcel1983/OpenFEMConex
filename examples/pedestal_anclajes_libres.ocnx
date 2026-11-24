@@ -42,7 +42,7 @@
     ],
     "pedestal": {
       "bars": 12, "bar_diameter": "25 mm", "fy": "420 MPa", "cover": "40 mm",
-      "hooked": true, "tie_diameter": "10 mm", "tie_spacing": "100 mm", "tie_legs": 2,
+      "hook": "180", "tie_diameter": "10 mm", "tie_spacing": "100 mm", "tie_legs": 2,
       "top_ties": 3, "height": "1.2 m"
     }
   }
