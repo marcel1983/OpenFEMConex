@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-14]
+        os: [ubuntu-22.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
 
       - name: CalculiX (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y calculix-ccx libxcb-cursor0 libegl1
+        run: sudo apt-get update && sudo apt-get install -y calculix-ccx libxcb-cursor0 libegl1 libglu1-mesa libxrender1 libxcursor1 libxft2 libxinerama1
       - name: CalculiX (macOS)
         if: runner.os == 'macOS'
         run: brew install calculix-ccx && echo "OPENFEMCONEX_CCX=$(ls $(brew --prefix)/bin/ccx* | head -1)" >> "$GITHUB_ENV"

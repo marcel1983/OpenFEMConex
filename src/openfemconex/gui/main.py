@@ -103,9 +103,9 @@ class MainWindow(QMainWindow):
         self.central.addWidget(self.loads)
         self.setCentralWidget(self.central)
 
+        self._build_status()  # first: the other parts may report through it
         self._build_docks()
         self._build_ribbon()
-        self._build_status()
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
