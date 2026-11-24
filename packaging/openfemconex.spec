@@ -27,12 +27,17 @@ if ccx:
     binaries.append((ccx, "ccx"))
     if sys.platform == "win32":
         # ccx.exe loads its DLLs from its own folder: take the numerical libraries
-        # installed next to it (conda-forge layout: Library/bin)
-        for dll in Path(ccx).parent.glob("*.dll"):
+        # installed next to it, and the gfortran/ARPACK runtime that conda-forge keeps
+        # in Library/mingw-w64/bin
+        here = Path(ccx).parent
+        for dll in here.glob("*.dll"):
             if any(k in dll.name.lower() for k in ("arpack", "blas", "lapack", "spooles",
                                                     "gfortran", "quadmath", "gomp", "omp",
                                                     "winpthread", "gcc", "flang")):
                 binaries.append((str(dll), "ccx"))
+        mingw = here.parent / "mingw-w64" / "bin"
+        for dll in mingw.glob("*.dll") if mingw.is_dir() else ():
+            binaries.append((str(dll), "ccx"))
 
 datas = (collect_data_files("openconex") + collect_data_files("pyvista")
          + collect_data_files("latex2mathml") + collect_data_files("pint")
