@@ -121,6 +121,7 @@ class MainWindow(QMainWindow):
         self._on_results()
         apply_theme(self.dark)
         self.viewer.set_dark(self.dark)
+        self.ribbon.setStyleSheet(RIBBON_STYLE)
 
     # ------------------------------------------------------------------ construction
     def _build_docks(self) -> None:

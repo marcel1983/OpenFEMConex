@@ -25,7 +25,7 @@ from openfemconex.i18n import tr
 STYLE = """
 #ribbon { background: palette(window); border-bottom: 1px solid palette(mid); }
 #ribbonGroup { border-right: 1px solid palette(mid); }
-#ribbonGroupTitle { color: palette(dark); font-size: 10px; }
+#ribbonGroupTitle { color: palette(dark); font-size: 11px; }
 QToolButton#ribbonButton { border: 1px solid transparent; border-radius: 4px; padding: 3px; }
 QToolButton#ribbonButton:hover { background: palette(midlight); border-color: palette(mid); }
 QToolButton#ribbonButton:checked { background: palette(midlight); border-color: palette(dark); }

@@ -235,6 +235,12 @@ class LoadsPanel(QWidget):
         self._loading = True
         try:
             cases = self.state.data.get("cases", [])
+            # replaced cell widgets are only deleted later by the event loop: hide them
+            # now so that they never show behind the new ones
+            for old in self.cases.findChildren(QComboBox):
+                old.hide()
+                old.deleteLater()
+            self.cases.setRowCount(0)
             self.cases.setRowCount(len(cases))
             for r, case in enumerate(cases):
                 for c, (key, _) in enumerate(CASE_COLUMNS):
@@ -406,7 +412,9 @@ class BlockForm(QWidget):
         self.widgets: dict[str, QWidget] = {}
         layout = QVBoxLayout(self)
         self.enabled = QCheckBox(tr(title))
-        self.enabled.setStyleSheet("font-weight: bold;")
+        bold = self.enabled.font()
+        bold.setBold(True)
+        self.enabled.setFont(bold)  # a style sheet here would freeze the text colour
         self.enabled.toggled.connect(self._commit)
         layout.addWidget(self.enabled)
         form = QFormLayout()
@@ -538,7 +546,9 @@ class AnchorTable(QWidget):
         self._loading = False
         layout = QVBoxLayout(self)
         self.enabled = QCheckBox(tr("Posiciones por coordenadas"))
-        self.enabled.setStyleSheet("font-weight: bold;")
+        bold = self.enabled.font()
+        bold.setBold(True)
+        self.enabled.setFont(bold)  # a style sheet here would freeze the text colour
         self.enabled.setToolTip(tr("x a lo largo del peralte de la columna, y a lo largo del "
                                    "patín, desde el centro de la placa"))
         self.enabled.toggled.connect(self._toggled)
