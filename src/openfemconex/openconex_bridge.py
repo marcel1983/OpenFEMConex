@@ -29,6 +29,7 @@ from openfemconex.model import (
     Loads,
     Section,
     SectionKind,
+    ShearLug,
     Steel,
     Stiffener,
 )
@@ -119,12 +120,15 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
         stiffener_steel = Steel(grade.Fy, grade.Fu, name=extras.stiffeners.grade)
     return BasePlateModel(
         section=section, stiffeners=stiffeners, stiffener_steel=stiffener_steel,
+        lug=(ShearLug(bp.shear_lug.width, bp.shear_lug.thickness, bp.shear_lug.embedment,
+                      bp.shear_lug.direction) if bp.shear_lug else None),
         column_steel=Steel(col.material.Fy, col.material.Fu, name=col.grade),
         N=bp.N, B=bp.B, tp=bp.tp,
         plate_steel=Steel(plate.Fy, plate.Fu, name=bp.plate_grade),
         anchors=tuple(Anchor(x, y) for x, y in positions),
         anchor=anchor, concrete=concrete,
-        contact=ContactSettings(mu=mu if mu is not None else (0.55 if bp.grout_pad else 0.7)),
+        # the same friction coefficient as the friction check of the project
+        contact=ContactSettings(mu=mu if mu is not None else bp.friction_mu),
         title=title)
 
 

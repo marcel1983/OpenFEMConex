@@ -19,7 +19,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from openconex.connections.base_plate.check import BasePlate, concrete_edges
+from openconex.connections.base_plate.check import (
+    BasePlate,
+    _shear_lug_checks,
+    concrete_edges,
+)
 from openconex.core.checks import CheckResult
 from openconex.core.loads import Method
 from openconex.core.materials import ELECTRODES
@@ -81,11 +85,13 @@ _CLAUSES = {
     "current": {"steel_t": "§17.6.1.2", "breakout_t": "§17.6.2", "pullout": "§17.6.3",
                 "blowout": "§17.6.4", "steel_v": "§17.7.1", "breakout_v": "§17.7.2",
                 "pryout": "§17.7.3", "interaction": "§17.8", "reinf_t": "§17.5.2.1(a)",
-                "reinf_v": "§17.5.2.1(b)", "col_min": "§10.6.1.1", "col_pm": "§22.4"},
+                "reinf_v": "§17.5.2.1(b)", "col_min": "§10.6.1.1", "col_pm": "§22.4",
+                "combined": "J3.8"},
     "dg1-2ed": {"steel_t": "D.5.1", "breakout_t": "D.5.2", "pullout": "D.5.3",
                 "blowout": "D.5.4", "steel_v": "D.6.1", "breakout_v": "D.6.2",
                 "pryout": "D.6.3", "interaction": "D.7", "reinf_t": "D.5.2.9",
-                "reinf_v": "D.6.2.9", "col_min": "§10.9.1", "col_pm": "§10.3"},
+                "reinf_v": "D.6.2.9", "col_min": "§10.9.1", "col_pm": "§10.3",
+                "combined": "J3.7"},
 }
 
 CURRENT = Edition("current", "AISC 360-22", "ACI 318-19", "§17", anchor_steel_aisc=False,
@@ -373,6 +379,39 @@ def fillet_weld_line(normal: float, shear: float, size: float, FEXX: float, fill
     return c.result("fem.weld", clause, r, cap, Kind.FORCE_PER_LENGTH)
 
 
+def rod_combined(T: float, V: float, d: float, Fnt: float, Fnv: float, lever: float,
+                 ed: Edition = CURRENT, method: Method = Method.LRFD,
+                 combo: str = "") -> CheckResult:
+    """One anchor rod in tension, shear and bending through a welded plate washer.
+
+    f_t = T/Ab + V·l/Z with Z = d³/6 and f_v = V/Ab, checked against the reduced
+    tensile stress F'nt of the AISC combined tension and shear provision (DG1 Example
+    4.11). ``lever`` is half the distance from the washer centre to the grout.
+    """
+    clause = f"{ed.aisc} {_CLAUSES[ed.key]['combined']}; {ed.guide} (anchor rod bending)"
+    c = _calc(method, combo)
+    ab = c.step("A_b", r"\pi d^2/4", math.pi * d * d / 4, Kind.AREA, clause)
+    z = c.step("Z", "d^3/6", d**3 / 6, Kind.SECTION_MODULUS, clause)
+    m = c.step("M_l", "V l", abs(V) * lever, Kind.MOMENT, clause, V=(abs(V), Kind.FORCE),
+               l=(lever, Kind.LENGTH))
+    ft = c.step("f_t", r"\frac{T}{A_b} + \frac{M_l}{Z}", max(T, 0.0) / ab + m / z, Kind.STRESS,
+                clause)
+    fv = c.step("f_v", r"\frac{V}{A_b}", abs(V) / ab, Kind.STRESS, clause)
+    if method is Method.LRFD:
+        phi = 0.75
+        fnt_r = c.step("F'_{nt}", r"1.3F_{nt} - \frac{F_{nt}}{\phi F_{nv}}f_v \le F_{nt}",
+                       min(1.3 * Fnt - Fnt / (phi * Fnv) * fv, Fnt), Kind.STRESS, clause)
+        cap = c.step(r"\phi F'_{nt}", "0.75 F'_{nt}", phi * max(fnt_r, 0.0), Kind.STRESS,
+                     clause)
+    else:
+        omega = 2.0
+        fnt_r = c.step("F'_{nt}", r"1.3F_{nt} - \frac{\Omega F_{nt}}{F_{nv}}f_v \le F_{nt}",
+                       min(1.3 * Fnt - omega * Fnt / Fnv * fv, Fnt), Kind.STRESS, clause)
+        cap = c.step(r"F'_{nt}/\Omega", "F'_{nt}/2.00", max(fnt_r, 0.0) / omega, Kind.STRESS,
+                     clause)
+    return c.result("anchor.combined_bending", clause, ft, cap, Kind.STRESS)
+
+
 def stiffener_slenderness(width: float, thickness: float, Fy: float, E: float = 200_000.0,
                           ed: Edition = CURRENT, combo: str = "") -> CheckResult:
     """Width-to-thickness ratio of the stiffener outstand, b/t ≤ 0.56 √(E/Fy).
@@ -439,7 +478,7 @@ def _replace_breakout(out: list[CheckResult], breakout_id: str,
 def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
               method: Method = Method.LRFD, *, weld_size: float | None = None,
               strain_limit: float = 0.05, supplementary: bool = False,
-              extras: Extras | None = None) -> list[CheckResult]:
+              extras: Extras | None = None, mu: float | None = None) -> list[CheckResult]:
     """All FEM-based checks of one solved combination.
 
     In the plan of the FEM model x runs along the plate length N and y along B, so
@@ -463,30 +502,34 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
     group = _tension_group(res)
     if group:
         col = bp.column
-        if extras.anchors:
-            # free layout: each rod bends the plate about the nearest column wall, over
-            # a width spread at 45 degrees (DG1) and limited by the plate
+        # Rods beyond the flanges of an I-shape, in the default two-row layout, bend the
+        # plate about the flange over its whole width (DG1, tension interface). Any other
+        # rod (free layout, inside the column profile, tubes) bends it about the nearest
+        # column wall over a width spread at 45 degrees (DG1 Example 4.5).
+        rows_beyond = (not extras.anchors and hasattr(col, "k_des"))
+        single = [a for a in group if not (rows_beyond and abs(a.x) > col.d / 2)]
+        bending: list[CheckResult] = []
+        if rows_beyond:
+            for sign in (-1.0, 1.0):
+                row = [a for a in group if a.x * sign > col.d / 2]
+                if row:
+                    lever = abs(sum(a.x for a in row) / len(row)) - col.d / 2 + col.tf / 2
+                    bending.append(plate_bending_tension(sum(a.tension for a in row), lever,
+                                                         bp.B, bp.tp, bp.Fy, ed, method, combo))
+        if single:
             section = section_of(col)
             worst = None
-            for a in group:
+            for a in single:
                 lever = max(section.distance(a.x, a.y), 1.0)
                 width = min(2 * lever, bp.N, bp.B)
                 r = plate_bending_tension(a.tension, lever, width, bp.tp, bp.Fy, ed, method,
                                           combo)
                 if worst is None or r.ratio > worst.ratio:
                     worst = r
-            out.append(_not_governing(worst) if extras.stiffeners else worst)
-        else:
-            # rows of rods in tension bend the plate about the nearest flange
-            for sign in (-1.0, 1.0):
-                row = [a for a in group if a.x * sign > col.d / 2]
-                if row:
-                    lever = abs(sum(a.x for a in row) / len(row)) - col.d / 2 + col.tf / 2
-                    bending = plate_bending_tension(sum(a.tension for a in row), lever, bp.B,
-                                                    bp.tp, bp.Fy, ed, method, combo)
-                    # with stiffeners the plate no longer cantilevers from the flange:
-                    # its bending is judged by the plastic strain of the FEM
-                    out.append(_not_governing(bending) if extras.stiffeners else bending)
+            bending.append(worst)
+        # with stiffeners the plate no longer cantilevers from the column: its bending is
+        # judged by the plastic strain of the FEM
+        out.extend(_not_governing(r) if extras.stiffeners else r for r in bending)
         tmax = max(a.tension for a in group)
         out.append(anchor_steel_tension(rod.diameter, Fu, Fy, tmax, ed, method, combo))
         if lrfd:
@@ -553,10 +596,36 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                         _replace_breakout(out, "anchor.concrete_breakout_shear",
                                           [ped.anchor_reinforcement_shear(
                                               by_rods, rebar, ed.anchor("reinf_v"), combo)])
-        if lrfd and by_rods < 0.95 * V:
+        if by_rods > 0.05 * V and bp.washer_thickness:
+            # welded washers: tension, shear and bending of each rod (DG1 Example 4.11)
+            if ed.key == "current":
+                Fnt, Fnv = rod.material.Fnt, rod.material.Fnv_N
+            else:
+                Fnt, Fnv = 0.75 * Fu, 0.40 * Fu
+            lever = (bp.tp + bp.washer_thickness / 2) / 2
+            worst = None
+            for a in res.anchors:
+                r = rod_combined(a.tension, math.hypot(a.Vx, a.Vy), rod.diameter, Fnt, Fnv, lever,
+                                 ed, method, combo)
+                if worst is None or r.ratio > worst.ratio:
+                    worst = r
+            out.append(worst)
+        lug_v = res.lug_shear
+        if bp.shear_lug is not None:
+            # shear lug: the openconex checks (DG1 3rd ed., ACI 318-19 §17.11) with the
+            # shear the FEM puts on the lug; the axial force gives ψbrg,sl
+            P_ = res.applied["P"]
+            # as in DG1 the lug is designed for the whole shear in its direction, not
+            # only for the part the FEM gives it (the rest goes by friction)
+            Vx = abs(res.applied["Vx"]) * res.load_fraction
+            Vy = abs(res.applied["Vy"]) * res.load_fraction
+            resisted = {"strong": (Vx, 0.0), "weak": (0.0, Vy), "both": (Vx, Vy)}
+            out.extend(_shear_lug_checks(bp, P_, resisted[bp.shear_lug.direction], method,
+                                         combo))
+        if lrfd and bp.shear_lug is None and by_rods < 0.95 * V:
             fx, fy = res.friction
             out.append(friction(res.bearing_force, res.bearing_area, bp.fc, math.hypot(fx, fy),
-                                bp.friction_mu, ed, combo))
+                                bp.friction_mu if mu is None else mu, ed, combo))
         if lrfd:
             tension = [r.ratio for r in out if r.applicable and r.id in (
                 "anchor.steel_tension", "anchor.concrete_breakout_tension", "anchor.pullout",

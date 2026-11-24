@@ -151,6 +151,18 @@ class Stiffener:
 
 
 @dataclass(frozen=True)
+class ShearLug:
+    """Shear lug under the plate, centred on the column: it takes the shear in bearing."""
+
+    width: float
+    """Across the shear [mm]."""
+    thickness: float
+    embedment: float
+    direction: str = "strong"
+    """``strong`` resists shear along x, ``weak`` along y, ``both`` (cruciform) both."""
+
+
+@dataclass(frozen=True)
 class Concrete:
     fc: float
     N: float
@@ -235,6 +247,7 @@ class BasePlateModel:
     ey: float = 0.0
     """Column eccentricity on the plate."""
     stiffeners: tuple[Stiffener, ...] = ()
+    lug: ShearLug | None = None
     stiffener_steel: Steel | None = None
     column_length: float | None = None
     """Modelled column length above the plate (default 2.5 × largest section dimension)."""

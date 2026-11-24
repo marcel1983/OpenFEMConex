@@ -1,0 +1,62 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "DG1 2a ed. Ejemplo 4.11 (tracción, cortante y flexión del anclaje)",
+    "number": "OFC-0005",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-24",
+    "language": "es",
+    "units": "US"
+  },
+  "base_plate": {
+    "column": "W10X45",
+    "N": "20 in",
+    "B": "20 in",
+    "tp": "1.25 in",
+    "plate_grade": "ASTM A36",
+    "fc": "4 ksi",
+    "A2_over_A1": 4.0,
+    "grout": "1.5 in",
+    "rod_diameter": "1.5 in",
+    "rod_grade": "ASTM F1554 Gr. 36",
+    "rods_per_side": 2,
+    "f": "7.25 in",
+    "rod_spacing": "8 in",
+    "hef": "13 in",
+    "flange_weld": "0.1875 in",
+    "cracked": false,
+    "washer_thickness": "0.5 in"
+  },
+  "cases": [
+    {
+      "name": "D",
+      "type": "D",
+      "P": "22 kip"
+    },
+    {
+      "name": "W",
+      "type": "W",
+      "P": "-56 kip",
+      "V": "23 kip"
+    }
+  ],
+  "combinations": {
+    "methods": [
+      "LRFD"
+    ],
+    "include_code": false,
+    "custom": [
+      {
+        "name": "LRFD-U",
+        "method": "LRFD",
+        "factors": {
+          "D": 0.9,
+          "W": 1.6
+        },
+        "source": "DG1 Ej. 4.11"
+      }
+    ]
+  }
+}

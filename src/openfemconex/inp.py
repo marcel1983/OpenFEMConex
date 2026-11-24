@@ -69,6 +69,9 @@ class InpNumbering:
     anchor_concrete: tuple[int, ...] = ()
     """Concrete surface node next to each rod, the other end of the lateral springs."""
     lateral_stiffness: float = 0.0
+    lug_nodes: tuple[int, ...] = ()
+    """Plate-side and concrete-side reference nodes of the shear lug."""
+    lug_stiffness: float = 0.0
 
 
 def _write_rows(f: TextIO, rows, per_line: int = 8) -> None:
@@ -112,6 +115,38 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         int(surface[np.argmin(np.hypot(sxy[:, 0] - a.x, sxy[:, 1] - a.y))])
         for a in model.anchors)
     k_lat = ks.lateral if model.anchor.welded_washers else 1e-3 * ks.lateral
+    lug_nodes: tuple[int, ...] = ()
+    lug_plate: list[int] = []
+    lug_conc: list[int] = []
+    k_lug = 0.0
+    if model.lug is not None:
+        lug = model.lug
+        # plate bottom and concrete surface nodes over the lug footprint (a cross for
+        # "both"); at least the nearest few, whatever the mesh size
+        half = (lug.width / 2, max(lug.thickness, 2 * (mesh.settings.size_fine or 10.0)) / 2)
+        boxes = {"strong": [(half[1], half[0])], "weak": [(half[0], half[1])],
+                 "both": [(half[1], half[0]), (half[0], half[1])]}[lug.direction]
+
+        def inside(ids):
+            xy = mesh.nodes[ids - 1, :2] - np.array([model.ex, model.ey])
+            sel = np.zeros(len(ids), dtype=bool)
+            for hx, hy in boxes:
+                sel |= (np.abs(xy[:, 0]) <= hx) & (np.abs(xy[:, 1]) <= hy)
+            if sel.sum() < 3:
+                sel = np.argsort(np.hypot(xy[:, 0], xy[:, 1]))[:3]
+            return [int(n) for n in ids[sel]]
+
+        # one layer away from the contact surfaces: nodes of a contact pair are best
+        # kept out of the equations
+        n2 = len(mesh.plate_bottom_nodes)
+        lug_plate = inside(mesh.plate_bottom_nodes + n2)
+        below = mesh.nodes[conc - 1, 2]
+        level = below[below < -1e-6].max()
+        lug_conc = inside(conc[np.abs(below - level) < 1e-6])
+        lug_nodes = (nn + 3 + 3 * na, nn + 4 + 3 * na)
+        # bearing on the concrete over the embedded face: very stiff compared with
+        # the plate sliding on the grout
+        k_lug = model.concrete.E * lug.width
     c = model.concrete
     top_z = model.tp + model.Lc
 
@@ -179,7 +214,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         # Friction only matters when there is shear to transfer; without it the contact
         # is frictionless, which keeps the system symmetric and converges faster.
         # With welded plate washers the rods are designed for the whole shear (DG1 does
-        # not add friction to rod bearing), so the contact is left frictionless.
+        # not add friction to rod bearing), so the contact is left frictionless. With a
+        # shear lug friction stays: it keeps the plate stable while the lug engages, and
+        # the lug is checked for the whole shear anyway.
         if model.contact.mu > 0 and (loads.Vx or loads.Vy) and not model.anchor.welded_washers:
             f.write(f"*FRICTION\n{model.contact.mu:.4e}, {K / 10:.6e}\n")
 
@@ -219,6 +256,25 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         f.write(f"*SPRING, ELSET=RODX\n1, 1\n{k_lat:.6e}\n")
         f.write(f"*SPRING, ELSET=RODY\n2, 2\n{k_lat:.6e}\n")
 
+        # ---- shear lug ----
+        if lug_nodes:
+            f.write("*NODE, NSET=LUGNODES\n")
+            f.write(f"{lug_nodes[0]}, {model.ex:.6f}, {model.ey:.6f}, 0.\n")
+            f.write(f"{lug_nodes[1]}, {model.ex:.6f}, {model.ey:.6f}, 0.\n")
+            f.write("*EQUATION\n")
+            for ref, ids in ((lug_nodes[0], lug_plate), (lug_nodes[1], lug_conc)):
+                for dof in (1, 2, 3):
+                    terms = [(ref, dof, -1.0)] + [(int(n), dof, 1.0 / len(ids)) for n in ids]
+                    f.write(f"{len(terms)}\n")
+                    for i in range(0, len(terms), 4):
+                        f.write(", ".join(f"{n}, {d}, {c:.8e}" for n, d, c in terms[i:i + 4])
+                                + "\n")
+            dofs = {"strong": (1,), "weak": (2,), "both": (1, 2)}[model.lug.direction]
+            for k, dof in enumerate(dofs):
+                f.write(f"*ELEMENT, TYPE=SPRING2, ELSET=LUG{dof}\n")
+                f.write(f"{ne + 1 + 3 * na + k}, {lug_nodes[0]}, {lug_nodes[1]}\n")
+                f.write(f"*SPRING, ELSET=LUG{dof}\n{dof}, {dof}\n{k_lug:.6e}\n")
+
         # ---- load introduction ----
         f.write(f"*RIGID BODY, NSET=COLTOP, REF NODE={load_ref}, ROT NODE={load_rot}\n")
 
@@ -246,12 +302,15 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                 f.write(f"{node}, {dof}, {value:.8e}\n")
             f.write("*NODE FILE, FREQUENCY=100000\nU\n*EL FILE, FREQUENCY=100000\nS, PEEQ\n"
                     "*CONTACT FILE, FREQUENCY=100000\nCSTR\n")
-            for nset, key in (("ANCHORGND", "RF"), ("ANCHORREF", "U"), ("ANCHORBASE", "U"),
-                              ("ANCHORCONC", "U"), ("CONCBOT", "RF"),
-                              ("LOADNODES", "U")):
+            prints = [("ANCHORGND", "RF"), ("ANCHORREF", "U"), ("ANCHORBASE", "U"),
+                      ("ANCHORCONC", "U"), ("CONCBOT", "RF"), ("LOADNODES", "U")]
+            if lug_nodes:
+                prints.append(("LUGNODES", "U"))
+            for nset, key in prints:
                 f.write(f"*NODE PRINT, NSET={nset}, FREQUENCY=100000\n{key}\n")
             f.write("*END STEP\n")
 
     return InpNumbering(load_ref, load_rot, anchor_ref, anchor_ground, spring_axial,
                         steps=len(steps), anchor_base=anchor_base,
-                        anchor_concrete=anchor_concrete, lateral_stiffness=k_lat)
+                        anchor_concrete=anchor_concrete, lateral_stiffness=k_lat,
+                        lug_nodes=lug_nodes, lug_stiffness=k_lug)

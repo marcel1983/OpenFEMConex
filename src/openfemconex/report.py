@@ -39,6 +39,8 @@ TITLES = {
     "anchor.reinforcement_shear": "Refuerzo de anclaje a cortante (estribos superiores)",
     "pedestal.flexure_axial": "Pedestal: flexocompresión de la sección",
     "pedestal.min_reinforcement": "Pedestal: cuantía mínima longitudinal",
+    "anchor.combined_bending": "Anclaje: tracción, cortante y flexión (arandela soldada)",
+    "base_plate.lug_bearing": "Llave de cortante: aplastamiento del concreto",
     "fem.stiffener_plastic_strain": "Rigidizadores: deformación plástica equivalente",
     "fem.stiffener_weld": "Rigidizadores: soldadura (punto más solicitado)",
     "fem.stiffener_slenderness": "Rigidizadores: esbeltez del borde libre",

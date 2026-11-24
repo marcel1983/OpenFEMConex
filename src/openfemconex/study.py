@@ -85,7 +85,8 @@ class Study:
             if ref.case != "not_possible":
                 reference = {"T": ref.T, "Y": ref.Y, "fp": ref.fp_max}
         checks = check_fem(bp, res, self.edition, combo.method, weld_size=st.weld_size,
-                           strain_limit=st.strain_limit, extras=self.extras)
+                           strain_limit=st.strain_limit, extras=self.extras,
+                           mu=model.contact.mu)
         analytical = []
         if self.edition.key == "current" and not free:
             try:

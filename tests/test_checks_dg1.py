@@ -126,3 +126,21 @@ def test_interaction_rule():
     r = ck.anchor_interaction(0.6, 0.7)
     assert r.demand == pytest.approx(1.3) and r.capacity == 1.2
     assert r.status.value == "ng"
+
+
+@pytest.mark.parametrize("d, ft, fv, phiFnt", [(1.125, 46.7, 9.26, 25.1), (1.5, None, 5.20, None)])
+def test_rod_combined_example_4_11(d, ft, fv, phiFnt):
+    """Four rods, Vu = 36.8 kips, Tu = 69.8 kips, lever 0.750 in (Example 4.11).
+
+    1-1/8 in.: f_t = 46.7 ksi > φF'nt = 25.1 ksi (n.g.); 1-1/2 in. rods are adequate.
+    """
+    r = ck.rod_combined(69.8 / 4 * KIP, 36.8 / 4 * KIP, d * IN, 0.75 * FU36, 0.40 * FU36,
+                        0.750 * IN, DG1_2ED)
+    step = {s.symbol: s.value for s in r.steps}
+    assert step["f_v"] / KSI == pytest.approx(fv, rel=1e-2)
+    if ft is not None:
+        assert r.demand / KSI == pytest.approx(ft, rel=1e-2)
+        assert r.capacity / KSI == pytest.approx(phiFnt, rel=1e-2)
+        assert r.status.value == "ng"
+    else:
+        assert r.status.value == "ok"

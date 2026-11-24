@@ -1,0 +1,78 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Llave de cortante (datos del ejemplo 4.9 de la DG1 2a ed.)",
+    "number": "OFC-0006",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-24",
+    "language": "es",
+    "units": "US"
+  },
+  "base_plate": {
+    "column": "W10X45",
+    "N": "14 in",
+    "B": "14 in",
+    "tp": "1.25 in",
+    "plate_grade": "ASTM A36",
+    "fc": "4 ksi",
+    "A2_over_A1": 4.0,
+    "grout": "1.5 in",
+    "rod_diameter": "0.875 in",
+    "rod_grade": "ASTM F1554 Gr. 36",
+    "rods_per_side": 2,
+    "f": "2 in",
+    "rod_spacing": "4 in",
+    "hef": "13 in",
+    "flange_weld": "0.1875 in",
+    "cracked": false,
+    "shear_lug": {
+      "width": "8 in",
+      "embedment": "3 in",
+      "thickness": "1.25 in",
+      "weld": "0.3125 in",
+      "direction": "strong",
+      "grade": "ASTM A36"
+    }
+  },
+  "cases": [
+    {
+      "name": "D",
+      "type": "D",
+      "P": "22 kip"
+    },
+    {
+      "name": "W",
+      "type": "W",
+      "P": "-56 kip",
+      "V": "23 kip"
+    }
+  ],
+  "combinations": {
+    "methods": [
+      "LRFD"
+    ],
+    "include_code": false,
+    "custom": [
+      {
+        "name": "LRFD-U",
+        "method": "LRFD",
+        "factors": {
+          "D": 0.9,
+          "W": 1.6
+        },
+        "source": "DG1 Ej. 4.9"
+      },
+      {
+        "name": "LRFD-C",
+        "method": "LRFD",
+        "factors": {
+          "D": 1.2,
+          "W": -1.6
+        },
+        "source": "compresión con el mismo cortante"
+      }
+    ]
+  }
+}

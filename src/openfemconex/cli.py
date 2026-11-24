@@ -139,7 +139,8 @@ def main(argv: list[str] | None = None) -> int:
                       f"T = {ref.T * f:.1f} {fu}, Y = {ref.Y * d:.2f} {du}, "
                       f"fp = {ref.fp_max * s:.2f} {su}")
         checks = check_fem(bp, res, edition, combo.method, weld_size=args.weld,
-                           strain_limit=args.strain_limit, extras=extras)
+                           strain_limit=args.strain_limit, extras=extras,
+                           mu=model.contact.mu)
         print(f"  Verificaciones ({edition.aisc}, {edition.aci}):")
         for r in checks:
             mark = {"ok": "OK ", "ng": "NO "}.get(r.status.value, "-- ")

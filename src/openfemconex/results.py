@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -241,6 +242,8 @@ class Results:
     """|bearing − ΣT − P| / max(|P|, bearing) (vertical equilibrium)."""
     moment_error: float
     """Relative error of the moment about y from anchors and bearing."""
+    lug_shear: tuple[float, float] = (0.0, 0.0)
+    """Shear (x, y) the plate transfers to the concrete through the shear lug [N]."""
     weld: list[WeldPoint] = field(default_factory=list)
     stiffener_weld: list[WeldPoint] = field(default_factory=list)
     stiffener_von_mises_max: float = 0.0
@@ -278,6 +281,14 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
         anchors.append(AnchorForce(a.x, a.y, tension=tension, Vx=vx, Vy=vy,
                                    uplift=float(u[r][2])))
     T = sum(a.tension for a in anchors)
+    lug_shear = (0.0, 0.0)
+    if numbering.lug_nodes:
+        ul = dat["displacements/LUGNODES"]
+        slip = ul[numbering.lug_nodes[0]] - ul[numbering.lug_nodes[1]]
+        active = {"strong": (True, False), "weak": (False, True),
+                  "both": (True, True)}[model.lug.direction]
+        lug_shear = tuple(-numbering.lug_stiffness * float(slip[i]) if active[i] else 0.0
+                          for i in (0, 1))
     # Compression on the concrete and its line of action, from the reactions at the
     # fixed base of the block taken to the contact plane (z = 0).
     base = dat["forces/CONCBOT"]
@@ -285,6 +296,8 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     brf = np.array([base[i] for i in bid])
     bxyz = mesh.nodes[bid - 1]
     C = float(brf[:, 2].sum())
+    # moment about y of the block reactions, about the plate centre at z = 0
+    M_base = float((bxyz[:, 0] * brf[:, 2] - bxyz[:, 2] * brf[:, 0]).sum())
     if C > 0:
         centroid = (float((bxyz[:, 0] * brf[:, 2] - bxyz[:, 2] * brf[:, 0]).sum() / C),
                     float((bxyz[:, 1] * brf[:, 2] - bxyz[:, 2] * brf[:, 1]).sum() / C))
@@ -342,16 +355,20 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     scale = max(abs(P), abs(C), 1.0)
     # Moment about y at the plate base: compression at +x gives a positive moment.
     # The rod shears act at the contact plane, so they add no moment about it.
-    M_fem = centroid[0] * C - sum(a.x * a.tension for a in anchors)
-    m_scale = max(abs(My), abs(M_fem), 1.0)
+    M_fem = M_base - sum(a.x * a.tension for a in anchors)
+    # relative to the moment itself, to the moment of the shear at the column top, or
+    # to 1 % of P·N when there is (almost) none
+    V_lever = math.hypot(loads.Vx, loads.Vy) * fractions[1] * (model.tp + model.Lc)
+    m_scale = max(abs(My), abs(M_fem), V_lever, 0.01 * max(abs(P), abs(C), T) * model.N, 1.0)
     return Results(
         load=loads.name, converged=converged, load_fraction=fractions[1],
         applied={"P": loads.P, "Vx": loads.Vx, "Vy": loads.Vy, "Mx": loads.Mx, "My": loads.My},
         anchors=anchors, anchor_tension_total=float(T),
         bearing_force=C,
         # shear through the contact: what reaches the block minus what the rods bring
-        friction=(float(-brf[:, 0].sum() + sum(a.Vx for a in anchors)),
-                  float(-brf[:, 1].sum() + sum(a.Vy for a in anchors))),
+        friction=(float(-brf[:, 0].sum() + sum(a.Vx for a in anchors) + lug_shear[0]),
+                  float(-brf[:, 1].sum() + sum(a.Vy for a in anchors) + lug_shear[1])),
+        lug_shear=(float(lug_shear[0]), float(lug_shear[1])),
         bearing_centroid=(float(centroid[0]), float(centroid[1])),
         bearing_pressure_max=float(p.max(initial=0.0)),
         bearing_pressure_mean=C / A if A else 0.0, bearing_area=A, bearing_length_x=Y,

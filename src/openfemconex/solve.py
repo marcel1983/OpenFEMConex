@@ -46,7 +46,7 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
     else:
         run = run_ccx(inp, steps=numbering.steps, threads=threads, executable=ccx,
                       cancel=cancel)
-    if run.step == 0:
+    if run.step == 0 or not run.base.with_suffix(".dat").read_text().strip():
         raise RuntimeError(f"ccx did not converge on the first increment; see {run.log}")
     # Fractions of the axial load and of the moments and shears actually reached.
     if numbering.steps == 2:
