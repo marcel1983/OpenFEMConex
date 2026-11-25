@@ -124,6 +124,8 @@ def test_solve_check_and_report(window, qtbot, tmp_path):
     assert html.exists() and "ACI 318-08" in html.read_text(encoding="utf-8")
     pdf = window.export_pdf(str(tmp_path / "r.pdf"))
     assert pdf.exists() and pdf.stat().st_size > 5000
+    docx = window.export_docx(str(tmp_path / "r.docx"))
+    assert docx.exists() and docx.stat().st_size > 5000
     # editing after solving flags the results as outdated
     window.state.set("base_plate", "tp", "2.5 in")
     assert window.state.stale
@@ -339,3 +341,18 @@ def test_edit_combinations(window):
     assert st.data["combinations"]["include_code"] is False
     texts = [window.loads.combos.item(r, 2).text() for r in range(window.loads.combos.rowCount())]
     assert "1.2D + L" in texts
+
+
+def test_title_block_heads_the_report(window):
+    st = window.state
+    form = window.forms["Ficha"]
+    for key, value in (("engineer", "Ing. Prueba"), ("revision", "B"),
+                       ("connection", "PB-1, eje A-3")):
+        form.widgets[key].setText(value)
+        form.widgets[key].editingFinished.emit()
+    assert st.valid, st.error
+    study = st.study()
+    rows = dict(study.ficha())
+    assert rows["Ingeniero"] == "Ing. Prueba" and rows["Revisión"] == "B"
+    assert rows["Conexión"] == "PB-1, eje A-3"
+    assert "PB-1" in study.report_title()

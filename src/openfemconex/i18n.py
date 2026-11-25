@@ -205,6 +205,68 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    'Exportar Word':
+        'Export Word',
+    'Word escrito en {path}':
+        'Word file written to {path}',
+    'Desarrollo de las verificaciones':
+        'Check calculations',
+    'Elevación acotada':
+        'Dimensioned elevation',
+    'Planta acotada':
+        'Dimensioned plan',
+    'Planta y elevación acotadas':
+        'Dimensioned plan and elevation',
+    'Cliente':
+        'Client',
+    'Conexión':
+        'Connection',
+    'Fecha':
+        'Date',
+    'Ingeniero':
+        'Engineer',
+    'Número de proyecto':
+        'Project number',
+    'Revisión':
+        'Revision',
+    'Columna {name} — {grade}':
+        'Column {name} — {grade}',
+    "Concreto f'c = {fc}":
+        "Concrete f'c = {fc}",
+    'Filete {w} a ambos lados del rigidizador':
+        '{w} fillet on both sides of the stiffener',
+    'Llave de cortante PL {w} × {t}, empotrada {e} — {grade}':
+        'Shear lug PL {w} × {t}, embedded {e} — {grade}',
+    'Memoria de cálculo: {name}':
+        'Calculation report: {name}',
+    'Mortero de nivelación {t}':
+        'Grout {t}',
+    "Pedestal {n} × {b}, f'c = {fc}":
+        "Pedestal {n} × {b}, f'c = {fc}",
+    'Placa base {n} × {b} × {t} — {grade}':
+        'Base plate {n} × {b} × {t} — {grade}',
+    'Soldadura de filete {w} ({e}) todo alrededor':
+        '{w} fillet weld ({e}) all around',
+    'Soldadura de penetración completa (CJP) columna-placa':
+        'Complete-joint-penetration (CJP) column-to-plate weld',
+    '{n} anclajes Ø {d} — {grade}, hef = {hef}':
+        '{n} anchors Ø {d} — {grade}, hef = {hef}',
+    '{n} rigidizadores PL {t} — {grade}':
+        '{n} stiffeners PL {t} — {grade}',
+    'Ficha':
+        'Title block',
+    'Identificación':
+        'Identification',
+    'Memoria editable en Word (.docx)':
+        'Editable report in Word (.docx)',
+    'Proyecto, conexión, ingeniero y revisión que encabezan el reporte':
+        'Project, connection, engineer and revision at the head of the report',
+    'Nombre de la conexión':
+        'Connection name',
+    'Por ejemplo: Placa base PB-1, eje A-3':
+        'For example: Base plate BP-1, grid A-3',
+    'Vacío: la fecha del día del reporte':
+        'Empty: the date the report is generated',
     'Soldadura CJP columna-placa: metal base de la pared (punto más solicitado)':
         'CJP column-to-plate weld: base metal of the wall (most stressed point)',
     'Con penetración completa resiste la pared de la columna: aumentar su espesor o su grado de acero, o agregar rigidizadores que repartan la carga.':  # noqa: E501

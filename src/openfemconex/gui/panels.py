@@ -59,6 +59,16 @@ def column_labels() -> tuple[str, ...]:
 ROD_GRADES = tuple(n for n in BOLTS if "F1554" in n)
 
 SECTIONS: dict[str, list[Field]] = {
+    "Ficha": [
+        Field("name", "Proyecto", section="info"),
+        Field("number", "Número de proyecto", section="info"),
+        Field("client", "Cliente", section="info"),
+        Field("connection", "Nombre de la conexión", section="openfemconex",
+              tip="Por ejemplo: Placa base PB-1, eje A-3"),
+        Field("engineer", "Ingeniero", section="info"),
+        Field("revision", "Revisión", section="info"),
+        Field("date", "Fecha", section="info", tip="Vacío: la fecha del día del reporte"),
+    ],
     "Columna": [
         Field("column", "Perfil AISC", "choice", tip="W, M, S, HP, HSS y Pipe del catálogo AISC"),
         Field("column_grade", "Acero", "steel"),
@@ -172,7 +182,8 @@ class FormPanel(QWidget):
             dspin.valueChanged.connect(lambda v, f=f: self._commit(f, round(v, 4)))
             return dspin
         edit = QLineEdit()
-        edit.setPlaceholderText(tr("valor con unidad, p. ej. 22 in o 560 mm"))
+        if f.section == "base_plate":
+            edit.setPlaceholderText(tr("valor con unidad, p. ej. 22 in o 560 mm"))
         edit.editingFinished.connect(lambda f=f, e=edit: self._commit(f, e.text().strip()))
         return edit
 

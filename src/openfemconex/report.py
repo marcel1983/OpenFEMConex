@@ -20,7 +20,8 @@ from openfemconex.i18n import language
 from openfemconex.i18n import tr as _
 from openfemconex.results import Results
 
-__all__ = ["ComboReport", "TITLES", "check_title", "render_report", "write_report"]
+__all__ = ["ComboReport", "TITLES", "blocks_to_html", "check_title", "render_report",
+           "report_blocks", "write_report"]
 
 TITLES = {
     "fem.concrete_bearing": "Aplastamiento del concreto (bloque centrado en la resultante FEM)",
@@ -82,66 +83,61 @@ th,td{border:1px solid #ccc;padding:.3em .5em;text-align:left;vertical-align:top
 th{background:#f0f0f0}td.n{text-align:right;font-variant-numeric:tabular-nums}
 .ok{color:#17692b;font-weight:600}.ng{color:#b00020;font-weight:600}.na{color:#777}
 table.figs td{border:none;text-align:center;padding:.4em}
+table.ficha{width:auto;min-width:60%}table.ficha th{width:12em}
 table.figs img{max-width:100%;height:auto;border:1px solid #ddd}
 details{margin:.3em 0 .8em}summary{cursor:pointer}small,.note{color:#555;font-size:.88em}
 """
 
 
-def _status(result: CheckResult) -> str:
-    cls = {"ok": "ok", "ng": "ng"}.get(result.status.value, "na")
+# ---------------------------------------------------------------------------- blocks
+# The report is built once as a list of format-neutral blocks, then written as HTML
+# (browser, PDF) or as an editable Word document.
+#   ("h1" | "h2" | "h3", text)
+#   ("p", text, style)                  style: "", "note", "ok", "ng"
+#   ("verdict", ok, text)
+#   ("ficha", [(label, value)])         identification card at the top
+#   ("table", headers, rows, numeric)   a cell is a text or (status, text)
+#   ("figs", heading, [(caption, file)], wide)   wide: one figure per row
+#   ("advice", intro, [(title, [items])])
+#   ("traces", [(title, ratio, [(symbol, expression, value, clause)])])
+#   ("notes", heading, [items])
+#   ("image", path)
+Block = tuple
+
+
+def _status_cell(result: CheckResult) -> tuple[str, str]:
+    kind = {"ok": "ok", "ng": "ng"}.get(result.status.value, "na")
     text = {"ok": _("Cumple"), "ng": _("No cumple")}.get(result.status.value, _("No rige"))
-    return f'<span class="{cls}">{text}</span>'
+    return kind, text
 
 
-def _table(headers: list[str], rows: list[list[str]], numeric: set[int] = frozenset()) -> str:
-    head = "".join(f"<th>{h}</th>" for h in headers)
-    body = "".join(
-        "<tr>" + "".join(f'<td class="n">{c}</td>' if i in numeric else f"<td>{c}</td>"
-                         for i, c in enumerate(row)) + "</tr>" for row in rows)
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
-
-
-def _checks_table(checks: list[CheckResult], units: UnitSystem) -> str:
-    rows = [[escape(check_title(r)), fmt(r.demand, r.kind, units), fmt(r.capacity, r.kind, units),
+def _checks_block(checks: list[CheckResult], units: UnitSystem) -> Block:
+    rows = [[check_title(r), fmt(r.demand, r.kind, units), fmt(r.capacity, r.kind, units),
              "—" if not r.applicable else
              f"{r.ratio:.2f}" + (_(" (límite {limit})", limit=f"{r.ratio_limit:g}")
                                  if r.ratio_limit != 1 else ""),
-             _status(r), escape(r.clause)] for r in checks]
-    return _table([_(h, "column") for h in ("Verificación", "Demanda", "Capacidad", "Ratio",
-                                            "Estado", "Referencia")], rows, {1, 2, 3})
+             _status_cell(r), r.clause] for r in checks]
+    return ("table", [_(h, "column") for h in ("Verificación", "Demanda", "Capacidad", "Ratio",
+                                                "Estado", "Referencia")], rows, {1, 2, 3})
 
 
-def _advice(c: ComboReport) -> str:
-    """Recommendations for the checks of a combination that do not pass."""
+def _advice_block(c: ComboReport) -> list[Block]:
     if not c.advice:
-        return ""
+        return []
     titles = {r.id: check_title(r) for r in c.fem_checks}
-    items = "".join(
-        f"<li><b>{escape(titles.get(cid, cid))}</b><ul>"
-        + "".join(f"<li>{escape(a)}</li>" for a in advice) + "</ul></li>"
-        for cid, advice in c.advice.items())
-    return (f"<h3>{_('Recomendaciones')}</h3><p class='note'>"
-            + escape(_("Cambios posibles para que cumpla, uno a la vez; los valores son "
-                       "estimaciones: vuelva a resolver después de cambiar los datos."))
-            + f"</p><ul>{items}</ul>")
+    return [("h3", _("Recomendaciones")),
+            ("advice", _("Cambios posibles para que cumpla, uno a la vez; los valores son "
+                         "estimaciones: vuelva a resolver después de cambiar los datos."),
+             [(titles.get(cid, cid), items) for cid, items in c.advice.items()])]
 
 
-def _trace(checks: list[CheckResult], units: UnitSystem) -> str:
-    out = []
-    for r in checks:
-        lines = "".join(
-            f"<tr><td>{latex_to_mathml(s.symbol)}</td><td>{latex_to_mathml(s.expression)}</td>"
-            f'<td class="n">{fmt(s.value, s.kind, units)}</td><td>{escape(s.clause)}</td></tr>'
-            for s in r.steps)
-        heads = "".join(f"<th>{_(h)}</th>" for h in ("Símbolo", "Expresión", "Valor",
-                                                     "Referencia"))
-        out.append(f"<details><summary>{escape(check_title(r))}: ratio {r.ratio:.2f}</summary>"
-                   f"<table><thead><tr>{heads}</tr></thead><tbody>{lines}</tbody></table>"
-                   "</details>")
-    return "".join(out)
+def _traces_block(checks: list[CheckResult], units: UnitSystem) -> Block:
+    return ("traces", [(check_title(r), r.ratio,
+                        [(s.symbol, s.expression, fmt(s.value, s.kind, units), s.clause)
+                         for s in r.steps]) for r in checks])
 
 
-def _fem_summary(c: ComboReport, units: UnitSystem) -> str:
+def _fem_summary_blocks(c: ComboReport, units: UnitSystem) -> list[Block]:
     r = c.results
     F, S, L = Kind.FORCE, Kind.STRESS, Kind.LENGTH
     rows = [
@@ -167,104 +163,168 @@ def _fem_summary(c: ComboReport, units: UnitSystem) -> str:
                 fmt(a.Vx, F, units), fmt(a.Vy, F, units),
                 fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units), f"{a.uplift:.3f} mm"]
                for i, a in enumerate(r.anchors, start=1)]
-    return (_table([_("Resultado"), "FEM", _("DG1 (bloque rectangular)")], rows, {1, 2})
-            + f"<h3>{_('Fuerzas en anclajes (FEM)')}</h3>"
-            + _table([_("N.º"), "x", "y", _("Axial"), _("Cortante Vx"), _("Cortante Vy"),
-                      _("Cortante total"), _("Levantamiento")], anchors, set(range(1, 8))))
+    return [("table", [_("Resultado"), "FEM", _("DG1 (bloque rectangular)")], rows, {1, 2}),
+            ("h3", _("Fuerzas en anclajes (FEM)")),
+            ("table", [_("N.º"), "x", "y", _("Axial"), _("Cortante Vx"), _("Cortante Vy"),
+                       _("Cortante total"), _("Levantamiento")], anchors, set(range(1, 8)))]
+
+
+NOTES = [
+    "Las demandas de anclajes, apoyo, placa y soldadura salen del modelo FEM; las "
+    "capacidades, de las fórmulas de la norma indicada en cada fila.",
+    "El aplastamiento reparte la compresión del FEM en el mayor bloque rectangular centrado en "
+    "su resultante, como el bloque de esfuerzos de la guía. La presión media y el pico del "
+    "modelo se informan aparte: el concreto del modelo es elástico y no redistribuye.",
+    "La deformación plástica de la placa usa la media por elemento y un límite de referencia "
+    "configurable (5 %); AISC no fija ese límite.",
+    "La soldadura se revisa a tracción y cortante en el punto más solicitado; la compresión se "
+    "supone transmitida por contacto. Si el proyecto no da el tamaño del filete se usa el "
+    "mínimo de la Tabla J2.4.",
+    "Las verificaciones del concreto (ACI) son de resistencia última y solo se evalúan en "
+    "combinaciones LRFD.",
+    "Herramienta de apoyo: la responsabilidad del diseño es del profesional que lo firma.",
+]
+
+
+def report_blocks(title: str, edition: Edition, units: UnitSystem, combos: list[ComboReport],
+                  inputs: list[tuple[str, str]], today: dt.date | None = None,
+                  image: str | None = None, traces: bool = True,
+                  figures: dict[str, list[tuple[str, str]]] | None = None,
+                  ficha: list[tuple[str, str]] | None = None) -> list[Block]:
+    """The whole report as blocks (see the list above)."""
+    today = today or dt.date.today()
+    every = [r for c in combos for r in c.fem_checks]
+    ok = all(r.status.value != "ng" for r in every)
+    worst = max(every, key=lambda r: r.ratio / r.ratio_limit, default=None)
+    codes = f"{edition.aisc}, {edition.aci}, {edition.guide}"
+    figures = figures or {}
+    out: list[Block] = [("h1", title)]
+    if ficha:
+        out.append(("ficha", ficha))
+    out += [
+        ("p", _("Verificación de placa base por elementos finitos (CalculiX). Normas: "
+                "{codes}. Fecha: {date}.", codes=codes, date=today.isoformat()), ""),
+        ("verdict", ok, (". " + _("Gobierna: {check} ({combo}), ratio {ratio}.",
+                                 check=check_title(worst), combo=worst.combo,
+                                 ratio=f"{worst.ratio:.2f}")) if worst else "."),
+        ("h2", _("Datos")),
+        ("table", [_("Dato"), _("Valor")], [[k, v] for k, v in inputs], set()),
+        ("figs", _("Geometría y malla"), [(c, f) for c, f in figures.get("", []) if f]),
+    ]
+    drawings = [(c, f) for c, f in figures.get("planos", []) if f]
+    if drawings:
+        out.append(("figs", _("Planta y elevación acotadas"), drawings, True))
+    if image:
+        out.append(("image", image))
+    for c in combos:
+        r = c.results
+        a = r.applied
+        loads = (f"P = {fmt(a['P'], Kind.FORCE, units)}, My = {fmt(a['My'], Kind.MOMENT, units)}, "
+                 f"Mx = {fmt(a['Mx'], Kind.MOMENT, units)}, "
+                 f"Vx = {fmt(a['Vx'], Kind.FORCE, units)}, "
+                 f"Vy = {fmt(a['Vy'], Kind.FORCE, units)}.")
+        out += [("h2", _("Combinación {name} ({method})", name=r.load, method=c.method)),
+                ("p", loads, "")]
+        if not r.converged:
+            out.append(("p", _("El análisis no convergió: llegó al {pct} % de momentos y "
+                               "cortantes.", pct=f"{100 * r.load_fraction:.0f}"), "ng"))
+        out += [("p", _("Aviso: {msg}", msg=w), "ng") for w in r.warnings]
+        out += [("h3", _("Resultados del modelo FEM")), *_fem_summary_blocks(c, units),
+                ("figs", _("Gráficos de resultados"),
+                 [(cap, f) for cap, f in figures.get(r.load, []) if f]),
+                ("h3", _("Verificaciones con demandas del FEM")),
+                _checks_block(c.fem_checks, units), *_advice_block(c)]
+        if traces:
+            out.append(_traces_block(c.fem_checks, units))
+        if c.analytical:
+            out += [("h3", _("Camino analítico (OpenConex: DG1 3.ª ed., AISC 360-22, "
+                             "ACI 318-19)")),
+                    ("p", _("Mismas cargas con el método de la guía (placa rígida y bloque de "
+                            "esfuerzos). Sirve para ver dónde coincide con el FEM y dónde no."),
+                     "note"),
+                    _checks_block(c.analytical, units)]
+    out.append(("notes", _("Alcance y limitaciones"), [_(n) for n in NOTES]))
+    return out
+
+
+# ---------------------------------------------------------------------------- HTML
+def _cell(value) -> str:
+    if isinstance(value, tuple):
+        return f'<span class="{value[0]}">{escape(value[1])}</span>'
+    return escape(str(value))
+
+
+def blocks_to_html(blocks: list[Block], figure_base: str = "") -> str:
+    title = next((b[1] for b in blocks if b[0] == "h1"), "")
+    parts = [f"<!doctype html><html lang='{language()}'><head><meta charset='utf-8'>"
+             f"<title>{escape(title)}</title><style>{_CSS}</style></head><body>"]
+    for b in blocks:
+        kind = b[0]
+        if kind in ("h1", "h2", "h3"):
+            parts.append(f"<{kind}>{escape(b[1])}</{kind}>")
+        elif kind == "p":
+            cls = f' class="{b[2]}"' if b[2] else ""
+            parts.append(f"<p{cls}>{escape(b[1])}</p>")
+        elif kind == "verdict":
+            word = (f'<span class="ok">{_("Cumple")}</span>' if b[1]
+                    else f'<span class="ng">{_("No cumple")}</span>')
+            parts.append(f"<p>{_('Resultado global:')} {word}{escape(b[2])}</p>")
+        elif kind == "ficha":
+            cells = "".join(f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>"
+                            for k, v in b[1])
+            parts.append(f'<table class="ficha">{cells}</table>')
+        elif kind == "table":
+            _k, headers, rows, numeric = b
+            head = "".join(f"<th>{escape(h)}</th>" for h in headers)
+            body = "".join(
+                "<tr>" + "".join(f'<td class="n">{_cell(c)}</td>' if i in numeric
+                                 else f"<td>{_cell(c)}</td>" for i, c in enumerate(row))
+                + "</tr>" for row in rows)
+            parts.append(f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>")
+        elif kind == "figs":
+            items = b[2]
+            if not items:
+                continue
+            per_row, width = (1, 940) if len(b) > 3 and b[3] else (2, 470)
+            rows = ""
+            for i in range(0, len(items), per_row):
+                rows += "<tr>" + "".join(
+                    f'<td class="fig"><img src="{escape(figure_base + name)}" width="{width}" '
+                    f'alt="{escape(caption)}"><br><small>{escape(caption)}</small></td>'
+                    for caption, name in items[i:i + per_row]) + "</tr>"
+            parts.append(f"<h3>{escape(b[1])}</h3><table class='figs'>{rows}</table>")
+        elif kind == "advice":
+            items = "".join(
+                f"<li><b>{escape(t)}</b><ul>" + "".join(f"<li>{escape(a)}</li>" for a in adv)
+                + "</ul></li>" for t, adv in b[2])
+            parts.append(f"<p class='note'>{escape(b[1])}</p><ul>{items}</ul>")
+        elif kind == "traces":
+            heads = "".join(f"<th>{_(h)}</th>" for h in ("Símbolo", "Expresión", "Valor",
+                                                         "Referencia"))
+            for t, ratio, steps in b[1]:
+                lines = "".join(
+                    f"<tr><td>{latex_to_mathml(sym)}</td><td>{latex_to_mathml(expr)}</td>"
+                    f'<td class="n">{value}</td><td>{escape(clause)}</td></tr>'
+                    for sym, expr, value, clause in steps)
+                parts.append(f"<details><summary>{escape(t)}: ratio {ratio:.2f}</summary>"
+                             f"<table><thead><tr>{heads}</tr></thead><tbody>{lines}</tbody>"
+                             "</table></details>")
+        elif kind == "notes":
+            parts.append(f"<h2>{escape(b[1])}</h2><ul class=\"note\">"
+                         + "".join(f"<li>{escape(n)}</li>" for n in b[2]) + "</ul>")
+        elif kind == "image":
+            parts.append(f'<p><img src="{escape(b[1])}" alt="FEM" style="max-width:100%"></p>')
+    parts.append("</body></html>")
+    return "".join(parts)
 
 
 def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[ComboReport],
                   inputs: list[tuple[str, str]], today: dt.date | None = None,
                   image: str | None = None, traces: bool = True,
                   figures: dict[str, list[tuple[str, str]]] | None = None,
-                  figure_base: str = "") -> str:
-    today = today or dt.date.today()
-    every = [r for c in combos for r in c.fem_checks]
-    ok = all(r.status.value != "ng" for r in every)
-    worst = max(every, key=lambda r: r.ratio / r.ratio_limit, default=None)
-    codes = f"{edition.aisc}, {edition.aci}, {edition.guide}"
-    parts = [
-        f"<!doctype html><html lang='{language()}'><head><meta charset='utf-8'>"
-        f"<title>{escape(title)}</title><style>{_CSS}</style></head><body>",
-        f"<h1>{escape(title)}</h1>",
-        "<p>" + escape(_("Verificación de placa base por elementos finitos (CalculiX). Normas: "
-                         "{codes}. Fecha: {date}.", codes=codes, date=today.isoformat()))
-        + "</p>",
-        f"<p>{_('Resultado global:')} "
-        + (f'<span class="ok">{_("Cumple")}</span>' if ok
-           else f'<span class="ng">{_("No cumple")}</span>')
-        + (". " + escape(_("Gobierna: {check} ({combo}), ratio {ratio}.",
-                           check=check_title(worst), combo=worst.combo,
-                           ratio=f"{worst.ratio:.2f}")) if worst else ".") + "</p>",
-        f"<h2>{_('Datos')}</h2>",
-        _table([_("Dato"), _("Valor")], [[escape(k), escape(v)] for k, v in inputs]),
-    ]
-    figures = figures or {}
-
-    def gallery(key: str, heading: str) -> str:
-        items = [(c, f) for c, f in figures.get(key, []) if f]
-        if not items:
-            return ""
-        rows = ""
-        for i in range(0, len(items), 2):
-            cells = "".join(
-                f'<td class="fig"><img src="{escape(figure_base + name)}" width="470" '
-                f'alt="{escape(caption)}"><br><small>{escape(caption)}</small></td>'
-                for caption, name in items[i:i + 2])
-            rows += f"<tr>{cells}</tr>"
-        return f"<h3>{_(heading)}</h3><table class='figs'>{rows}</table>"
-
-    parts.append(gallery("", "Geometría y malla"))
-    if image:
-        parts.append(f'<p><img src="{escape(image)}" alt="FEM" style="max-width:100%"></p>')
-    for c in combos:
-        r = c.results
-        a = r.applied
-        state = "" if r.converged else (
-            ' <span class="ng">' + escape(_(
-                "El análisis no convergió: llegó al {pct} % de momentos y cortantes.",
-                pct=f"{100 * r.load_fraction:.0f}")) + "</span>")
-        parts += [
-            "<h2>" + escape(_("Combinación {name} ({method})", name=r.load, method=c.method))
-            + "</h2>",
-            f"<p>P = {fmt(a['P'], Kind.FORCE, units)}, My = {fmt(a['My'], Kind.MOMENT, units)}, "
-            f"Mx = {fmt(a['Mx'], Kind.MOMENT, units)}, Vx = {fmt(a['Vx'], Kind.FORCE, units)}, "
-            f"Vy = {fmt(a['Vy'], Kind.FORCE, units)}.{state}</p>",
-            "".join(f'<p class="ng">{escape(_("Aviso: {msg}", msg=w))}</p>'
-                    for w in r.warnings),
-            f"<h3>{_('Resultados del modelo FEM')}</h3>", _fem_summary(c, units),
-            gallery(r.load, "Gráficos de resultados"),
-            f"<h3>{_('Verificaciones con demandas del FEM')}</h3>",
-            _checks_table(c.fem_checks, units),
-            _advice(c),
-            _trace(c.fem_checks, units) if traces else "",
-        ]
-        if c.analytical:
-            parts += [
-                f"<h3>{_('Camino analítico (OpenConex: DG1 3.ª ed., AISC 360-22, ACI 318-19)')}"
-                "</h3>",
-                '<p class="note">' + _("Mismas cargas con el método de la guía (placa rígida y "
-                                       "bloque de esfuerzos). Sirve para ver dónde coincide con "
-                                       "el FEM y dónde no.") + "</p>",
-                _checks_table(c.analytical, units)]
-    notes = [
-        "Las demandas de anclajes, apoyo, placa y soldadura salen del modelo FEM; las "
-        "capacidades, de las fórmulas de la norma indicada en cada fila.",
-        "El aplastamiento reparte la compresión del FEM en el mayor bloque rectangular centrado en "
-        "su resultante, como el bloque de esfuerzos de la guía. La presión media y el pico del "
-        "modelo se informan aparte: el concreto del modelo es elástico y no redistribuye.",
-        "La deformación plástica de la placa usa la media por elemento y un límite de referencia "
-        "configurable (5 %); AISC no fija ese límite.",
-        "La soldadura se revisa a tracción y cortante en el punto más solicitado; la compresión se "
-        "supone transmitida por contacto. Si el proyecto no da el tamaño del filete se usa el "
-        "mínimo de la Tabla J2.4.",
-        "Las verificaciones del concreto (ACI) son de resistencia última y solo se evalúan en "
-        "combinaciones LRFD.",
-        "Herramienta de apoyo: la responsabilidad del diseño es del profesional que lo firma.",
-    ]
-    parts.append(f"<h2>{_('Alcance y limitaciones')}</h2><ul class=\"note\">"
-                 + "".join(f"<li>{escape(_(n))}</li>" for n in notes) + "</ul></body></html>")
-    return "".join(parts)
+                  figure_base: str = "", ficha: list[tuple[str, str]] | None = None) -> str:
+    return blocks_to_html(report_blocks(title, edition, units, combos, inputs, today, image,
+                                        traces, figures, ficha), figure_base)
 
 
 def write_report(path: str | Path, *args, **kwargs) -> Path:

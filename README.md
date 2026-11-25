@@ -38,6 +38,9 @@ perfiles y los materiales.
 - **Vista.** Cotas de la placa, del arreglo de anclajes, de f y de hef; número de
   cada anclaje; zoom, centrar y vistas. Editor de combinaciones de carga;
   soldadura columna-placa de filete o CJP.
+- **Reporte.** HTML, PDF y Word editable, con ficha de identificación (proyecto,
+  conexión, ingeniero, revisión) y planta y elevación acotadas con llamadas de
+  elemento, material y soldadura.
 - **Análisis.** Malla automática normal o rápida (entre un quinto y la mitad del
   tiempo); ventana de avance con cada incremento de CalculiX y botón Cancelar.
 - **Cargas.** P, V y M en los dos ejes; combinaciones ASCE 7 LRFD y ASD o propias;

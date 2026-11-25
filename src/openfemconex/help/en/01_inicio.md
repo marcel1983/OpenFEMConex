@@ -26,7 +26,12 @@ that model gives.
    the status bar and **Progress** opens it again).
 5. In **Checks** see the table of results. Selecting a row shows its
    calculation trace with the formula and the clause.
-6. In **Report** generate the HTML report (with figures) or export it to PDF.
+6. In **Report** generate the HTML report (with figures) or export it to PDF or
+   Word (editable .docx). **Report › Title block** keeps the project, number,
+   client, connection name, engineer, revision and date that head the report.
+   After the isometric views come the dimensioned plan and elevation, with
+   callouts for every element and its material and arrows to the welds (fillet
+   or CJP).
 
 ## The window
 

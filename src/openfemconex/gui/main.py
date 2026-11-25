@@ -364,6 +364,11 @@ class MainWindow(QMainWindow):
         g.add_button("Abrir", icon("browser"), self.open_report,
                      "Abre el reporte completo en el navegador")
         g.add_button("Exportar PDF", icon("pdf"), self.export_pdf)
+        g.add_button("Exportar Word", icon("report"), self.export_docx,
+                     "Memoria editable en Word (.docx)")
+        g = tab("Identificación")
+        g.add_button("Ficha", icon("info"), lambda: self.show_section("Ficha"),
+                     "Proyecto, conexión, ingeniero y revisión que encabezan el reporte")
         tab = self.ribbon.add_tab("Ayuda")
         g = tab("Ayuda")
         g.add_button("Manual", icon("help"), self.show_help,
@@ -850,6 +855,29 @@ class MainWindow(QMainWindow):
         if path is not None:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
+    def export_docx(self, path: str | None = None) -> Path | None:
+        st = self.state
+        if not st.reports or not st.valid:
+            QMessageBox.information(self, tr("Reporte"), tr("Primero resuelva el modelo."))
+            return None
+        if not path:
+            default = str(st.output_dir() / "reporte.docx")
+            path, _ = QFileDialog.getSaveFileName(self, tr("Exportar Word"), default,
+                                                  "Word (*.docx)")
+        if not path:
+            return None
+        reports = list(st.reports.values())
+        figures = {}
+        if self.viewer.plotter is not None and self._ensure_mesh():
+            self.status_label.setText(tr("Generando los gráficos del reporte…"))
+            QApplication.processEvents()
+            figures = st.study().figures(st.output_dir(), reports, st.model, st.mesh)
+        out = st.study().report_docx(Path(path), reports, st.model, st.mesh, figures,
+                                     st.output_dir())
+        self.log.appendPlainText(tr("Word escrito en {path}", path=out))
+        self.status_label.setText(tr("Word escrito en {path}", path=out))
+        return out
+
     def export_pdf(self, path: str | None = None) -> Path | None:
         html = self._report_html(traces=False, figure_base=str(self.state.output_dir()) + "/")
         if html is None:
@@ -865,7 +893,8 @@ class MainWindow(QMainWindow):
         printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
         printer.setPageOrientation(QPageLayout.Orientation.Portrait)
         document = QTextDocument()
-        document.setHtml(html.replace('width="470"', 'width="330"'))
+        document.setHtml(html.replace('width="470"', 'width="330"')
+                         .replace('width="940"', 'width="660"'))
         document.print_(printer)
         self.log.appendPlainText(tr("PDF escrito en {path}", path=path))
         return Path(path)

@@ -73,3 +73,17 @@ def test_fem_against_dg1(case, tmp_path):
     html = render_report("DG1 4.7", DG1_2ED, project.info.unit_system(),
                          [ComboReport(res, "LRFD", list(checks.values()))], [("Columna", "W12X96")])
     assert "ACI 318-08 D.5.2" in html and "<math" in html
+    # the same report as an editable Word document, headed by the title block
+    from docx import Document
+
+    from openfemconex.report import report_blocks
+    from openfemconex.report_docx import write_docx
+
+    blocks = report_blocks("DG1 4.7", DG1_2ED, project.info.unit_system(),
+                           [ComboReport(res, "LRFD", list(checks.values()))],
+                           [("Columna", "W12X96")], ficha=[("Ingeniero", "Prueba")])
+    doc = Document(str(write_docx(blocks, tmp_path / "r.docx", tmp_path)))
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert "DG1 4.7" in text
+    cells = [c.text for t in doc.tables for row in t.rows for c in row.cells]
+    assert "Prueba" in cells and any("D.5.2" in c for c in cells)

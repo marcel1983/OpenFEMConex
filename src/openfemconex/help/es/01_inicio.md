@@ -26,7 +26,12 @@ ACI 318 con las fuerzas que salen de ese modelo.
    sigue en la barra de estado y **Avance** la vuelve a abrir).
 5. En **Verificación** vea la tabla de resultados. Al seleccionar una fila se
    muestra su traza de cálculo con la fórmula y la cláusula.
-6. En **Reporte** genere la memoria en HTML (con gráficos) o expórtela a PDF.
+6. En **Reporte** genere la memoria en HTML (con gráficos) o expórtela a PDF o a
+   Word (.docx editable). **Reporte › Ficha** guarda el proyecto, número, cliente,
+   nombre de la conexión, ingeniero, revisión y fecha, que encabezan el reporte.
+   Después de los isométricos van la planta y la elevación acotadas, con llamadas
+   que indican cada elemento y su material, y flechas a las soldaduras (filete o
+   CJP).
 
 ## La ventana
 

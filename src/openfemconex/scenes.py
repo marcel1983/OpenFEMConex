@@ -191,6 +191,190 @@ def draw_welds(plotter, model: BasePlateModel, grid) -> None:
                              color=WELD_COLOR)
 
 
+# ---------------------------------------------------------------------------- drawings
+CALLOUT = {"text": "#1b1b1b", "line": "#3a3a3a", "weld": "#b07d00", "cjp": CJP_COLOR}
+
+
+def _wall_point(model: BasePlateModel, side: float) -> tuple[float, float]:
+    """A point on the outer face of the column, on the +x (side 1) or -x (side -1) side."""
+    from openfemconex.model import SectionKind
+
+    s = model.section
+    if s.kind is SectionKind.HSS_ROUND:
+        r = s.d / 2
+        return model.ex + side * r * 0.7071, model.ey + side * r * 0.7071
+    return model.ex + side * s.d / 2, model.ey + side * 0.3 * s.bf
+
+
+def _targets(model: BasePlateModel, view: str, plane: float) -> dict[str, np.ndarray]:
+    """Point each callout points at, on the drawing plane (z for plan, y for elevation)."""
+    N, B, tp = model.N, model.B, model.tp
+    out: dict[str, tuple[float, float, float]] = {}
+
+    def at(x: float, y: float, z: float) -> tuple[float, float, float]:
+        return (x, y, plane) if view == "plan" else (x, plane, z)
+
+    corner = max(model.anchors, key=lambda a: a.x + a.y) if model.anchors else None
+    wx, wy = _wall_point(model, 1.0)
+    if view == "plan":
+        out["plate"] = at(0.75 * N / 2, -0.75 * B / 2, tp)
+        out["column"] = at(wx - 0.5 * model.section.min_wall, wy, tp)
+        lx, ly = _wall_point(model, -1.0)
+        out["weld"] = at(lx, ly, tp)
+    else:
+        out["plate"] = at(0.7 * N / 2, 0, tp / 2)
+        out["column"] = at(wx, 0, tp + 0.55 * model.Lc)
+        out["weld"] = at(wx + 0.6 * model.weld, 0, tp + 0.6 * model.weld)
+        c = model.concrete
+        out["concrete"] = at(0.8 * c.N / 2, 0, -0.55 * c.H)
+        if c.grout > 0:
+            out["grout"] = at(-0.85 * N / 2, 0, -c.grout / 2)
+        if model.lug is not None:
+            out["lug"] = at(model.ex, 0, -0.5 * (model.lug.embedment + c.grout))
+    if corner is not None:
+        out["anchor"] = (at(corner.x, corner.y, tp) if view == "plan"
+                         else at(corner.x, 0, -0.5 * model.anchor.hef))
+    if model.stiffeners:
+        st = (next((t for t in model.stiffeners if abs(t.direction[1]) > 0.7), model.stiffeners[0])
+              if view == "plan" else
+              max(model.stiffeners, key=lambda t: t.direction[0]))
+        (ox, oy), (dx, dy) = st.origin, st.direction
+        mid = 0.45 * st.length
+        out["stiffener"] = at(ox + dx * mid, oy + dy * mid, tp + 0.4 * st.height)
+        if model.stiffener_weld > 0:
+            end = 0.85 * st.length
+            out["stiffener_weld"] = at(ox + dx * end - dy * st.thickness,
+                                       oy + dy * end + dx * st.thickness,
+                                       tp + 0.5 * model.stiffener_weld)
+    return {k: np.array(v, dtype=float) for k, v in out.items()}
+
+
+def draw_callouts(plotter, model: BasePlateModel, view: str, texts: dict[str, str]) -> None:
+    """Leader lines with arrows from a column of labels to each element (and the welds).
+
+    ``view`` is ``plan`` (labels on the left) or ``elevation`` (labels on the right).
+    """
+    import pyvista as pv
+
+    c = model.concrete
+    size = max(c.N, c.B, model.N, model.B)
+    if view == "plan":
+        plane = model.tp + model.Lc + 5.0
+        x_label = -max(c.N, model.N) / 2 - 0.30 * size
+        span = (max(c.B, model.B) / 2, -max(c.B, model.B) / 2)
+        along = 1
+    else:
+        plane = -max(c.B, model.B) / 2 - 5.0
+        x_label = max(c.N, model.N) / 2 + 0.30 * size
+        span = (model.tp + 0.85 * model.Lc, -0.85 * c.H)
+        along = 2
+    targets = {k: v for k, v in _targets(model, view, plane).items() if texts.get(k)}
+    if not targets:
+        return
+    order = sorted(targets, key=lambda k: -targets[k][along])
+    n = len(order)
+    head = 0.025 * size
+    labels, points = [], []
+    for i, key in enumerate(order):
+        target = targets[key]
+        level = span[0] + (span[1] - span[0]) * (i + 0.5) / n
+        start = target.copy()
+        start[0] = x_label
+        start[along] = level
+        color = CALLOUT["weld"] if "weld" in key else CALLOUT["line"]
+        if key == "weld" and model.cjp:
+            color = CALLOUT["cjp"]
+        direction = target - start
+        length = float(np.linalg.norm(direction))
+        if length < 1e-6:
+            continue
+        direction /= length
+        plotter.add_mesh(pv.Line(start, target - direction * head), color=color, line_width=1.6)
+        plotter.add_mesh(pv.Cone(center=target - direction * head / 2, direction=direction,
+                                 height=head, radius=0.3 * head, resolution=12), color=color)
+        labels.append(texts[key])
+        points.append(start)
+    plotter.add_point_labels(np.array(points), labels, font_size=11, text_color=CALLOUT["text"],
+                             shape_color="white", shape_opacity=0.9, always_visible=True,
+                             show_points=False,
+                             justification_horizontal="right" if view == "plan" else "left")
+
+
+def draw_elevation_dimensions(plotter, model: BasePlateModel, length=_mm) -> None:
+    """Elevation (x-z): plate and anchor positions below the block, heights on the left."""
+    import pyvista as pv
+
+    c = model.concrete
+    N, tp = model.N, model.tp
+    size = max(c.N, c.B, N, model.B)
+    y = -max(c.B, model.B) / 2 - 5.0
+    off, tick = 0.07 * size, 0.012 * size
+    points: list[tuple[float, float, float]] = []
+    lines: list[int] = []
+    label_at: list[tuple[float, float, float]] = []
+    labels: list[str] = []
+
+    def seg(a, b) -> None:
+        points.extend([a, b])
+        lines.extend([2, len(points) - 2, len(points) - 1])
+
+    def chain(values: list[float], horizontal: bool, level: float, start: float,
+              names: list[str] | None = None) -> None:
+        def at(v: float, w: float):
+            return (v, y, w) if horizontal else (w, y, v)
+
+        seg(at(values[0], level), at(values[-1], level))
+        for v in values:
+            seg(at(v, start), at(v, level))
+            seg(at(v - tick, level - tick), at(v + tick, level + tick))
+        for i, (a, b) in enumerate(zip(values, values[1:], strict=False)):
+            if b - a > 1.0:
+                name = (names[i] + " = ") if names and names[i] else ""
+                label_at.append(at((a + b) / 2, level - 2.2 * tick) if horizontal
+                                else at((a + b) / 2, level - 2.5 * tick))
+                labels.append(name + length(b - a))
+
+    bottom = -c.H
+    xs = _distinct([a.x for a in model.anchors] + [-N / 2, N / 2])
+    chain(xs, True, bottom - off, bottom)
+    chain([-N / 2, N / 2], True, bottom - 2 * off, bottom)
+    left = -max(c.N, N) / 2
+    heights = [-model.anchor.hef, 0.0, tp]
+    names = ["hef", "tp"]
+    if model.stiffeners:
+        heights.append(tp + max(s.height for s in model.stiffeners))
+        names.append("h")
+    chain(heights, False, left - off, left, names)
+    poly = pv.PolyData(np.array(points, dtype=float), lines=np.array(lines))
+    plotter.add_mesh(poly, color=STYLE["dims"], line_width=1.5)
+    plotter.add_point_labels(np.array(label_at), labels, font_size=11, text_color=STYLE["dims"],
+                             shape=None, always_visible=True, show_points=False,
+                             justification_horizontal="right")
+
+
+def draw_drawing(plotter, model: BasePlateModel, mesh: Mesh, view: str,
+                 texts: dict[str, str], length=_mm) -> None:
+    """Plan or elevation with dimensions and callouts, in parallel projection."""
+    draw_model(plotter, model, mesh, reset=False, numbers=view == "plan",
+               dimensions=length if view == "plan" else None)
+    if view == "elevation":
+        draw_elevation_dimensions(plotter, model, length)
+    draw_callouts(plotter, model, view, texts)
+    plotter.enable_parallel_projection()
+    if view == "plan":
+        plotter.view_xy()
+    else:
+        plotter.view_xz()  # seen from -y, the side of the dimensions, x to the right
+    plotter.reset_camera()
+    # the labels stick out of the bounds of the model: make room on their side
+    c = model.concrete
+    shift = (-1.0 if view == "plan" else 1.0) * 0.28 * max(c.N, c.B, model.N, model.B)
+    cam = plotter.camera
+    cam.position = (cam.position[0] + shift, cam.position[1], cam.position[2])
+    cam.focal_point = (cam.focal_point[0] + shift, cam.focal_point[1], cam.focal_point[2])
+    cam.zoom(1.25 if view == "plan" else 0.85)
+
+
 def draw_anchor_numbers(plotter, model: BasePlateModel) -> None:
     """Number of every anchor (as in the anchor table and the anchor forces)."""
     if not model.anchors:
@@ -420,11 +604,25 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
         plotter.reset_camera()
 
 
+def _save_trimmed(image: np.ndarray, path: Path, margin: int = 16) -> None:
+    """Save a screenshot without its white border."""
+    from PIL import Image
+
+    rgb = image[..., :3].astype(int)
+    used = np.nonzero((rgb < 245).any(axis=2))
+    if len(used[0]):
+        top, bottom = max(used[0].min() - margin, 0), min(used[0].max() + margin, rgb.shape[0])
+        left, right = max(used[1].min() - margin, 0), min(used[1].max() + margin, rgb.shape[1])
+        image = image[top:bottom, left:right]
+    Image.fromarray(np.ascontiguousarray(image)).save(path)
+
+
 def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
                    solved: list[tuple[str, Path, Results]], *, scale: float = 20.0,
                    unit_force: float = 1e-3, force_label: str = "kN",
                    size: tuple[int, int] = (1100, 800),
-                   length=_mm) -> dict[str, list[tuple[str, str]]]:
+                   length=_mm, callouts: dict[str, str] | None = None
+                   ) -> dict[str, list[tuple[str, str]]]:
     """Render the figures of the report as PNG files in ``out``.
 
     ``solved`` lists (combination, .vtu file, results). Returns, under the key
@@ -442,18 +640,20 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
     previous = dict(STYLE)
     STYLE.update(text="black", dims="#1f5fa8")  # the report pages are white
 
-    def plan(p) -> None:
-        draw_model(p, model, mesh, dimensions=length, numbers=True, reset=False)
-        p.view_xy()
-        p.reset_camera()
-        p.camera.zoom(1.4)
 
-    def shot(name: str, draw) -> str | None:
+
+    def shot(name: str, draw, trim: bool = False) -> str | None:
         plotter = pv.Plotter(off_screen=True, window_size=list(size))
         try:
             plotter.set_background("white")
+            if trim:
+                plotter.window_size = [int(1.4 * size[0]), int(1.4 * size[1])]
             draw(plotter)
-            plotter.screenshot(str(out / name))
+            if trim:
+                plotter.hide_axes()
+                _save_trimmed(plotter.screenshot(None, return_img=True), out / name)
+            else:
+                plotter.screenshot(str(out / name))
         finally:
             plotter.close()
         return name
@@ -462,11 +662,16 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
         figures[""] = [
             (tr("Geometría del modelo"), shot("fig_geometria.png",
                                           lambda p: draw_model(p, model, mesh))),
-            (tr("Planta: dimensiones de la placa y del arreglo de anclajes"),
-             shot("fig_planta.png", plan)),
             (tr("Malla de elementos finitos"), shot("fig_malla.png",
                                                 lambda p: draw_model(p, model, mesh, True))),
         ]
+        if callouts is not None:
+            figures["planos"] = [
+                (tr("Planta acotada"), shot("fig_planta.png", lambda p: draw_drawing(
+                    p, model, mesh, "plan", callouts, length), trim=True)),
+                (tr("Elevación acotada"), shot("fig_elevacion.png", lambda p: draw_drawing(
+                    p, model, mesh, "elevation", callouts, length), trim=True)),
+            ]
         captions = {
             "von Mises": tr("Esfuerzo de von Mises (deformada × {s})", s=f"{scale:g}"),
             "Deformación plástica": tr("Deformación plástica equivalente"),

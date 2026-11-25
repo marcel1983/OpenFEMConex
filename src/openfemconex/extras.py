@@ -204,6 +204,8 @@ class Extras:
     """FEM constitutive law of each steel by name; missing = bilinear E/1000."""
     cjp: bool = False
     """Column-to-plate weld of complete joint penetration instead of fillets."""
+    connection: str = ""
+    """Name of the connection (identification card of the report)."""
 
     def law(self, grade: str) -> MaterialLaw:
         return (self.laws or {}).get(grade) or MaterialLaw()
@@ -283,7 +285,8 @@ def parse_extras(project: Project, ext: dict[str, Any]) -> Extras:
     if weld not in ("filete", "cjp"):
         raise ValueError(f"soldadura columna-placa desconocida: {weld}")
     return Extras(anchors=anchors, pedestal=pedestal, stiffeners=stiffeners, hairpins=hairpins,
-                  cross=cross, laws=laws or None, cjp=weld == "cjp")
+                  cross=cross, laws=laws or None, cjp=weld == "cjp",
+                  connection=str(ext.get("connection", "")).strip())
 
 
 def law_from_dict(m: dict[str, Any], stress) -> MaterialLaw:

@@ -7,6 +7,7 @@ Shared by the graphical interface; it has no Qt dependency.
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,7 +25,7 @@ from openfemconex.i18n import tr
 from openfemconex.mesh import Mesh, build_mesh
 from openfemconex.model import BasePlateModel, Loads, MeshSettings
 from openfemconex.openconex_bridge import dg1_bending, model_of, project_loads
-from openfemconex.report import ComboReport, render_report
+from openfemconex.report import ComboReport, render_report, report_blocks
 from openfemconex.solve import solve
 
 __all__ = ["Settings", "Study"]
@@ -173,6 +174,44 @@ class Study:
         """A dimension in the project units (mm or in)."""
         return fmt(value, Kind.THICKNESS, self.project.info.unit_system(), 4)
 
+    def callouts(self, model: BasePlateModel) -> dict[str, str]:
+        """Texts of the callouts of the plan and elevation drawings: element and material."""
+        bp = self.project.base_plate_model()
+        u = self.project.info.unit_system()
+        L = self.length_text
+        ex = self.extras
+        col = bp.column
+        out = {
+            "column": tr("Columna {name} — {grade}", name=model.section.name, grade=col.grade),
+            "plate": tr("Placa base {n} × {b} × {t} — {grade}", n=L(bp.N), b=L(bp.B), t=L(bp.tp),
+                        grade=bp.plate_grade),
+            "anchor": tr("{n} anclajes Ø {d} — {grade}, hef = {hef}", n=len(model.anchors),
+                         d=L(bp.rod.diameter), grade=bp.rod.grade,
+                         hef=L(model.anchor.hef)),
+            "concrete": (tr("Pedestal {n} × {b}, f'c = {fc}", n=L(bp.pedestal_N),
+                            b=L(bp.pedestal_B), fc=fmt(bp.fc, Kind.STRESS, u))
+                         if bp.pedestal_N and bp.pedestal_B else
+                         tr("Concreto f'c = {fc}", fc=fmt(bp.fc, Kind.STRESS, u))),
+        }
+        if model.concrete.grout > 0:
+            out["grout"] = tr("Mortero de nivelación {t}", t=L(model.concrete.grout))
+        if ex.cjp:
+            out["weld"] = tr("Soldadura de penetración completa (CJP) columna-placa")
+        else:
+            electrode = bp.electrode
+            out["weld"] = tr("Soldadura de filete {w} ({e}) todo alrededor", w=L(model.weld),
+                             e=electrode)
+        if ex.stiffeners and model.stiffeners:
+            out["stiffener"] = tr("{n} rigidizadores PL {t} — {grade}", n=len(model.stiffeners),
+                                  t=L(ex.stiffeners.thickness), grade=ex.stiffeners.grade)
+            out["stiffener_weld"] = tr("Filete {w} a ambos lados del rigidizador",
+                                       w=L(model.stiffener_weld))
+        if model.lug is not None and bp.shear_lug is not None:
+            out["lug"] = tr("Llave de cortante PL {w} × {t}, empotrada {e} — {grade}",
+                            w=L(model.lug.width), t=L(model.lug.thickness),
+                            e=L(model.lug.embedment), grade=bp.shear_lug.grade)
+        return out
+
     def figures(self, out: Path, reports: list[ComboReport], model: BasePlateModel,
                 mesh: Mesh) -> dict[str, list[tuple[str, str]]]:
         """Render the report figures into ``out`` (empty without PyVista or OpenGL)."""
@@ -184,7 +223,7 @@ class Study:
                   for r in reports]
         solved = [s for s in solved if s[1].exists()]
         figures = render_figures(out, model, mesh, solved, unit_force=factor, force_label=label,
-                                 length=self.length_text)
+                                 length=self.length_text, callouts=self.callouts(model))
         # add the peak value of each figure to its caption
         u = self.project.info.unit_system()
         for r in reports:
@@ -207,11 +246,41 @@ class Study:
                 for caption, name in figures.get(res.load, [])]
         return figures
 
+    def ficha(self) -> list[tuple[str, str]]:
+        """Identification card at the head of the report."""
+        info = self.project.info
+        rows = [(tr("Proyecto"), info.name), (tr("Número de proyecto"), info.number),
+                (tr("Cliente"), info.client), (tr("Conexión"), self.extras.connection),
+                (tr("Ingeniero"), info.engineer), (tr("Revisión"), info.revision),
+                (tr("Fecha"), info.date or dt.date.today().isoformat())]
+        return [(k, v) for k, v in rows if v]
+
+    def report_title(self) -> str:
+        name = self.extras.connection or self.project.info.name
+        return tr("Memoria de cálculo: {name}", name=name) if name else tr("Memoria de cálculo")
+
+    def report_blocks(self, reports: list[ComboReport], model: BasePlateModel,
+                      mesh: Mesh | None = None, traces: bool = True,
+                      figures: dict | None = None) -> list:
+        return report_blocks(self.report_title(), self.edition,
+                             self.project.info.unit_system(), reports,
+                             self.inputs(model, mesh), traces=traces, figures=figures,
+                             ficha=self.ficha())
+
     def report_html(self, reports: list[ComboReport], model: BasePlateModel,
                     mesh: Mesh | None = None, image: str | None = None,
                     traces: bool = True, figures: dict | None = None,
                     figure_base: str = "") -> str:
-        return render_report(self.project.info.name, self.edition,
+        return render_report(self.report_title(), self.edition,
                              self.project.info.unit_system(), reports,
                              self.inputs(model, mesh), image=image, traces=traces,
-                             figures=figures, figure_base=figure_base)
+                             figures=figures, figure_base=figure_base, ficha=self.ficha())
+
+    def report_docx(self, path: Path, reports: list[ComboReport], model: BasePlateModel,
+                    mesh: Mesh | None = None, figures: dict | None = None,
+                    figure_dir: Path | None = None) -> Path:
+        """Editable Word report; the figures are read from ``figure_dir``."""
+        from openfemconex.report_docx import write_docx
+
+        blocks = self.report_blocks(reports, model, mesh, traces=True, figures=figures)
+        return write_docx(blocks, path, figure_dir or Path(path).parent)
