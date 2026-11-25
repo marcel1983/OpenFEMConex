@@ -10,6 +10,15 @@ capítulo 17**, con las fuerzas que da el modelo.
 
 Software libre bajo [AGPL-3.0-or-later](LICENSE).
 
+**OpenFEMConex y OpenConex.** [OpenConex](https://github.com/marcel1983/openconex)
+diseña conexiones con los métodos de cálculo de los manuales y guías del AISC;
+OpenFEMConex resuelve la misma placa base con un modelo de elementos finitos,
+usa el mismo archivo de proyecto `.ocnx` y toma de OpenConex el catálogo de
+perfiles y los materiales.
+
+[Descargar](#descargas) · [Participar](#participar) ·
+[Reportar un problema](https://github.com/marcel1983/openfemconex/issues/new/choose)
+
 ![Verificación de una placa base](docs/img/gui_verificacion.png)
 
 ## Qué hace
@@ -62,7 +71,24 @@ Algunos resultados del FEM:
 Detalle en [docs/validacion.md](docs/validacion.md) y
 [docs/verificaciones.md](docs/verificaciones.md).
 
-## Instalación
+## Descargas
+
+Descarga la última versión desde
+[GitHub Releases](https://github.com/marcel1983/openfemconex/releases/latest),
+en la sección *Assets*. No hace falta instalar Python ni CalculiX: van dentro.
+
+- **Windows:** `openfemconex-windows-x64.zip`. Descomprime la carpeta completa
+  y ejecuta `openfemconex.exe`.
+- **Linux:** `openfemconex-linux-x86_64.tar.gz`. Descomprime y ejecuta
+  `openfemconex/openfemconex`.
+- **macOS (Apple Silicon):** `openfemconex-macos-arm64.zip`, que contiene
+  `OpenFEMConex.app`.
+
+Los ejecutables no están firmados. En Windows, si aparece SmartScreen, elige
+*Más información › Ejecutar de todas formas*; en macOS, clic derecho en la
+aplicación › *Abrir* la primera vez.
+
+## Instalación desde el código
 
 Requiere Python 3.12 y CalculiX (`ccx`).
 
@@ -106,6 +132,22 @@ Gmsh y, si está en el sistema, CalculiX.
 
 Las pruebas marcadas `ccx` corren CalculiX y tardan unos minutos; se omiten con
 `-m "not ccx"`.
+
+## Participar
+
+No hace falta programar para ayudar. Desde
+[Issues](https://github.com/marcel1983/openfemconex/issues/new/choose) puedes:
+
+- aportar un **caso de validación**: un ejemplo con resultado conocido (guía de
+  diseño, libro, cálculo a mano u otro programa) que se convierte en prueba
+  automática;
+- reportar un **error de cálculo** o un **fallo** del programa;
+- **solicitar una característica**, por ejemplo un nuevo tipo de conexión.
+
+La [guía paso a paso](https://marcel1983.github.io/#guia) explica cómo descargar, instalar y
+reportar. Las preguntas de uso van a
+[Discussions](https://github.com/marcel1983/openfemconex/discussions). Para
+aportar código, ver [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Aviso
 
