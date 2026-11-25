@@ -10,6 +10,15 @@ with the forces from the model.
 
 Free software under [AGPL-3.0-or-later](LICENSE).
 
+**OpenFEMConex and OpenConex.** [OpenConex](https://github.com/marcel1983/openconex)
+designs connections with the calculation methods of the AISC manuals and design
+guides; OpenFEMConex solves the same base plate with a finite element model,
+uses the same `.ocnx` project file and takes the shape catalog and materials
+from OpenConex.
+
+[Download](#download) · [Get involved](#get-involved) ·
+[Report a problem](https://github.com/marcel1983/openfemconex/issues/new/choose)
+
 ![Checking a base plate](docs/img/gui_en_oscuro.png)
 
 ## What it does
@@ -61,7 +70,23 @@ results:
 Details (in Spanish) in [docs/validacion.md](docs/validacion.md) and
 [docs/verificaciones.md](docs/verificaciones.md).
 
-## Installation
+## Download
+
+Download the latest version from
+[GitHub Releases](https://github.com/marcel1983/openfemconex/releases/latest),
+under *Assets*. Python and CalculiX are included; nothing else to install.
+
+- **Windows:** `openfemconex-windows-x64.zip`. Unzip the whole folder and run
+  `openfemconex.exe`.
+- **Linux:** `openfemconex-linux-x86_64.tar.gz`. Unpack it and run
+  `openfemconex/openfemconex`.
+- **macOS (Apple Silicon):** `openfemconex-macos-arm64.zip`, which holds
+  `OpenFEMConex.app`.
+
+The executables are not code-signed. On Windows, if SmartScreen appears, choose
+*More info › Run anyway*; on macOS, right-click the app › *Open* the first time.
+
+## Installation from source
 
 Requires Python 3.12 and CalculiX (`ccx`).
 
@@ -105,6 +130,21 @@ and, when present on the system, CalculiX.
 
 Tests marked `ccx` run CalculiX and take a few minutes; skip them with
 `-m "not ccx"`.
+
+## Get involved
+
+No programming needed to help. From
+[Issues](https://github.com/marcel1983/openfemconex/issues/new/choose) you can:
+
+- contribute a **validation case**: an example with a known answer (design
+  guide, textbook, hand calculation or another program) that becomes an
+  automated test;
+- report a **calculation error** or a **bug**;
+- **request a feature**, such as a new connection type.
+
+Questions go to
+[Discussions](https://github.com/marcel1983/openfemconex/discussions). To
+contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Notice
 
