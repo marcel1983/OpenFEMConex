@@ -144,7 +144,8 @@ No hace falta programar para ayudar. Desde
 - reportar un **error de cálculo** o un **fallo** del programa;
 - **solicitar una característica**, por ejemplo un nuevo tipo de conexión.
 
-Las preguntas de uso van a
+La [guía paso a paso](https://marcel1983.github.io/#guia) explica cómo descargar, instalar y
+reportar. Las preguntas de uso van a
 [Discussions](https://github.com/marcel1983/openfemconex/discussions). Para
 aportar código, ver [CONTRIBUTING.md](CONTRIBUTING.md).
 
