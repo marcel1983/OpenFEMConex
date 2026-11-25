@@ -66,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("-o", "--out", type=Path, help="carpeta de salida")
     run.add_argument("--size", type=float, help="tamaño fino de malla [mm]")
     run.add_argument("--layers", type=int, default=4, help="capas en el espesor de la placa")
+    run.add_argument("--rapida", "--fast", dest="fast", action="store_true",
+                     help="malla automática más gruesa que prioriza el tiempo de solución")
     run.add_argument("--threads", type=int)
     run.add_argument("--ccx", help="ejecutable de CalculiX")
     run.add_argument("--only-inp", action="store_true", help="solo escribe el .inp")
@@ -118,8 +120,11 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"combinación desconocida: {missing}; disponibles: {sorted(known)}")
         combos = [(c, ld) for c, ld in combos if c.name in args.combo]
     out = args.out or args.project.with_suffix("").with_name(args.project.stem + "_fem")
-    mesh = build_mesh(model, MeshSettings(size_fine=args.size, plate_layers=args.layers))
-    print(f"Malla: {len(mesh.nodes)} nodos, {mesh.element_count} hexaedros")
+    mesh = build_mesh(model, MeshSettings(size_fine=args.size, plate_layers=args.layers,
+                                          fast=args.fast))
+    print(f"Malla: {len(mesh.nodes)} nodos, {mesh.element_count} hexaedros"
+          + (" (malla rápida: confirme la soldadura y la deformación plástica con la malla "
+             "normal)" if mesh.settings.fast else ""))
     status = 0
     f, fu = (1 / KIP, "kip") if us else (1e-3, "kN")
     s, su = (1 / KSI, "ksi") if us else (1.0, "MPa")
@@ -186,7 +191,8 @@ def main(argv: list[str] | None = None) -> int:
             ("Concreto", f"f'c = {fmt(bp.fc, Kind.STRESS, units)}, A2/A1 = {bp.A2_over_A1:g}, "
                          + ("fisurado" if bp.cracked else "no fisurado")),
             ("Fricción", f"μ = {model.contact.mu:g}"),
-            ("Malla", f"{len(mesh.nodes)} nodos, {mesh.element_count} hexaedros C3D8I"),
+            ("Malla", f"{len(mesh.nodes)} nodos, {mesh.element_count} hexaedros C3D8I"
+                      + (" (malla rápida)" if mesh.settings.fast else "")),
         ]
         figures = {}
         if not args.no_figures:

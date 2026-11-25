@@ -11,8 +11,11 @@ that model gives.
 2. In **Geometry** review the column, plate, anchors, concrete and weld. The
    3D model updates as each value is confirmed.
 3. In **Loads** review the cases and tick the combinations to solve.
-4. In **Analysis** press **Solve**. CalculiX runs in the background; progress
-   shows in the status bar and the details in the *Solver log*.
+4. In **Analysis** press **Solve**. CalculiX runs in the background and a
+   floating window shows the combination, the stage, every load increment (with
+   its iterations and residual), the time and a progress bar; **Cancel** stops
+   CalculiX. **Hide** closes it without stopping the analysis (progress stays in
+   the status bar and **Progress** opens it again).
 5. In **Checks** see the table of results. Selecting a row shows its
    calculation trace with the formula and the clause.
 6. In **Report** generate the HTML report (with figures) or export it to PDF.

@@ -122,7 +122,7 @@ def weld_forces(model: BasePlateModel, mesh: Mesh, stress_ids: np.ndarray,
     sq = table[mesh.weld_quads].mean(axis=1)  # (m, 6): SXX SYY SZZ SXY SYZ SZX
     xy = mesh.weld_quad_xy - np.array([model.ex, model.ey])
     s = model.section
-    step = 1.5 * (mesh.settings.size_fine or 10.0)
+    step = 1.5 * (mesh.settings.size_wall or mesh.settings.size_fine or 10.0)
     wall = np.empty(len(xy), dtype=object)
     station = np.zeros(len(xy))
     thick = np.zeros(len(xy))
@@ -189,7 +189,7 @@ def stiffener_weld_forces(model: BasePlateModel, mesh: Mesh, stress_ids: np.ndar
     table = np.zeros((top + 1, 6))
     table[stress_ids] = stress
     out: list[WeldPoint] = []
-    step = 1.5 * (mesh.settings.size_fine or 10.0)
+    step = 1.5 * (mesh.settings.size_wall or mesh.settings.size_fine or 10.0)
     for k, sf in enumerate(model.stiffeners):
         ts = sf.thickness
         sel = np.nonzero(mesh.stiffener_quad_index == k)[0]

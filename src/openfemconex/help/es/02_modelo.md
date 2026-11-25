@@ -79,6 +79,20 @@ El tamaño fino automático es el menor espesor entre la pared de la columna y
 la placa. Se cambia en **Análisis › Ajustes**, junto con las capas en el
 espesor de la placa y los hilos de CalculiX.
 
+**Malla rápida** (casilla en Análisis › Ajustes, o `--rapida` en la línea de
+comandos): sigue siendo automática, pero con elementos de unas dos veces el tamaño
+normal, tres capas en la placa y menos capas en el concreto. Si salen elementos
+distorsionados se refina sola. Sirve para tantear dimensiones; para la memoria
+final conviene la malla normal. En los ejemplos del programa tardó entre un quinto
+y la mitad del tiempo (la cruciforme, de 17.5 a 3.8 min por combinación); las
+fuerzas en anclajes y el aplastamiento cambiaron menos de 3 %, la soldadura
+columna-placa quedó hasta 10 % por debajo y la deformación plástica bastante por
+debajo. El reporte lo indica en cada combinación.
+
+Mientras CalculiX resuelve, la ventana de avance muestra cada incremento de carga
+con sus iteraciones, los recortes de incremento y el residuo de fuerza, con
+**Cancelar** para detenerlo.
+
 ## Avisos antes de resolver
 
 - Junto a las paredes de la columna y a los rigidizadores el tamaño de elemento se

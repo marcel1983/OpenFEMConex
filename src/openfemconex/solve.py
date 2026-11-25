@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from openfemconex.diagnostics import COLLAPSE, HOPELESS, column_usage, diagnose
+from openfemconex.i18n import tr
 from openfemconex.inp import write_inp
 from openfemconex.mesh import Mesh, build_mesh
 from openfemconex.model import BasePlateModel, Loads, MeshSettings
@@ -30,12 +31,17 @@ def file_stem(name: str) -> str:
 def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
           mesh: Mesh | None = None, settings: MeshSettings | None = None,
           threads: int | None = None, ccx: str | None = None,
-          only_write: bool = False, reuse: bool = False, cancel=None) -> Results | Path:
+          only_write: bool = False, reuse: bool = False, cancel=None,
+          progress=None) -> Results | Path:
     """Solve one combination; returns the results (or the .inp path with ``only_write``).
 
     With ``reuse`` an existing solution of the same input deck is read instead of
-    running ccx again.
+    running ccx again. ``progress`` receives a short text at each stage.
     """
+    def stage(text: str) -> None:
+        if progress is not None:
+            progress(text)
+
     workdir = Path(workdir)
     warnings = diagnose(model, loads)
     # a column that cannot carry the loads will not converge with any anchor law
@@ -44,7 +50,9 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
     if usage > HOPELESS and not only_write:
         raise ColumnOverloaded(" ".join(warnings))
     workdir.mkdir(parents=True, exist_ok=True)
-    mesh = mesh or build_mesh(model, settings)
+    if mesh is None:
+        stage(tr("Generando la malla"))
+        mesh = build_mesh(model, settings)
     stem = file_stem(loads.name)
     inp = workdir / f"{stem}.inp"
     exts = (".inp", ".frd", ".dat", ".sta", ".log", ".cvg")
@@ -53,16 +61,19 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
     # with a column that cannot carry the loads, stop at the collapse instead of
     # cutting the increment down for a long time
     inc_min = 0.02 if collapse else 1e-6
+    stage(tr("Escribiendo el archivo de CalculiX (.inp)"))
     numbering = write_inp(inp, model, mesh, loads, knee=with_knee.exists(),
                           min_increment=inc_min)
     if only_write:
         return inp
     solved = all(inp.with_suffix(e).exists() for e in (".frd", ".dat", ".sta"))
     if reuse and solved and previous == inp.read_text():
+        stage(tr("Los datos no cambiaron: se reutiliza la solución anterior"))
         run = read_run(inp, numbering.steps)
     else:
         with_knee.unlink(missing_ok=True)
         numbering = write_inp(inp, model, mesh, loads, min_increment=inc_min)
+        stage(tr("CalculiX resolviendo"))
         run = run_ccx(inp, steps=numbering.steps, threads=threads, executable=ccx,
                       cancel=cancel)
         if not run.converged and not collapse:
@@ -71,6 +82,7 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
             for ext in exts:
                 if inp.with_suffix(ext).exists():
                     inp.with_suffix(ext).replace(keep.with_suffix(ext))
+            stage(tr("CalculiX no convergió: se reintenta con la ley de anclaje suavizada"))
             retry_numbering = write_inp(inp, model, mesh, loads, knee=True)
             retry = run_ccx(inp, steps=retry_numbering.steps, threads=threads, executable=ccx,
                             cancel=cancel)
@@ -92,6 +104,7 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
         fractions = (1.0, run.step_time) if run.step == 2 else (run.step_time, 0.0)
     else:
         fractions = (run.step_time, run.step_time)
+    stage(tr("Leyendo los resultados"))
     res = summarize(run.base, model, mesh, numbering, loads, converged=run.converged,
                     fractions=fractions, seconds=run.seconds)
     res.solver.update(increments=run.increments, iterations=run.iterations)

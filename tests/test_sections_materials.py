@@ -57,3 +57,14 @@ def test_laws():
         MaterialLaw("tabla", table=((250.0, 0.0), (240.0, 0.1))).check(250, 400)
     with pytest.raises(ValueError):
         MaterialLaw("trilineal", eps_sh=0.2, eps_u=0.1).check(250, 400)
+
+
+@pytest.mark.parametrize("name", ["dg1_2ed_ej_4_7.ocnx", "rigidizadores_tubo.ocnx"])
+def test_fast_mesh_is_coarser(name):
+    """build_mesh rejects distorted elements, so a coarse first try falls back finer."""
+    _, model = model_from_project(EXAMPLES / name)
+    normal = build_mesh(model, MeshSettings())
+    fast = build_mesh(model, MeshSettings(fast=True))
+    assert fast.settings.fast and fast.settings.plate_layers == 3
+    assert fast.element_count < 0.6 * normal.element_count
+    assert fast.settings.size_fine > normal.settings.size_fine

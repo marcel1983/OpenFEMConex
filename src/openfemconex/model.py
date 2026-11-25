@@ -247,6 +247,14 @@ class MeshSettings:
     concrete_size: float | None = None
     """Concrete element size in plan (default: 1.5 × size_coarse)."""
     concrete_layers: int = 10
+    fast: bool = False
+    """Automatic sizes that favour solution time (about twice the element size, three
+    plate layers); explicit sizes are kept."""
+    fast_factor: float = 2.0
+    """Size factor of the fast mesh; build_mesh lowers it if elements come out distorted."""
+    size_wall: float | None = None
+    """Element size along the column walls (default: size_fine). The fast mesh keeps
+    the normal size there, where the welds are evaluated."""
 
     def wall_size(self, model: BasePlateModel) -> float:
         """Element size next to the column walls and the stiffeners.
@@ -256,18 +264,28 @@ class MeshSettings:
         1.5 times the thinnest wall, whatever size_fine is.
         """
         walls = [model.section.min_wall] + [s.thickness for s in model.stiffeners]
-        return min(self.size_fine or 1e9, 1.5 * min(walls))
+        return min(self.size_wall or self.size_fine or 1e9, 1.5 * min(walls))
 
     def resolved(self, model: BasePlateModel) -> MeshSettings:
         # The column walls get their own size (see wall_size), so a very thin wall does
         # not force the whole plate to a tiny mesh.
-        fine = self.size_fine or max(8.0, min(model.section.min_wall, model.tp))
+        auto = normal = max(8.0, min(model.section.min_wall, model.tp))
+        if self.fast:
+            auto = max(self.fast_factor * auto, 7.5 * self.fast_factor)
+        fine = self.size_fine or auto
+        wall = self.size_wall
         coarse = self.size_coarse or 3.0 * fine
+        layers = max(3, self.plate_layers)
+        if self.fast:
+            layers = 3
         return MeshSettings(
-            size_fine=fine, size_coarse=coarse, plate_layers=max(3, self.plate_layers),
-            column_size=self.column_size or max(10.0, 2.0 * fine),
+            size_fine=fine, size_coarse=coarse, plate_layers=layers,
+            # the fast mesh keeps the normal first level of the column, where the weld
+            # forces are read
+            column_size=self.column_size or max(10.0, 2.0 * (normal if self.fast else fine)),
             concrete_size=self.concrete_size or 1.5 * coarse,
-            concrete_layers=self.concrete_layers)
+            concrete_layers=8 if self.fast else self.concrete_layers, fast=self.fast,
+            fast_factor=self.fast_factor, size_wall=wall)
 
 
 @dataclass(frozen=True)

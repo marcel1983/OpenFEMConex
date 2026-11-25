@@ -35,6 +35,8 @@ class Settings:
     size: float | None = None
     """Fine mesh size [mm]; None = automatic."""
     layers: int = 4
+    fast: bool = False
+    """Automatic mesh that favours solution time."""
     edition: str = "current"
     weld_size: float | None = None
     strain_limit: float = 0.05
@@ -66,19 +68,29 @@ class Study:
     def mesh(self, model: BasePlateModel | None = None) -> Mesh:
         return build_mesh(model or self.model(),
                           MeshSettings(size_fine=self.settings.size,
-                                       plate_layers=self.settings.layers))
+                                       plate_layers=self.settings.layers,
+                                       fast=self.settings.fast))
 
     def combinations(self) -> list[tuple[LoadCombination, Loads]]:
         return project_loads(self.project)
 
     def run(self, combo: LoadCombination, loads: Loads, out: Path, *, mesh: Mesh | None = None,
-            model: BasePlateModel | None = None, reuse: bool = True, cancel=None) -> ComboReport:
+            model: BasePlateModel | None = None, reuse: bool = True, cancel=None,
+            progress=None) -> ComboReport:
         """Solve ``combo`` with ccx and evaluate the code checks."""
         model = model or self.model()
         mesh = mesh or self.mesh(model)
         st = self.settings
         res = solve(model, loads, out, mesh=mesh, threads=st.threads, ccx=st.ccx, reuse=reuse,
-                    cancel=cancel)
+                    cancel=cancel, progress=progress)
+        if progress is not None:
+            progress(tr("Verificaciones de AISC y ACI"))
+        if mesh.settings.fast:
+            res.warnings.append(tr(
+                "Resuelto con la malla rápida: las fuerzas en anclajes y el aplastamiento "
+                "difieren menos de 3 % de la malla normal, pero la soldadura columna-placa puede "
+                "quedar hasta 10 % por debajo y la deformación plástica bastante por debajo. "
+                "Confirme con la malla normal antes de la memoria final."))
         bp = self.project.base_plate_model()
         reference: dict[str, float] = {}
         # free anchors or a cruciform column: the DG1 rigid-plate path does not apply
@@ -148,7 +160,8 @@ class Study:
                                               f"{s.thickness:.1f} mm ({s.grade})"))
         if mesh is not None:
             rows.append((tr("Malla"), tr("{nodes} nodos, {elements} hexaedros C3D8I",
-                                         nodes=len(mesh.nodes), elements=mesh.element_count)))
+                                         nodes=len(mesh.nodes), elements=mesh.element_count)
+                         + (" " + tr("(malla rápida)") if mesh.settings.fast else "")))
         return rows
 
     def force_unit(self) -> tuple[float, str]:

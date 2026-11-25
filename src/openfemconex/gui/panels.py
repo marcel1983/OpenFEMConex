@@ -381,6 +381,14 @@ class AnalysisPanel(QWidget):
         self.size.setToolTip(tr("Tamaño de elemento junto a la columna y los agujeros. Automático: "
                                 "el menor espesor entre la pared de la columna y la placa."))
         self.size.valueChanged.connect(lambda v: state.set_setting("size", v or None))
+        self.fast = QCheckBox(tr("Malla rápida (prioriza el tiempo de solución)"))
+        self.fast.setToolTip(tr(
+            "Sigue siendo automática, con elementos de unas dos veces el tamaño normal en la "
+            "placa y tres capas en su espesor. En los ejemplos tardó entre un quinto y la mitad "
+            "del tiempo (más ahorro cuanto más grande el modelo); anclajes y aplastamiento "
+            "cambian menos de 3 %, la soldadura hasta 10 % por debajo. Útil para tantear; para "
+            "la memoria final use la malla normal."))
+        self.fast.toggled.connect(self._fast_toggled)
         self.layers = QSpinBox()
         self.layers.setRange(3, 8)
         self.layers.setValue(state.settings.layers)
@@ -397,6 +405,7 @@ class AnalysisPanel(QWidget):
         self.strain.setValue(100 * state.settings.strain_limit)
         self.strain.valueChanged.connect(lambda v: state.set_setting("strain_limit", v / 100))
         form.addRow(tr("Tamaño fino de malla"), self.size)
+        form.addRow("", self.fast)
         form.addRow(tr("Capas en el espesor de la placa"), self.layers)
         form.addRow(tr("Hilos de CalculiX"), self.threads)
         form.addRow(tr("Tuercas de nivelación"), self.nuts)
@@ -405,6 +414,10 @@ class AnalysisPanel(QWidget):
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
         layout.addStretch(1)
+
+    def _fast_toggled(self, on: bool) -> None:
+        self.state.set_setting("fast", on)
+        self.layers.setEnabled(not on)
 
 
 def unit_presets() -> list[str]:

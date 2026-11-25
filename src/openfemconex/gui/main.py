@@ -56,6 +56,7 @@ from openfemconex.gui.panels import (
     LoadsPanel,
     unit_presets,
 )
+from openfemconex.gui.progress import SolveProgress
 from openfemconex.gui.ribbon import STYLE as RIBBON_STYLE
 from openfemconex.gui.ribbon import Ribbon
 from openfemconex.gui.state import ProjectState
@@ -112,6 +113,8 @@ class MainWindow(QMainWindow):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(250)
         self._refresh_timer.timeout.connect(self._refresh_view)
+        self.solve_progress = SolveProgress(self)
+        self.solve_progress.cancel_requested.connect(self.stop)
         self._progress_timer = QTimer(self)
         self._progress_timer.setInterval(500)
         self._progress_timer.timeout.connect(self._poll_progress)
@@ -317,6 +320,8 @@ class MainWindow(QMainWindow):
                                          "Resuelve las combinaciones marcadas en Cargas")
         self.stop_button = g.add_button("Detener", icon("stop"), self.stop)
         self.stop_button.setEnabled(False)
+        g.add_button("Avance", icon("table"), self.show_progress,
+                     "Muestra el avance detallado de CalculiX")
         g = tab("Resultados")
         self.combo_box = QComboBox()
         self.combo_box.setMinimumWidth(130)
@@ -614,6 +619,9 @@ class MainWindow(QMainWindow):
                 tr("Malla actual: {nodes} nodos y {elements} hexaedros (tamaño fino {size} mm).",
                    nodes=len(m.nodes), elements=m.element_count,
                    size=f"{m.settings.size_fine:.1f}"))
+            if m.settings.fast:
+                self.analysis_panel.info.setText(self.analysis_panel.info.text() + " "
+                                                 + tr("Malla rápida."))
         return True
 
     def show_model(self, edges: bool = False) -> None:
@@ -674,10 +682,16 @@ class MainWindow(QMainWindow):
             lambda n, msg: self.log.appendPlainText(tr("{name}: falló. {msg}", name=n, msg=msg)))
         self.worker.combo_warning.connect(
             lambda n, msg: self.log.appendPlainText(tr("Aviso: {msg}", msg=msg)))
-        self.worker.cancelled.connect(
-            lambda: self.log.appendPlainText(tr("Análisis detenido.")))
+        self.worker.cancelled.connect(self._cancelled)
+        self.worker.stage.connect(lambda _n, text: self.solve_progress.stage(text))
+        self.worker.combo_failed.connect(
+            lambda n, msg: self.solve_progress.combo_finished(
+                tr("{name}: falló. {msg}", name=n, msg=msg)))
         self.worker.finished.connect(self._solve_finished)
+        self._cancelled_run = False
         self._done, self._total = 0, len(combos)
+        self.solve_progress.start(len(combos), st.mesh.element_count, len(st.mesh.nodes),
+                                  st.settings.threads)
         self.progress.setValue(0)
         self.progress.show()
         self.stop_button.setEnabled(True)
@@ -688,32 +702,35 @@ class MainWindow(QMainWindow):
     def stop(self) -> None:
         if self.worker is not None:
             self.worker.cancel.set()
+            self.log.appendPlainText(tr("Deteniendo CalculiX…"))
+
+    def _cancelled(self) -> None:
+        self._cancelled_run = True
+        self.log.appendPlainText(tr("Análisis detenido."))
+
+    def show_progress(self) -> None:
+        self.solve_progress.show()
+        self.solve_progress.raise_()
 
     def _combo_started(self, name: str) -> None:
         self._running = name
         self.log.appendPlainText(tr("{name}: resolviendo con CalculiX…", name=name))
+        sta = self.state.output_dir() / f"{re.sub(r'[^A-Za-z0-9_-]+', '_', name)}.sta"
+        self.solve_progress.combo_started(name, sta)
 
     def _poll_progress(self) -> None:
-        name = getattr(self, "_running", None)
-        if not name or self.worker is None:
+        if self.worker is None:
             return
-        sta = self.state.output_dir() / f"{re.sub(r'[^A-Za-z0-9_-]+', '_', name)}.sta"
-        fraction = 0.0
-        if sta.exists():
-            lines = [ln.split() for ln in sta.read_text(errors="replace").splitlines()]
-            rows = [p for p in lines if len(p) == 7 and p[0].isdigit() and not p[2].endswith("U")]
-            if rows:
-                step, step_time = int(rows[-1][0]), float(rows[-1][5])
-                fraction = (0.1 if step == 1 else 0.1 + 0.9 * step_time) if any(
-                    int(r[0]) > 1 for r in rows) or step > 1 else 0.1 * step_time
-        self.progress.setValue(int(100 * (self._done + fraction) / max(self._total, 1)))
+        if not self.solve_progress.isVisible():
+            self.solve_progress.poll()
+        self.progress.setValue(int(100 * self.solve_progress.overall()))
 
     def _combo_done(self, name: str, report: object) -> None:
         self._done += 1
         res = report.results
         units = self.state.project.info.unit_system()
         worst = max(report.fem_checks, key=lambda r: r.ratio / r.ratio_limit, default=None)
-        self.log.appendPlainText(
+        summary = (
             f"{name}: " + (tr("convergió") if res.converged else
                            tr("NO convergió ({pct} % de la carga)",
                               pct=f"{100 * res.load_fraction:.0f}"))
@@ -724,10 +741,15 @@ class MainWindow(QMainWindow):
                  e=f"{100 * res.equilibrium_error:.2f}")
             + (tr(" Gobierna {check}: {ratio}.", check=check_title(worst),
                   ratio=f"{worst.ratio:.2f}") if worst else ""))
+        if self.state.mesh is not None and self.state.mesh.settings.fast:
+            summary += " " + tr("(malla rápida)")
+        self.log.appendPlainText(summary)
+        self.solve_progress.combo_finished(summary)
         self.state.set_report(name, report)
         self.show_results(name)
 
     def _solve_finished(self) -> None:
+        self.solve_progress.finished(self._cancelled_run)
         self._progress_timer.stop()
         self.progress.hide()
         self.worker = None

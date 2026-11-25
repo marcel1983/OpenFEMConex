@@ -204,6 +204,72 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    "Resuelto con la malla rápida: las fuerzas en anclajes y el aplastamiento difieren menos de 3 % de la malla normal, pero la soldadura columna-placa puede quedar hasta 10 % por debajo y la deformación plástica bastante por debajo. Confirme con la malla normal antes de la memoria final.":  # noqa: E501
+        "Solved with the fast mesh: anchor forces and bearing differ by less than 3 % from the normal mesh, but the column-to-plate weld may come out up to 10 % low and the plastic strain well below. Confirm with the normal mesh before the final report.",  # noqa: E501
+    'Deteniendo CalculiX…':
+        'Stopping CalculiX…',
+    'Malla rápida.':
+        'Fast mesh.',
+    'Malla rápida (prioriza el tiempo de solución)':
+        'Fast mesh (favours solution time)',
+    'Sigue siendo automática, con elementos de unas dos veces el tamaño normal en la placa y tres capas en su espesor. En los ejemplos tardó entre un quinto y la mitad del tiempo (más ahorro cuanto más grande el modelo); anclajes y aplastamiento cambian menos de 3 %, la soldadura hasta 10 % por debajo. Útil para tantear; para la memoria final use la malla normal.':  # noqa: E501
+        'Still automatic, with elements about twice the normal size in the plate and three layers through it. In the examples it took between a fifth and half of the time (more savings on larger models); anchors and bearing change by less than 3 %, the weld comes out up to 10 % low. Useful for trial designs; use the normal mesh for the final report.',  # noqa: E501
+    'Análisis terminado.':
+        'Analysis finished.',
+    'CalculiX no convergió: se reintenta con la ley de anclaje suavizada':
+        'CalculiX did not converge: retrying with the softened anchor law',
+    'Cancelando…':
+        'Cancelling…',
+    'Cancelar':
+        'Cancel',
+    'Cerrar':
+        'Close',
+    'Combinación {i} de {n}: {name}':
+        'Combination {i} of {n}: {name}',
+    'El análisis sigue; el avance queda en la barra de estado':
+        'The analysis goes on; the progress stays in the status bar',
+    'Iteración {i} del incremento siguiente; residuo de fuerza máximo {r} N':
+        'Iteration {i} of the next increment; largest residual force {r} N',
+    'Malla de {elements} hexaedros y {nodes} nodos; {n} combinaciones; CalculiX con {t} hilos.':
+        'Mesh of {elements} hexahedra and {nodes} nodes; {n} combinations; CalculiX with {t} threads.',  # noqa: E501
+    'Ocultar':
+        'Hide',
+    'Paso {step} ({load}), incremento {n}: no convergió en {it} iteraciones; se reintenta con un incremento menor':  # noqa: E501
+        'Step {step} ({load}), increment {n}: did not converge in {it} iterations; retrying with a smaller increment',  # noqa: E501
+    'Paso {step} ({load}), incremento {n}: {pct} % aplicado, {it} iteraciones':
+        'Step {step} ({load}), increment {n}: {pct} % applied, {it} iterations',
+    'Resolviendo con CalculiX':
+        'Solving with CalculiX',
+    'Tiempo total {t}.':
+        'Total time {t}.',
+    'Tiempo: {t} en esta combinación, {all} en total':
+        'Time: {t} in this combination, {all} in total',
+    'Total':
+        'Total',
+    'carga axial':
+        'axial load',
+    'momentos y cortantes':
+        'moments and shears',
+    '— {name} —':
+        '— {name} —',
+    'CalculiX resolviendo':
+        'CalculiX solving',
+    'Escribiendo el archivo de CalculiX (.inp)':
+        'Writing the CalculiX input file (.inp)',
+    'Generando la malla':
+        'Generating the mesh',
+    'Leyendo los resultados':
+        'Reading the results',
+    'Los datos no cambiaron: se reutiliza la solución anterior':
+        'The data did not change: the previous solution is reused',
+    '(malla rápida)':
+        '(fast mesh)',
+    'Verificaciones de AISC y ACI':
+        'AISC and ACI checks',
+    'Avance':
+        'Progress',
+    'Muestra el avance detallado de CalculiX':
+        'Shows the detailed progress of CalculiX',
     'A = {a}; Mp eje fuerte = {mpy}; Mp eje débil = {mpx}':
         'A = {a}; strong-axis Mp = {mpy}; weak-axis Mp = {mpx}',
     'Acero nuevo':

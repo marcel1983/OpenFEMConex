@@ -26,6 +26,8 @@ class SolveWorker(QThread):
     combo_warning = Signal(str, str)
     """Combination name and a note of the pre-analysis diagnostics."""
     cancelled = Signal()
+    stage = Signal(str, str)
+    """Combination name and the stage of its analysis."""
 
     def __init__(self, study: Study, combos: list, out: Path, model: BasePlateModel,
                  mesh: Mesh, reuse: bool = True) -> None:
@@ -44,7 +46,9 @@ class SolveWorker(QThread):
                 self.combo_warning.emit(combo.name, note)
             try:
                 report = self.study.run(combo, loads, self.out, mesh=self.mesh,
-                                        model=self.model, reuse=self.reuse, cancel=self.cancel)
+                                        model=self.model, reuse=self.reuse, cancel=self.cancel,
+                                        progress=lambda text, n=combo.name: self.stage.emit(n,
+                                                                                         text))
             except ColumnOverloaded:
                 self.combo_failed.emit(combo.name, tr(
                     "no se resolvió porque la columna no resiste las cargas."))

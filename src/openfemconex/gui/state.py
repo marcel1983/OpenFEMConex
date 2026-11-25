@@ -244,7 +244,7 @@ class ProjectState(QObject):
     def set_setting(self, name: str, value: Any) -> None:
         if getattr(self.settings, name) != value:
             setattr(self.settings, name, value)
-            self.mark_stale(mesh=name in ("size", "layers"))
+            self.mark_stale(mesh=name in ("size", "layers", "fast"))
             self.changed.emit()
 
     def _touch(self) -> None:

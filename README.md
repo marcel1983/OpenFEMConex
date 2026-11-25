@@ -26,6 +26,8 @@ Software libre bajo [AGPL-3.0-or-later](LICENSE).
   dos T); perfiles I armados de placas con editor y propiedades; editor de aceros
   y grados de anclaje con ley constitutiva bilineal, elastoplástica, trilineal o
   por tabla y vista previa de la curva.
+- **Análisis.** Malla automática normal o rápida (entre un quinto y la mitad del
+  tiempo); ventana de avance con cada incremento de CalculiX y botón Cancelar.
 - **Cargas.** P, V y M en los dos ejes; combinaciones ASCE 7 LRFD y ASD o propias;
   levantamiento neto.
 - **Verificaciones**, cada una con su fórmula, valores y cláusula:

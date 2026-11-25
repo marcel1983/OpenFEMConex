@@ -77,6 +77,19 @@ The automatic fine size is the thinner of the column wall and the plate. It is
 changed in **Analysis › Settings**, together with the layers through the plate
 and the CalculiX threads.
 
+**Fast mesh** (check box in Analysis › Settings, or `--fast` on the command
+line): still automatic, but with elements about twice the normal size, three
+layers in the plate and fewer layers in the concrete. If distorted elements come
+out it refines itself. Use it to try out dimensions; the normal mesh is better
+for the final report. In the bundled examples it took between a fifth and half of
+the time (the cruciform, from 17.5 to 3.8 min per combination); anchor forces and
+bearing changed by less than 3 %, the column-to-plate weld came out up to 10 % low
+and the plastic strain well below. The report says so in every combination.
+
+While CalculiX solves, the progress window shows every load increment with its
+iterations, the increment cutbacks and the residual force, with **Cancel** to stop
+it.
+
 ## Warnings before solving
 
 - Next to the column walls and the stiffeners the element size is limited to 1.5

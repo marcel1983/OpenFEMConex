@@ -259,3 +259,49 @@ def test_material_editor_law_and_rename(window):
     assert st.model.plate_steel.plastic_curve()[1] == (300.0, 0.015)
     assert "Mi acero" in [window.forms["Placa"].widgets["plate_grade"].itemText(i)
                           for i in range(window.forms["Placa"].widgets["plate_grade"].count())]
+
+
+STA = """
+ SUMMARY OF JOB INFORMATION
+  STEP      INC     ATT  ITRS     TOT TIME     STEP TIME      INC TIME
+     1          1     1    13  0.100000E+01  0.100000E+01  0.100000E+01
+     2          1     1     9  0.105000E+01  0.500000E-01  0.500000E-01
+     2          2    1U    16  0.110000E+01  0.100000E+00  0.500000E-01
+     2          2     2     4  0.112500E+01  0.125000E+00  0.250000E-01
+"""
+
+
+def test_progress_window_follows_calculix(window, tmp_path):
+    from openfemconex.gui.progress import fraction, read_increments
+
+    sta = tmp_path / "LRFD-1.sta"
+    sta.write_text(STA)
+    (tmp_path / "LRFD-1.cvg").write_text(
+        "     2     3     1     2    7000  0.3015E+00  0.2091E-01  0.0000E+00  0.0000E+00\n")
+    incs = read_increments(sta)
+    assert len(incs) == 4 and incs[2].cutback
+    assert fraction(incs) == pytest.approx(0.1 + 0.9 * 0.125)
+    dialog = window.solve_progress
+    dialog.start(2, 1000, 1500, 4)
+    dialog.combo_started("LRFD-1", sta)
+    dialog.stage("CalculiX resolviendo")
+    dialog.poll()
+    text = dialog.log.toPlainText()
+    assert "no convergió" in text and "12.5 %" in text
+    assert "residuo" in dialog.detail_label.text()
+    assert dialog.overall() == pytest.approx(0.2125 / 2, abs=1e-3)
+    cancelled = []
+    dialog.cancel_requested.connect(lambda: cancelled.append(True))
+    dialog.cancel_button.click()
+    assert cancelled
+    dialog.finished(cancelled=True)
+    assert dialog.cancel_button.text() in ("Cerrar", "Close")
+
+
+def test_fast_mesh_checkbox(window):
+    st = window.state
+    window.analysis_panel.fast.setChecked(True)
+    assert st.settings.fast
+    window._ensure_mesh()
+    assert st.mesh.settings.fast
+    assert not window.analysis_panel.layers.isEnabled()

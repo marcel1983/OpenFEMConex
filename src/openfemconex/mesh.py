@@ -13,7 +13,7 @@ separate structured hexahedral grid below the plate, in contact with it.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -304,8 +304,25 @@ class MeshError(ValueError):
 
 
 def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> Mesh:
+    """Hexahedral mesh of the model.
+
+    A fast mesh that comes out with distorted elements is built again finer, down to
+    the normal automatic sizes.
+    """
+    settings = settings or MeshSettings()
+    if not settings.fast:
+        return _build_mesh(model, settings)
+    for factor in (settings.fast_factor, 1.5, 1.25):
+        try:
+            return _build_mesh(model, replace(settings, fast_factor=factor))
+        except MeshError:
+            continue
+    return _build_mesh(model, replace(settings, fast=False))
+
+
+def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
     model.validate()
-    st = (settings or MeshSettings()).resolved(model)
+    st = settings.resolved(model)
     plan = plan_mesh(model, st)
     xy, quads = plan.xy, plan.quads
     n2 = len(xy)

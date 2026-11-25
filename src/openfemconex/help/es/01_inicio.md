@@ -11,8 +11,11 @@ ACI 318 con las fuerzas que salen de ese modelo.
 2. En **Geometría** revise la columna, la placa, los anclajes, el concreto y la
    soldadura. El modelo 3D se actualiza al confirmar cada dato.
 3. En **Cargas** revise los casos y marque las combinaciones que quiere resolver.
-4. En **Análisis** pulse **Resolver**. CalculiX corre en segundo plano; el
-   avance aparece en la barra de estado y el detalle en *Registro del solver*.
+4. En **Análisis** pulse **Resolver**. CalculiX corre en segundo plano y una
+   ventana flotante muestra la combinación, la etapa, cada incremento de carga
+   (con sus iteraciones y el residuo), el tiempo y la barra de avance; **Cancelar**
+   detiene CalculiX. **Ocultar** la cierra sin detener el análisis (el avance
+   sigue en la barra de estado y **Avance** la vuelve a abrir).
 5. En **Verificación** vea la tabla de resultados. Al seleccionar una fila se
    muestra su traza de cálculo con la fórmula y la cláusula.
 6. En **Reporte** genere la memoria en HTML (con gráficos) o expórtela a PDF.
