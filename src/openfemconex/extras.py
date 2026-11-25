@@ -19,12 +19,14 @@ from typing import Any
 from openconex.io.project import FORMAT_VERSION, Project
 from openconex.units import Kind
 
-__all__ = ["KEY", "Extras", "Hairpins", "PedestalRebar", "StiffenerSpec", "load_extended",
-           "parse_extras", "split_data"]
+__all__ = ["KEY", "LAWS", "CrossShape", "Extras", "Hairpins", "MaterialLaw", "PedestalRebar",
+           "StiffenerSpec", "law_from_dict", "load_extended", "parse_extras", "split_data"]
 
 KEY = "openfemconex"
 STIFFENER_LAYOUTS = ("alma", "alma y bordes", "radial")
 HOOKS = ("90", "180", "recta")
+LAWS = ("bilineal", "elastoplastica", "trilineal", "tabla")
+"""Constitutive laws of the steels in the FEM model."""
 
 
 @dataclass(frozen=True)
@@ -135,11 +137,73 @@ class Hairpins:
 
 
 @dataclass(frozen=True)
+class CrossShape:
+    """Second W-shape of a cruciform column, split in two tees welded to the main web."""
+
+    name: str
+    d: float
+    bf: float
+    tf: float
+    tw: float
+
+
+@dataclass(frozen=True)
+class MaterialLaw:
+    """Stress-strain law of a steel in the FEM model (true stress, plastic strain).
+
+    ``bilineal``: yield at Fy, then the slope ``hardening`` up to the plastic strain
+    ``eps_u``. ``elastoplastica``: perfectly plastic at Fy. ``trilineal``: plateau at
+    Fy up to the plastic strain ``eps_sh``, then linear up to Fu at ``eps_u``.
+    ``tabla``: the (stress, plastic strain) points of ``table``.
+    """
+
+    law: str = "bilineal"
+    nu: float = 0.3
+    hardening: float | None = None
+    """Slope of the bilinear law [MPa]; None = E/1000."""
+    eps_sh: float = 0.015
+    eps_u: float = 0.15
+    table: tuple[tuple[float, float], ...] = ()
+
+    def curve(self, Fy: float, Fu: float, E: float) -> tuple[tuple[float, float], ...]:
+        if self.law == "elastoplastica":
+            return ((Fy, 0.0),)
+        if self.law == "trilineal":
+            return ((Fy, 0.0), (Fy, self.eps_sh), (max(Fu, Fy), self.eps_u))
+        if self.law == "tabla":
+            return self.table
+        H = E / 1000 if self.hardening is None else self.hardening
+        return ((Fy, 0.0), (Fy + H * self.eps_u, self.eps_u))
+
+    def check(self, Fy: float, Fu: float) -> None:
+        if not 0.0 <= self.nu < 0.5:
+            raise ValueError("el coeficiente de Poisson debe estar entre 0 y 0.5")
+        if self.law == "trilineal" and not 0.0 <= self.eps_sh < self.eps_u:
+            raise ValueError("la deformación de endurecimiento debe ser menor que la última")
+        if self.law in ("bilineal", "trilineal") and self.eps_u <= 0:
+            raise ValueError("la deformación plástica última debe ser positiva")
+        if self.law == "tabla":
+            pts = self.table
+            if not pts or pts[0][1] != 0.0:
+                raise ValueError("la tabla del material debe empezar con deformación plástica 0")
+            if any(b[1] <= a[1] or b[0] < a[0] for a, b in zip(pts, pts[1:], strict=False)):
+                raise ValueError("la tabla del material debe crecer en deformación y no bajar "
+                                 "en esfuerzo")
+
+
+@dataclass(frozen=True)
 class Extras:
     anchors: tuple[tuple[float, float], ...] | None = None
     pedestal: PedestalRebar | None = None
     stiffeners: StiffenerSpec | None = None
     hairpins: Hairpins | None = None
+    cross: CrossShape | None = None
+    """Cross W-shape of a cruciform column; None = the column of the project alone."""
+    laws: dict[str, MaterialLaw] | None = None
+    """FEM constitutive law of each steel by name; missing = bilinear E/1000."""
+
+    def law(self, grade: str) -> MaterialLaw:
+        return (self.laws or {}).get(grade) or MaterialLaw()
 
 
 def split_data(data: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -201,7 +265,47 @@ def parse_extras(project: Project, ext: dict[str, Any]) -> Extras:
             leg_length=q(h.get("leg_length", "600 mm")), cover=q(h.get("cover", "50 mm")))
         if hairpins.count < 1:
             raise ValueError("se necesita al menos una horquilla por anclaje")
-    return Extras(anchors=anchors, pedestal=pedestal, stiffeners=stiffeners, hairpins=hairpins)
+    cross = None
+    c = ext.get("column")
+    if c and c.get("type") == "cruciform":
+        cross = cross_shape(project, str(c["cross"]))
+    laws = {}
+    for name, m in (ext.get("materials") or {}).items():
+        laws[name] = law_from_dict(m, lambda v: q(v, Kind.STRESS))
+    library = project.material_library()
+    for name, law in laws.items():
+        if name in library:
+            law.check(library[name].Fy, library[name].Fu)
+    return Extras(anchors=anchors, pedestal=pedestal, stiffeners=stiffeners, hairpins=hairpins,
+                  cross=cross, laws=laws or None)
+
+
+def law_from_dict(m: dict[str, Any], stress) -> MaterialLaw:
+    """Constitutive law of one entry of the ``materials`` block; ``stress`` parses a value."""
+    law = m.get("law", "bilineal")
+    if law not in LAWS:
+        raise ValueError(f"ley constitutiva desconocida: {law}")
+    return MaterialLaw(
+        law=law, nu=float(m.get("nu", 0.3)),
+        hardening=stress(m["hardening"]) if m.get("hardening") not in (None, "") else None,
+        eps_sh=float(m.get("eps_sh", 0.015)), eps_u=float(m.get("eps_u", 0.15)),
+        table=tuple((stress(sv), float(ev)) for sv, ev in m.get("table", ())))
+
+
+def cross_shape(project: Project, label: str) -> CrossShape:
+    """W-shape by label: a custom section of the project or the AISC catalog."""
+    from openconex.core.shapes import aisc_shapes
+    from openconex.io.project import WSectionInput
+
+    for section in project.sections:
+        if isinstance(section, WSectionInput) and section.label() == label:
+            return CrossShape(label, *(project.quantity(v, Kind.LENGTH) for v in
+                                       (section.d, section.bf, section.tf, section.tw)))
+    shape = aisc_shapes().get(label)
+    if shape.type not in ("W", "M", "S", "HP"):
+        raise ValueError("el perfil cruzado de una columna cruciforme debe ser un perfil I")
+    p = shape.properties
+    return CrossShape(label, p["d"], p["bf"], p["tf"], p["tw"])
 
 
 def load_extended(path: str | Path) -> tuple[Project, Extras]:

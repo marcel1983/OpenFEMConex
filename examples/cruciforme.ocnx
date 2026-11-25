@@ -1,0 +1,43 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Columna cruciforme",
+    "number": "OFC-0010",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-25",
+    "language": "es",
+    "units": "SI_kN_m"
+  },
+  "base_plate": {
+    "column": "W14X90",
+    "column_grade": "ASTM A992",
+    "N": "760 mm",
+    "B": "760 mm",
+    "tp": "38 mm",
+    "plate_grade": "ASTM A572 Gr. 50",
+    "fc": "28 MPa",
+    "A2_over_A1": 1.0,
+    "grout": "40 mm",
+    "rod_diameter": "1.25 in",
+    "rod_grade": "ASTM F1554 Gr. 55",
+    "rods_per_side": 2,
+    "f": "300 mm",
+    "rod_spacing": "600 mm",
+    "hef": "500 mm",
+    "cracked": true,
+    "flange_weld": "13 mm"
+  },
+  "cases": [
+    {"name": "D", "type": "D", "P": "900 kN", "M": "120 kN*m", "M_weak": "90 kN*m"},
+    {"name": "L", "type": "L", "P": "600 kN", "M": "150 kN*m", "M_weak": "110 kN*m"}
+  ],
+  "combinations": {"methods": ["LRFD"]},
+  "openfemconex": {
+    "column": {"type": "cruciform", "cross": "W12X53"},
+    "anchors": [["-300 mm", "-300 mm"], ["0 mm", "-300 mm"], ["300 mm", "-300 mm"],
+                ["300 mm", "0 mm"], ["300 mm", "300 mm"], ["0 mm", "300 mm"],
+                ["-300 mm", "300 mm"], ["-300 mm", "0 mm"]]
+  }
+}

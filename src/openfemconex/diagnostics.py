@@ -43,6 +43,24 @@ def column_capacity(model: BasePlateModel) -> dict[str, float]:
         zx = (d * b**2 - (d - 2 * t) * (b - 2 * t) ** 2) / 4
         return {"A": area, "Py": Fy * area, "Vpx": 0.6 * Fy * 2 * t * (d - 2 * t),
                 "Vpy": 0.6 * Fy * 2 * t * (b - 2 * t), "Mpx": Fy * zx, "Mpy": Fy * zy}
+    if s.kind is SectionKind.CRUCIFORM:
+        # sum of rectangles; doubly symmetric, so the plastic axes are the centroidal ones
+        boxes = s.boxes()
+        area = sum((x1 - x0) * (y1 - y0) for x0, y0, x1, y1 in boxes)
+
+        def z(lo: float, hi: float, width: float) -> float:
+            # width × ∫|u| du over [lo, hi]
+            def f(u: float) -> float:
+                return math.copysign(u * u / 2, u)
+            return width * (f(hi) - f(lo))
+
+        zy = sum(z(x0, x1, y1 - y0) for x0, y0, x1, y1 in boxes)
+        zx = sum(z(y0, y1, x1 - x0) for x0, y0, x1, y1 in boxes)
+        # shear along x: the parts that run along x (main web, cross flanges)
+        avx = s.d * s.tw + 2 * s.bf2 * s.tf2
+        avy = 2 * s.bf * s.tf + s.d2 * s.tw2
+        return {"A": area, "Py": Fy * area, "Vpx": 0.6 * Fy * avx, "Vpy": 0.6 * Fy * avy,
+                "Mpx": Fy * zx, "Mpy": Fy * zy}
     d, b, tf, tw = s.d, s.bf, s.tf, s.tw
     area = 2 * b * tf + (d - 2 * tf) * tw
     zy = b * tf * (d - tf) + tw * (d - 2 * tf) ** 2 / 4

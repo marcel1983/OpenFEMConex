@@ -22,6 +22,14 @@ class SectionKind(StrEnum):
     I = "I"  # W, M, S, HP  # noqa: E741
     HSS_RECT = "HSS_RECT"
     HSS_ROUND = "HSS_ROUND"
+    CRUCIFORM = "CRUCIFORM"
+    """A W-shape (``d``, ``bf``, ``tf``, ``tw``) with a second W-shape (``d2``, ``bf2``,
+    ``tf2``, ``tw2``) split along its web into two tees welded to both faces of the
+    main web: the cross flanges lie at y = ±d2/2."""
+
+
+Box = tuple[float, float, float, float]
+"""Rectangle (x0, y0, x1, y1) in plan, relative to the column axis."""
 
 
 @dataclass(frozen=True)
@@ -30,6 +38,7 @@ class Section:
 
     For I-shapes ``d``, ``bf``, ``tf``, ``tw``. For rectangular HSS ``d`` (along x),
     ``bf`` (along y) and the wall ``t``. For round HSS ``d`` is the diameter.
+    Cruciform columns add the cross W-shape ``d2``, ``bf2``, ``tf2``, ``tw2``.
     """
 
     kind: SectionKind
@@ -39,6 +48,30 @@ class Section:
     tw: float = 0.0
     t: float = 0.0
     name: str = ""
+    d2: float = 0.0
+    bf2: float = 0.0
+    tf2: float = 0.0
+    tw2: float = 0.0
+
+    def boxes(self) -> list[Box]:
+        """Non-overlapping rectangles of an I-shape or a cruciform section."""
+        d2, b2, tf, tw2 = self.d / 2, self.bf / 2, self.tf, self.tw / 2
+        out = [(-d2, -b2, -d2 + tf, b2), (d2 - tf, -b2, d2, b2), (-d2 + tf, -tw2, d2 - tf, tw2)]
+        if self.kind is SectionKind.CRUCIFORM:
+            c2, cb2, ctf, ctw2 = self.d2 / 2, self.bf2 / 2, self.tf2, self.tw2 / 2
+            out += [(-cb2, -c2, cb2, -c2 + ctf), (-cb2, c2 - ctf, cb2, c2),
+                    (-ctw2, -c2 + ctf, ctw2, -tw2), (-ctw2, tw2, ctw2, c2 - ctf)]
+        return out
+
+    def check(self) -> None:
+        """Raise ValueError when the cross shape of a cruciform does not fit."""
+        if self.kind is not SectionKind.CRUCIFORM:
+            return
+        if self.bf2 >= self.d - 2 * self.tf:
+            raise ValueError("los patines del perfil cruzado no caben entre los patines del "
+                             "perfil principal (bf2 debe ser menor que d − 2 tf)")
+        if self.d2 / 2 - self.tf2 <= self.tw / 2:
+            raise ValueError("el perfil cruzado es demasiado bajo para el alma del principal")
 
     def distance(self, x: float, y: float) -> float:
         """Distance from a point (relative to the column axis) to the steel of the section."""
@@ -46,9 +79,8 @@ class Section:
             return math.hypot(max(x0 - x, 0.0, x - x1), max(y0 - y, 0.0, y - y1))
 
         d2, b2 = self.d / 2, self.bf / 2
-        if self.kind is SectionKind.I:
-            return min(to_box(-d2, -b2, -d2 + self.tf, b2), to_box(d2 - self.tf, -b2, d2, b2),
-                       to_box(-d2, -self.tw / 2, d2, self.tw / 2))
+        if self.kind in (SectionKind.I, SectionKind.CRUCIFORM):
+            return min(to_box(*b) for b in self.boxes())
         if self.kind is SectionKind.HSS_ROUND:
             r = math.hypot(x, y)
             return max(r - d2, d2 - self.t - r, 0.0)
@@ -59,11 +91,13 @@ class Section:
 
     @property
     def min_wall(self) -> float:
+        if self.kind is SectionKind.CRUCIFORM:
+            return min(self.tf, self.tw, self.tf2, self.tw2)
         return min(self.tf, self.tw) if self.kind is SectionKind.I else self.t
 
     @property
     def max_dim(self) -> float:
-        return max(self.d, self.bf)
+        return max(self.d, self.bf, self.d2, self.bf2)
 
 
 @dataclass(frozen=True)
@@ -73,9 +107,13 @@ class Steel:
     E: float = E_STEEL
     nu: float = NU_STEEL
     name: str = ""
+    curve: tuple[tuple[float, float], ...] | None = None
+    """(stress, plastic strain) points of the constitutive law; None = bilinear."""
 
     def plastic_curve(self, hardening: float | None = None) -> list[tuple[float, float]]:
-        """Bilinear (stress, plastic strain) points; hardening slope E/1000 by default."""
+        """(stress, plastic strain) points; bilinear with slope E/1000 by default."""
+        if self.curve and hardening is None:
+            return [tuple(p) for p in self.curve]
         H = self.E / 1000 if hardening is None else hardening
         eps_u = 0.15
         return [(self.Fy, 0.0), (self.Fy + H * eps_u, eps_u)]
@@ -276,6 +314,7 @@ class BasePlateModel:
         return self.column_length or 2.5 * self.section.max_dim
 
     def validate(self) -> None:
+        self.section.check()
         r = self.anchor.washer / 2
         for a in self.anchors:
             if abs(a.x) + r > self.N / 2 or abs(a.y) + r > self.B / 2:

@@ -42,6 +42,7 @@ from openfemconex import __version__
 from openfemconex.checks import EDITIONS
 from openfemconex.gui.help import HelpDialog, about
 from openfemconex.gui.icons import app_icon, icon
+from openfemconex.gui.library import ColumnPanel, MaterialsDialog, SectionsDialog
 from openfemconex.gui.panels import (
     HAIRPIN_FIELDS,
     LUG_FIELDS,
@@ -144,12 +145,16 @@ class MainWindow(QMainWindow):
         self.stiffener_form = BlockForm(self.state, "stiffeners", "Rigidizadores",
                                         STIFFENER_FIELDS)
         additions = {"Anclajes": self.anchor_table}
+        self.column_panel = ColumnPanel(self.state)
         for name, fields in SECTIONS.items():
-            self.forms[name] = FormPanel(self.state, name, fields)
             page = QWidget()
             box = QVBoxLayout(page)
             box.setContentsMargins(0, 0, 0, 0)
-            box.addWidget(self.forms[name])
+            if name == "Columna":
+                box.addWidget(self.column_panel)
+            else:
+                self.forms[name] = FormPanel(self.state, name, fields)
+                box.addWidget(self.forms[name])
             if name in additions:
                 box.addWidget(additions[name], 1)
             scroll = QScrollArea()
@@ -289,6 +294,11 @@ class MainWindow(QMainWindow):
                           ("Refuerzo del pedestal", "rebar"), ("Rigidizadores", "stiffener"),
                           ("Llave de cortante", "lug")):
             g.add_button(name, icon(pic), lambda n=name: self.show_section(n))
+        g = tab("Biblioteca")
+        g.add_button("Perfiles", icon("sections"), self.edit_sections,
+                     "Perfiles W armados de placas, guardados con el proyecto")
+        g.add_button("Materiales", icon("materials"), self.edit_materials,
+                     "Aceros y grados de anclaje, con la ley constitutiva del modelo FEM")
         g = tab("Vista")
         g.add_button("Modelo", icon("view"), lambda: self.show_model(False))
         g.add_button("Malla", icon("mesh"), lambda: self.show_model(True))
@@ -444,7 +454,10 @@ class MainWindow(QMainWindow):
         geometry = QTreeWidgetItem(root, [tr("Geometría")])
         bp = st.data.get("base_plate", {})
         summary = {
-            "Columna": str(bp.get("column", "")),
+            "Columna": (tr("cruciforme {main} + {cross}", main=st.column_label(),
+                           cross=st.ext("column").get("cross", "?"))
+                        if (st.ext("column") or {}).get("type") == "cruciform"
+                        else st.column_label()),
             "Placa": " × ".join(str(bp.get(k, "?")) for k in ("N", "B", "tp")),
             "Anclajes": (f"{len(st.ext('anchors'))} {tr('por coordenadas')}" if st.ext("anchors")
                          else tr("{n} de {d}", n=2 * int(bp.get("rods_per_side", 2)),
@@ -565,6 +578,12 @@ class MainWindow(QMainWindow):
 
     def show_section(self, name: str) -> None:
         self.properties.setCurrentWidget(self.pages[name])
+
+    def edit_sections(self) -> None:
+        SectionsDialog(self.state, self).exec()
+
+    def edit_materials(self) -> None:
+        MaterialsDialog(self.state, self).exec()
 
     def show_analysis_settings(self) -> None:
         self.properties.setCurrentWidget(self.analysis_panel)

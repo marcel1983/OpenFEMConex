@@ -5,7 +5,7 @@ elastic-plastic material, anchors and concrete bearing as components.
 
 | Part | Model |
 |---|---|
-| Column, plate and stiffeners | C3D8I hexahedra, bilinear steel |
+| Column, plate and stiffeners | C3D8I hexahedra, bilinear steel or the law chosen in Materials |
 | Welds | Shared nodes (continuous joint) |
 | Concrete with grout | Elastic block, Ec = 4700 √f'c, fixed base |
 | Bearing | Surface-to-surface contact, no tension, friction μ |
@@ -40,6 +40,36 @@ The pedestal reinforcement is drawn inside the concrete (ties taking shear in
 orange), but it is not part of the FEM model: it enters only the checks.
 
 A file with these data opens only in OpenFEMConex.
+
+## Columns, built-up sections and materials
+
+**Cruciform column** (Geometry › Column, Type: Cruciform): a main W-shape and a
+second I-shape split along its web into two tees, welded to both faces of the main
+web. The flanges of the cross shape lie along the y axis and must fit between the
+flanges of the main shape (bf2 < d − 2 tf). Both shapes use the column steel. For
+cruciform columns the plate bending from the anchors in tension is taken about the
+nearest wall, stiffeners go in line with both webs, and the DG1 analytical path
+(which assumes a single shape) is not computed.
+
+**Built-up sections** (Geometry › Library › Sections): I-shapes made of three
+welded plates (d, bf, tf, tw), with a view of the section and its properties
+(A, I, S, Z, r, J). They are saved with the project and appear in the section
+lists of the column and of the cross shape. "Copy from catalog" starts from an
+AISC shape.
+
+**Materials** (Geometry › Library › Materials): steels of the AISC library and of
+the project (Fy, Fu, E and ν) and anchor rod grades (Fu, Fy, Fnt, Fnv). For each
+steel you choose the constitutive law of the finite element model, with a preview
+of the stress-strain curve:
+
+| Law | Curve |
+|---|---|
+| Bilinear | Yield at Fy and slope H (E/1000 when empty) up to the ultimate εp |
+| Elastic-perfectly plastic | Perfectly plastic at Fy |
+| Trilinear | Plateau at Fy up to the hardening εp, then straight to Fu at the ultimate εp |
+| Table | (stress, plastic strain) points starting at (Fy, 0) |
+
+The strengths of the AISC materials are fixed; their FEM law can be changed.
 
 ## Mesh
 

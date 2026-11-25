@@ -21,6 +21,10 @@ Free software under [AGPL-3.0-or-later](LICENSE).
   anchors in rows or at coordinates; welded plate washers; stiffeners (W shapes
   and tubes); shear lug; pedestal with reinforcement, 90° or 180° hooks and U
   hairpins.
+- **Columns and materials.** Cruciform columns (W-shape and cross shape split in
+  two tees); I-shapes built up from plates with an editor and their properties;
+  editor of steels and anchor rod grades with a bilinear, elastic-perfectly
+  plastic, trilinear or tabulated constitutive law and a preview of the curve.
 - **Loads.** P, V and M about both axes; ASCE 7 LRFD and ASD or custom
   combinations; net uplift.
 - **Checks**, each with its formula, values and clause:

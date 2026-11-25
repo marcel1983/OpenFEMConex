@@ -5,7 +5,7 @@ elástico-plástico, y los anclajes y el apoyo en concreto como componentes.
 
 | Parte | Modelo |
 |---|---|
-| Columna, placa y rigidizadores | Hexaedros C3D8I, acero bilineal |
+| Columna, placa y rigidizadores | Hexaedros C3D8I, acero bilineal o la ley elegida en Materiales |
 | Soldaduras | Nodos compartidos (unión continua) |
 | Concreto con mortero | Bloque elástico, Ec = 4700 √f'c, base empotrada |
 | Apoyo | Contacto superficie a superficie, sin tracción, con fricción μ |
@@ -42,6 +42,36 @@ cortante en naranja), pero no forma parte del modelo FEM: solo entra en las
 verificaciones.
 
 Un archivo con estos datos solo se abre en OpenFEMConex.
+
+## Columnas, perfiles armados y materiales
+
+**Columna cruciforme** (Geometría › Columna, Tipo: Cruciforme): un perfil W
+principal y un segundo perfil I cortado por el alma en dos T, soldadas a las dos
+caras del alma del principal. Los patines del perfil cruzado quedan a lo largo
+del eje y y deben caber entre los patines del principal (bf2 < d − 2 tf). Ambos
+perfiles usan el acero de la columna. En las cruciformes la flexión de la placa
+por los anclajes en tracción se toma respecto de la pared más cercana, los
+rigidizadores van en línea con las dos almas, y no se calcula el camino analítico
+de DG1 (que supone un perfil simple).
+
+**Perfiles armados** (Geometría › Biblioteca › Perfiles): perfiles I formados por
+tres placas soldadas (d, bf, tf, tw), con vista de la sección y sus propiedades
+(A, I, S, Z, r, J). Se guardan con el proyecto y aparecen en la lista de perfiles
+de la columna y del perfil cruzado. "Copiar del catálogo" parte de un perfil AISC.
+
+**Materiales** (Geometría › Biblioteca › Materiales): aceros de la biblioteca AISC
+y del proyecto (Fy, Fu, E y ν) y grados de anclaje (Fu, Fy, Fnt, Fnv). Para cada
+acero se elige la ley constitutiva del modelo de elementos finitos, con vista previa
+de la curva esfuerzo-deformación:
+
+| Ley | Curva |
+|---|---|
+| Bilineal | Fluencia en Fy y pendiente H (E/1000 si se deja vacío) hasta εp última |
+| Elastoplástica | Plástica perfecta en Fy |
+| Trilineal | Escalón en Fy hasta εp de endurecimiento, luego recta hasta Fu en εp última |
+| Tabla | Puntos (esfuerzo, deformación plástica) que empiezan en (Fy, 0) |
+
+Las resistencias de los materiales AISC son fijas; su ley FEM sí se puede cambiar.
 
 ## Malla
 

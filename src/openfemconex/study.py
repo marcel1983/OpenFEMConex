@@ -81,7 +81,8 @@ class Study:
                     cancel=cancel)
         bp = self.project.base_plate_model()
         reference: dict[str, float] = {}
-        free = bool(self.extras.anchors)
+        # free anchors or a cruciform column: the DG1 rigid-plate path does not apply
+        free = bool(self.extras.anchors) or self.extras.cross is not None
         if not (free or loads.Mx or loads.Vx or loads.Vy):
             ref = dg1_bending(bp, loads, combo.method)
             if ref.case != "not_possible":
@@ -100,12 +101,20 @@ class Study:
                         self.extras)
         return ComboReport(res, combo.method.value, checks, analytical, reference, advice)
 
+    def column_text(self) -> str:
+        col = self.project.base_plate_model().column
+        cross = self.extras.cross
+        if cross is not None:
+            return tr("cruciforme {main} + {cross} ({grade})", main=col.name, cross=cross.name,
+                      grade=col.grade)
+        return f"{col.name} ({col.grade})"
+
     def inputs(self, model: BasePlateModel, mesh: Mesh | None = None) -> list[tuple[str, str]]:
         bp = self.project.base_plate_model()
         u = self.project.info.unit_system()
         cracked = tr("fisurado") if bp.cracked else tr("no fisurado")
         rows = [
-            (tr("Columna"), f"{bp.column.name} ({bp.column.grade})"),
+            (tr("Columna"), self.column_text()),
             (tr("Placa"), f"{fmt(bp.N, Kind.LENGTH, u)} × {fmt(bp.B, Kind.LENGTH, u)} × "
                           f"{fmt(bp.tp, Kind.THICKNESS, u)} ({bp.plate_grade})"),
             (tr("Anclajes"), tr("{n} de {d} ({grade}), hef = {hef}", n=bp.rods,

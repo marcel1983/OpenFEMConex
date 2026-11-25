@@ -36,6 +36,33 @@ def _column(p: QPainter) -> None:
     p.drawRect(QRectF(28, 19, 8, 26))
 
 
+def _sections(p: QPainter) -> None:
+    """Built-up I-shape: three plates with weld marks."""
+    p.setPen(_pen(STEEL, 2))
+    p.setBrush(QColor("#c9d6e8"))
+    p.drawRect(QRectF(10, 8, 44, 8))
+    p.drawRect(QRectF(10, 48, 44, 8))
+    p.drawRect(QRectF(28, 16, 8, 32))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(ACCENT)
+    for x, y, dx, dy in ((28, 16, -4, 4), (36, 16, 4, 4), (28, 48, -4, -4), (36, 48, 4, -4)):
+        p.drawPolygon(_poly((x, y), (x + dx, y), (x, y + dy)))
+
+
+def _materials(p: QPainter) -> None:
+    """Stress-strain curve on axes."""
+    p.setPen(_pen(QColor("#6b7075"), 3))
+    p.drawLine(QPointF(10, 54), QPointF(56, 54))
+    p.drawLine(QPointF(10, 54), QPointF(10, 8))
+    p.setPen(_pen(ACCENT, 4))
+    path = QPainterPath(QPointF(10, 54))
+    path.lineTo(QPointF(18, 26))
+    path.lineTo(QPointF(28, 26))
+    path.quadTo(QPointF(40, 12), QPointF(54, 14))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPath(path)
+
+
 def _plate(p: QPainter) -> None:
     p.setPen(_pen(STEEL, 3))
     p.setBrush(QColor("#c9d6e8"))
@@ -257,7 +284,7 @@ _PAINTERS: dict[str, Callable[[QPainter], None]] = {
     "load": _load, "combo": _combo, "mesh": _mesh, "play": _play,
     "stop": _stop, "results": _results, "check": _check, "table": _table, "report": _report,
     "help": _help, "info": _info, "new": _new, "open": _open, "save": _save,
-    "browser": _browser, "pdf": _pdf, "view": _view,
+    "browser": _browser, "sections": _sections, "materials": _materials, "pdf": _pdf, "view": _view,
 }
 
 

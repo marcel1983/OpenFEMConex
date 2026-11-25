@@ -96,6 +96,11 @@ def _section_surfaces(occ, model: BasePlateModel) -> list[tuple[int, int]]:
         ptags = [occ.addPoint(x0 + x, y0 + y, 0) for x, y in pts]
         lines = [occ.addLine(ptags[i], ptags[(i + 1) % len(ptags)]) for i in range(len(ptags))]
         return [(2, occ.addPlaneSurface([occ.addCurveLoop(lines)]))]
+    if s.kind is SectionKind.CRUCIFORM:
+        rects = [(2, occ.addRectangle(x0 + a, y0 + b, 0, c - a, e - b))
+                 for a, b, c, e in s.boxes()]
+        fused, _ = occ.fuse(rects[:1], rects[1:])
+        return fused
     if s.kind is SectionKind.HSS_RECT:
         outer = occ.addRectangle(x0 - s.d / 2, y0 - s.bf / 2, 0, s.d, s.bf)
         inner = occ.addRectangle(x0 - s.d / 2 + s.t, y0 - s.bf / 2 + s.t, 0,

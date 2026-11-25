@@ -10,7 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from openconex.io.project import FORMAT_VERSION, Project
+from openconex.core.materials import BOLTS, STEELS
+from openconex.io.project import FORMAT_VERSION, Project, WSectionInput
 from PySide6.QtCore import QObject, Signal
 
 from openfemconex.extras import KEY, Extras, parse_extras, split_data
@@ -126,6 +127,107 @@ class ProjectState(QObject):
             ext[block] = copy.deepcopy(value)
         if not ext:
             del self.data[KEY]
+        self._touch()
+
+    # ---------------------------------------------------------------- libraries
+    def steel_names(self) -> list[str]:
+        """Built-in steels and the ones defined in the project."""
+        return list(STEELS) + [m["name"] for m in self.data.get("materials", [])
+                               if m.get("name") not in STEELS]
+
+    def rod_names(self) -> list[str]:
+        own = [b["name"] for b in self.data.get("bolts", []) if b.get("name") not in BOLTS]
+        return [n for n in BOLTS if "F1554" in n] + own
+
+    def custom_sections(self) -> dict[str, dict[str, Any]]:
+        """Custom W-shapes of the project by label."""
+        out = {}
+        for sec in self.data.get("sections", []):
+            if sec.get("type") == "W":
+                try:
+                    out[WSectionInput.model_validate(sec).label()] = sec
+                except Exception:  # an invalid entry is reported by the validation
+                    continue
+        return out
+
+    def column_label(self) -> str:
+        col = self.get("base_plate", "column", "")
+        if isinstance(col, dict):
+            try:
+                return WSectionInput.model_validate(col).label()
+            except Exception:
+                return str(col.get("name", ""))
+        return str(col)
+
+    def column_grade(self) -> str:
+        col = self.get("base_plate", "column", "")
+        if isinstance(col, dict):
+            return str(col.get("grade", ""))
+        return str(self.get("base_plate", "column_grade", "ASTM A992"))
+
+    def set_column(self, label: str, grade: str | None = None) -> None:
+        """Column by label: a custom section of the project or the AISC catalog."""
+        grade = grade or self.column_grade()
+        custom = self.custom_sections().get(label)
+        bp = self.data.setdefault("base_plate", {})
+        if custom is not None:
+            bp["column"] = {**copy.deepcopy(custom), "grade": grade}
+        else:
+            bp["column"] = label
+            bp["column_grade"] = grade
+        self._touch()
+
+    def set_library(self, materials: list[dict[str, Any]], laws: dict[str, Any],
+                    bolts: list[dict[str, Any]], renames: dict[str, str]) -> None:
+        """Replace the project steels, their FEM laws and the rod grades.
+
+        ``renames`` maps old to new material names; references follow the new name.
+        """
+        self._rename_grades(renames)
+        for key, value in (("materials", materials), ("bolts", bolts)):
+            if value:
+                self.data[key] = copy.deepcopy(value)
+            else:
+                self.data.pop(key, None)
+        ext = self.data.setdefault(KEY, {})
+        if laws:
+            ext["materials"] = copy.deepcopy(laws)
+        else:
+            ext.pop("materials", None)
+        if not ext:
+            del self.data[KEY]
+        self._touch()
+
+    def _rename_grades(self, renames: dict[str, str]) -> None:
+        if not renames:
+            return
+        bp = self.data.get("base_plate", {})
+        blocks = [bp, bp.get("shear_lug") or {}, self.data.get(KEY, {}).get("stiffeners") or {}]
+        if isinstance(bp.get("column"), dict):
+            blocks.append(bp["column"])
+        blocks += self.data.get("sections", [])
+        for block in blocks:
+            for key in ("grade", "column_grade", "plate_grade", "rod_grade"):
+                if block.get(key) in renames:
+                    block[key] = renames[block[key]]
+
+    def set_sections(self, sections: list[dict[str, Any]], renames: dict[str, str],
+                     use: str | None = None) -> None:
+        """Replace the custom sections; ``use`` makes one of them the column."""
+        if sections:
+            self.data["sections"] = copy.deepcopy(sections)
+        else:
+            self.data.pop("sections", None)
+        labels = {WSectionInput.model_validate(s).label(): s for s in sections
+                  if s.get("type") == "W"}
+        bp = self.data.setdefault("base_plate", {})
+        current = self.column_label()
+        target = use or renames.get(current, current)
+        if target in labels and (use or isinstance(bp.get("column"), dict)):
+            bp["column"] = copy.deepcopy(labels[target])
+        cross = (self.data.get(KEY) or {}).get("column")
+        if cross and cross.get("cross") in renames:
+            cross["cross"] = renames[cross["cross"]]
         self._touch()
 
     def set_cases(self, cases: list[dict[str, Any]]) -> None:

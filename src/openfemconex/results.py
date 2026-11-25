@@ -131,6 +131,17 @@ def weld_forces(model: BasePlateModel, mesh: Mesh, stress_ids: np.ndarray,
         wall[:] = "pipe"
         station = np.arctan2(xy[:, 1], xy[:, 0]) * r
         thick[:] = s.t
+    elif s.kind is SectionKind.CRUCIFORM:
+        for i, (x, y) in enumerate(xy):
+            sx, sy = "+" if x >= 0 else "-", "+" if y >= 0 else "-"
+            if abs(x) > s.d / 2 - s.tf:
+                wall[i], station[i], thick[i] = "flange" + sx, y, s.tf
+            elif abs(y) > s.d2 / 2 - s.tf2:
+                wall[i], station[i], thick[i] = "cross_flange" + sy, x, s.tf2
+            elif abs(y) <= s.tw / 2:
+                wall[i], station[i], thick[i] = "web", x, s.tw
+            else:
+                wall[i], station[i], thick[i] = "cross_web" + sy, y, s.tw2
     else:
         tf = s.tf if s.kind is SectionKind.I else s.t
         tw = s.tw if s.kind is SectionKind.I else s.t

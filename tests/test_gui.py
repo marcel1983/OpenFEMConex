@@ -62,7 +62,7 @@ def test_open_save_roundtrip(window, tmp_path):
     window.open_project(str(EXAMPLE))
     st = window.state
     assert st.valid and st.get("base_plate", "column") == "W12X96"
-    assert window.forms["Columna"].widgets["column"].currentText() == "W12X96"
+    assert window.column_panel.shape.currentText() == "W12X96"
     assert window.loads.cases.rowCount() == 2
     target = tmp_path / "copia.ocnx"
     st.set("base_plate", "tp", "2.5 in")
@@ -205,3 +205,57 @@ def test_shear_lug_form_and_anchor_force_table(window):
     headers = [window.anchor_forces.horizontalHeaderItem(i).text()
                for i in range(window.anchor_forces.columnCount())]
     assert headers[4:8] == ["Axial", "Cortante Vx", "Cortante Vy", "Cortante total"]
+
+
+def test_cruciform_column_from_the_panel(window):
+    panel = window.column_panel
+    st = window.state
+    panel.cross.setCurrentText("W10X49")
+    panel.kind.setCurrentIndex(1)
+    panel._commit_kind()
+    assert st.ext("column") == {"type": "cruciform", "cross": "W10X49"}
+    assert st.valid, st.error
+    assert st.model.section.kind.value == "CRUCIFORM"
+    assert "W10X49" in panel.preview.section.name
+    panel.kind.setCurrentIndex(0)
+    panel._commit_kind()
+    assert st.ext("column") is None
+
+
+def test_built_up_section_becomes_the_column(window):
+    from openfemconex.gui.library import SectionsDialog
+
+    dialog = SectionsDialog(window.state, window)
+    dialog._new()
+    dialog.edits["d"].setText("300 mm")
+    dialog.edits["d"].editingFinished.emit()
+    assert "A" in dialog.props.text()
+    dialog._use()
+    st = window.state
+    assert isinstance(st.get("base_plate", "column"), dict)
+    assert st.valid, st.error
+    assert st.model.section.d == pytest.approx(300.0)
+    assert window.column_panel.shape.currentText() == st.column_label()
+
+
+def test_material_editor_law_and_rename(window):
+    from openfemconex.gui.library import MaterialsDialog
+
+    st = window.state
+    dialog = MaterialsDialog(st, window)
+    dialog._new_steel()
+    dialog.steel_edits["Fy"].setText("300 MPa")
+    dialog.steel_edits["Fy"].editingFinished.emit()
+    dialog.law.setCurrentIndex(dialog.law.findData("trilineal"))
+    dialog._steel_edited()
+    assert len(dialog.curve.points) == 5
+    dialog.steel_edits["name"].setText("Mi acero")
+    dialog.steel_edits["name"].editingFinished.emit()
+    dialog._accept()
+    assert st.data["materials"][0]["name"] == "Mi acero"
+    assert st.data["openfemconex"]["materials"]["Mi acero"]["law"] == "trilineal"
+    st.set("base_plate", "plate_grade", "Mi acero")
+    assert st.valid, st.error
+    assert st.model.plate_steel.plastic_curve()[1] == (300.0, 0.015)
+    assert "Mi acero" in [window.forms["Placa"].widgets["plate_grade"].itemText(i)
+                          for i in range(window.forms["Placa"].widgets["plate_grade"].count())]

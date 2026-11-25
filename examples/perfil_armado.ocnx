@@ -1,0 +1,54 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Perfil armado de placas",
+    "number": "OFC-0011",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-25",
+    "language": "es",
+    "units": "SI_kN_m"
+  },
+  "materials": [
+    {"name": "A572 Gr. 50 con escalón de fluencia", "Fy": "345 MPa", "Fu": "450 MPa",
+     "E": "200000 MPa"}
+  ],
+  "sections": [
+    {"type": "W", "name": "PL 450×300×22×12", "d": "450 mm", "bf": "300 mm", "tf": "22 mm",
+     "tw": "12 mm", "grade": "A572 Gr. 50 con escalón de fluencia"}
+  ],
+  "base_plate": {
+    "column": {"type": "W", "name": "PL 450×300×22×12", "d": "450 mm", "bf": "300 mm",
+               "tf": "22 mm", "tw": "12 mm", "grade": "A572 Gr. 50 con escalón de fluencia"},
+    "N": "700 mm",
+    "B": "500 mm",
+    "tp": "38 mm",
+    "plate_grade": "ASTM A36",
+    "fc": "28 MPa",
+    "A2_over_A1": 1.0,
+    "grout": "40 mm",
+    "rod_diameter": "1.5 in",
+    "rod_grade": "ASTM F1554 Gr. 36",
+    "rods_per_side": 2,
+    "f": "285 mm",
+    "rod_spacing": "340 mm",
+    "hef": "450 mm",
+    "cracked": true,
+    "flange_weld": "10 mm"
+  },
+  "cases": [
+    {"name": "D", "type": "D", "P": "500 kN", "M": "150 kN*m"},
+    {"name": "L", "type": "L", "P": "700 kN", "M": "200 kN*m"}
+  ],
+  "combinations": {"methods": ["LRFD"]},
+  "openfemconex": {
+    "materials": {
+      "A572 Gr. 50 con escalón de fluencia": {"law": "trilineal", "nu": 0.3, "eps_sh": 0.015,
+                                              "eps_u": 0.15},
+      "ASTM A36": {"law": "tabla", "nu": 0.3,
+                   "table": [["250 MPa", 0.0], ["250 MPa", 0.012], ["330 MPa", 0.05],
+                             ["400 MPa", 0.15]]}
+    }
+  }
+}

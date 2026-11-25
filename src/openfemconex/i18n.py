@@ -204,6 +204,168 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    'A = {a}; Mp eje fuerte = {mpy}; Mp eje débil = {mpx}':
+        'A = {a}; strong-axis Mp = {mpy}; weak-axis Mp = {mpx}',
+    'Acero nuevo':
+        'New steel',
+    'Aceros':
+        'Steels',
+    'Copiar del catálogo':
+        'Copy from catalog',
+    'Corrija el grado {name}: falta o no es válido {error}':
+        'Fix the grade {name}: {error} is missing or not valid',
+    'Corrija el material {name}: {error}':
+        'Fix the material {name}: {error}',
+    'Corrija el perfil {name}: {error}':
+        'Fix the section {name}: {error}',
+    'Crea un perfil armado con las dimensiones de un perfil AISC':
+        'Creates a built-up section with the dimensions of an AISC shape',
+    'Cruciforme (perfil W + perfil cruzado en dos T)':
+        'Cruciform (W-shape + cross shape split in two tees)',
+    'Cruciforme: un segundo perfil I cortado por el alma y soldado a las dos caras del alma del principal; sus patines quedan a lo largo del eje y':  # noqa: E501
+        'Cruciform: a second I-shape split along its web and welded to both faces of the main web; its flanges lie along the y axis',  # noqa: E501
+    'El acero {name} está en uso en el proyecto.':
+        'The steel {name} is used in the project.',
+    'El grado {name} está en uso en el proyecto.':
+        'The grade {name} is used in the project.',
+    'El perfil es la columna del proyecto: elija otra columna antes de eliminarlo.':
+        'This section is the column of the project: choose another column before deleting it.',
+    'En el modelo de elementos finitos los anclajes son resortes elásticos que solo trabajan a tracción (y a compresión con tuercas de nivelación); sus resistencias se usan en las verificaciones de AISC y ACI.':  # noqa: E501
+        'In the finite element model the anchors are elastic springs that only work in tension (and in compression with leveling nuts); their strengths are used in the AISC and ACI checks.',  # noqa: E501
+    'Esfuerzo':
+        'Stress',
+    'Fu debe ser al menos Fy':
+        'Fu must be at least Fy',
+    'Fy, Fu y E deben ser positivos':
+        'Fy, Fu and E must be positive',
+    'Grado de la biblioteca AISC (Tabla J3.2), solo lectura.':
+        'Grade of the AISC library (Table J3.2), read only.',
+    'Grado del proyecto.':
+        'Grade of the project.',
+    'Grado nuevo':
+        'New grade',
+    'Hay perfiles con el mismo nombre.':
+        'Several sections have the same name.',
+    'Ley constitutiva (FEM)':
+        'Constitutive law (FEM)',
+    'Material de la biblioteca AISC: sus resistencias son fijas; la ley del modelo de elementos finitos sí se puede cambiar.':  # noqa: E501
+        'Material of the AISC library: its strengths are fixed, but its law in the finite element model can be changed.',  # noqa: E501
+    'Material del proyecto: todas sus propiedades se pueden editar.':
+        'Material of the project: all its properties can be edited.',
+    'Materiales':
+        'Materials',
+    'Materiales…':
+        'Materials…',
+    'Módulo de endurecimiento H':
+        'Hardening modulus H',
+    'Perfil':
+        'Section',
+    'Perfil I del catálogo o armado; sus patines deben caber entre los patines del perfil principal':  # noqa: E501
+        'I-shape from the catalog or built-up; its flanges must fit between the flanges of the main shape',  # noqa: E501
+    'Perfil armado':
+        'Built-up section',
+    'Perfil cruzado':
+        'Cross shape',
+    'Perfil simple':
+        'Single shape',
+    'Perfiles I doblemente simétricos formados por tres placas soldadas, sin radios de acuerdo. Se guardan con el proyecto y aparecen en la lista de perfiles de la columna y del perfil cruzado de una cruciforme.':  # noqa: E501
+        'Doubly symmetric I-shapes made of three welded plates, without fillets. They are saved with the project and appear in the section lists of the column and of the cross shape of a cruciform.',  # noqa: E501
+    'Perfiles armados':
+        'Built-up sections',
+    'Perfiles armados…':
+        'Built-up sections…',
+    'Perfiles del proyecto':
+        'Sections of the project',
+    'Puntos (esfuerzo verdadero, deformación plástica); el primero es la fluencia con deformación plástica 0':  # noqa: E501
+        'Points (true stress, plastic strain); the first one is the yield point with plastic strain 0',  # noqa: E501
+    'Usar como columna':
+        'Use as column',
+    'W, M, S, HP, HSS y Pipe del catálogo AISC, o un perfil armado del proyecto':
+        'W, M, S, HP, HSS and Pipe of the AISC catalog, or a built-up section of the project',
+    'armado':
+        'built-up',
+    'biblioteca':
+        'library',
+    'copia':
+        'copy',
+    'deformación unitaria total':
+        'total strain',
+    'eje x: fuerte (a lo largo de d)':
+        'x axis: strong (along d)',
+    'el alma es más gruesa que el ancho del patín':
+        'the web is thicker than the flange width',
+    'esfuerzo':
+        'stress',
+    'las dimensiones deben ser positivas':
+        'the dimensions must be positive',
+    'los patines son más gruesos que el peralte':
+        'the flanges are thicker than the depth',
+    'sin curva':
+        'no curve',
+    'sin sección':
+        'no section',
+    'εp al final del escalón de fluencia':
+        'εp at the end of the yield plateau',
+    'εp última (en Fu para la trilineal)':
+        'ultimate εp (at Fu for the trilinear law)',
+    'ν, coeficiente de Poisson':
+        "ν, Poisson's ratio",
+    'cruciforme {main} + {cross}':
+        'cruciform {main} + {cross}',
+    'cruciforme {main} + {cross} ({grade})':
+        'cruciform {main} + {cross} ({grade})',
+    'Nombre':
+        'Name',
+    'Peralte d':
+        'Depth d',
+    'Ancho de patín bf':
+        'Flange width bf',
+    'Espesor de patín tf':
+        'Flange thickness tf',
+    'Espesor de alma tw':
+        'Web thickness tw',
+    'Distancia k de diseño (opcional)':
+        'Design distance k (optional)',
+    'Fy, fluencia mínima':
+        'Fy, minimum yield stress',
+    'Fu, resistencia a tracción':
+        'Fu, tensile strength',
+    'E, módulo de elasticidad':
+        'E, modulus of elasticity',
+    'Fy, fluencia (opcional)':
+        'Fy, yield stress (optional)',
+    'Fnt, tracción nominal':
+        'Fnt, nominal tensile stress',
+    'Fnv, cortante con rosca en el plano':
+        'Fnv, shear stress, threads included',
+    'Fnv, cortante sin rosca en el plano':
+        'Fnv, shear stress, threads excluded',
+    'Bilineal (endurecimiento lineal)':
+        'Bilinear (linear hardening)',
+    'Elastoplástica perfecta':
+        'Elastic-perfectly plastic',
+    'Trilineal (escalón de fluencia y endurecimiento hasta Fu)':
+        'Trilinear (yield plateau and hardening up to Fu)',
+    'Tabla de puntos':
+        'Table of points',
+    'Biblioteca':
+        'Library',
+    'Perfiles':
+        'Sections',
+    'Perfiles W armados de placas, guardados con el proyecto':
+        'W-shapes built up from plates, saved with the project',
+    'Aceros y grados de anclaje, con la ley constitutiva del modelo FEM':
+        'Steels and anchor rod grades, with the constitutive law of the FEM model',
+    'Duplicar':
+        'Duplicate',
+    'Eliminar':
+        'Delete',
+    'Agregar punto':
+        'Add point',
+    'Quitar punto':
+        'Remove point',
+    'Perfiles W: en línea con el alma o tres por patín. Cruciformes: en línea con las dos almas. Tubos: radial':  # noqa: E501
+        'W-shapes: in line with the web or three per flange. Cruciform: in line with both webs. Tubes: radial',  # noqa: E501
     'Aumentar el diámetro del anclaje a {d} ({grade}).':
         'Increase the anchor diameter to {d} ({grade}).',
     'O usar un grado más resistente con el mismo diámetro: {grade}.':

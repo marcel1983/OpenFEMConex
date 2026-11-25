@@ -19,7 +19,7 @@ from openconex.core.model import HSSKind, HSSShape, IShape
 from openconex.io.project import Project
 from openconex.units import Kind, from_internal, to_internal
 
-from openfemconex.extras import Extras, StiffenerSpec, load_extended
+from openfemconex.extras import CrossShape, Extras, StiffenerSpec, load_extended
 from openfemconex.model import (
     Anchor,
     AnchorSpec,
@@ -39,7 +39,13 @@ __all__ = ["dg1_bending", "loads_from_forces", "model_from_base_plate", "model_f
            "project_loads", "section_of"]
 
 
-def section_of(column: IShape | HSSShape) -> Section:
+def section_of(column: IShape | HSSShape, cross: CrossShape | None = None) -> Section:
+    if cross is not None:
+        if not isinstance(column, IShape):
+            raise ValueError("una columna cruciforme necesita un perfil I como principal")
+        return Section(SectionKind.CRUCIFORM, d=column.d, bf=column.bf, tf=column.tf,
+                       tw=column.tw, name=f"{column.name} + {cross.name}", d2=cross.d,
+                       bf2=cross.bf, tf2=cross.tf, tw2=cross.tw)
     if isinstance(column, IShape):
         return Section(SectionKind.I, d=column.d, bf=column.bf, tf=column.tf, tw=column.tw,
                        name=column.name)
@@ -65,6 +71,14 @@ def stiffeners_of(section: Section, spec: StiffenerSpec) -> tuple[Stiffener, ...
             d = (math.cos(a), math.sin(a))
             out.append(make((r * d[0], r * d[1]), d, section.t / 2))
         return tuple(out)
+    if section.kind is SectionKind.CRUCIFORM:
+        if spec.layout != "alma":
+            raise ValueError("en columnas cruciformes los rigidizadores van en línea con las "
+                             "almas (disposición 'alma')")
+        return tuple([make((sign * section.d / 2, 0.0), (sign, 0.0), section.tf / 2)
+                      for sign in (-1.0, 1.0)]
+                     + [make((0.0, sign * section.d2 / 2), (0.0, sign), section.tf2 / 2)
+                        for sign in (-1.0, 1.0)])
     if section.kind is not SectionKind.I:
         raise ValueError(f"la disposición '{spec.layout}' es para perfiles W; en tubos "
                          "circulares use 'radial'")
@@ -74,6 +88,13 @@ def stiffeners_of(section: Section, spec: StiffenerSpec) -> tuple[Stiffener, ...
         ys = [-edge, 0.0, edge]
     return tuple(make((sign * section.d / 2, y), (sign, 0.0), section.tf / 2)
                  for sign in (-1.0, 1.0) for y in ys)
+
+
+def steel_of(bp: BasePlate, grade: str, extras: Extras) -> Steel:
+    """FEM steel of a grade of the project library, with its constitutive law."""
+    m = bp.materials[grade]
+    law = extras.law(grade)
+    return Steel(m.Fy, m.Fu, E=m.E, nu=law.nu, name=grade, curve=law.curve(m.Fy, m.Fu, m.E))
 
 
 def _rod_positions(bp: BasePlate) -> list[tuple[float, float]]:
@@ -97,8 +118,8 @@ def _hole_and_washer(diameter: float) -> tuple[float, float]:
 def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
                           leveling_nuts: bool = False, grout: float = 0.0,
                           title: str = "", extras: Extras | None = None) -> BasePlateModel:
+    extras = extras or Extras()
     col = bp.column
-    plate = bp.materials[bp.plate_grade]
     hole, washer = _hole_and_washer(bp.rod.diameter)
     # Concrete block: the pedestal when given, otherwise the plate scaled so that
     # A2/A1 matches the project (capped at the AISC limit of 4).
@@ -111,23 +132,22 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
     anchor = AnchorSpec(diameter=bp.rod.diameter, hole=hole, washer=washer, hef=hef,
                         Fu=bp.rod.material.Fu, leveling_nuts=leveling_nuts,
                         welded_washers=bp.washer_thickness is not None)
-    positions = extras.anchors if extras and extras.anchors else _rod_positions(bp)
-    section = section_of(col)
+    positions = extras.anchors if extras.anchors else _rod_positions(bp)
+    section = section_of(col, extras.cross)
     stiffeners, stiffener_steel = (), None
-    if extras and extras.stiffeners:
+    if extras.stiffeners:
         stiffeners = stiffeners_of(section, extras.stiffeners)
-        grade = bp.materials[extras.stiffeners.grade]
-        stiffener_steel = Steel(grade.Fy, grade.Fu, name=extras.stiffeners.grade)
+        stiffener_steel = steel_of(bp, extras.stiffeners.grade, extras)
     return BasePlateModel(
         section=section, stiffeners=stiffeners, stiffener_steel=stiffener_steel,
-        hairpins=extras.hairpins if extras else None,
-        rebar=(extras.pedestal if extras and extras.pedestal and bp.pedestal_N
+        hairpins=extras.hairpins,
+        rebar=(extras.pedestal if extras.pedestal and bp.pedestal_N
                and bp.pedestal_B else None),
         lug=(ShearLug(bp.shear_lug.width, bp.shear_lug.thickness, bp.shear_lug.embedment,
                       bp.shear_lug.direction) if bp.shear_lug else None),
-        column_steel=Steel(col.material.Fy, col.material.Fu, name=col.grade),
+        column_steel=steel_of(bp, col.grade, extras),
         N=bp.N, B=bp.B, tp=bp.tp,
-        plate_steel=Steel(plate.Fy, plate.Fu, name=bp.plate_grade),
+        plate_steel=steel_of(bp, bp.plate_grade, extras),
         anchors=tuple(Anchor(x, y) for x, y in positions),
         anchor=anchor, concrete=concrete,
         # the same friction coefficient as the friction check of the project

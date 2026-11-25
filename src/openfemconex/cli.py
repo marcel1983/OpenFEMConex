@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
 
     set_language(project.info.language)
     model = model_of(project, leveling_nuts=args.leveling_nuts, mu=args.mu, extras=extras)
-    free = bool(extras.anchors)
+    free = bool(extras.anchors) or extras.cross is not None
     combos = project_loads(project)
     us = project.info.units == "US"
     if args.list:
@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         status |= 0 if res.converged and all(r.status.value != "ng" for r in checks) else 1
     if reports:
         inputs = [
-            ("Columna", f"{bp.column.name} ({bp.column.grade})"),
+            ("Columna", model.section.name + f" ({bp.column.grade})"),
             ("Placa", f"{fmt(bp.N, Kind.LENGTH, units)} × {fmt(bp.B, Kind.LENGTH, units)} × "
                       f"{fmt(bp.tp, Kind.THICKNESS, units)} ({bp.plate_grade})"),
             ("Anclajes", f"{bp.rods} de {fmt(bp.rod.diameter, Kind.LENGTH, units)} "

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from openconex.core.loads import LoadType
-from openconex.core.materials import BOLTS, STEELS
+from openconex.core.materials import BOLTS
 from openconex.core.shapes import aisc_shapes
 from openconex.units import PRESETS, Kind, format_value
 from PySide6.QtCore import Qt, Signal
@@ -60,17 +60,17 @@ ROD_GRADES = tuple(n for n in BOLTS if "F1554" in n)
 SECTIONS: dict[str, list[Field]] = {
     "Columna": [
         Field("column", "Perfil AISC", "choice", tip="W, M, S, HP, HSS y Pipe del catálogo AISC"),
-        Field("column_grade", "Acero", "choice", tuple(STEELS)),
+        Field("column_grade", "Acero", "steel"),
     ],
     "Placa": [
         Field("N", "Largo N (dirección del peralte)"),
         Field("B", "Ancho B"),
         Field("tp", "Espesor tp"),
-        Field("plate_grade", "Acero", "choice", tuple(STEELS)),
+        Field("plate_grade", "Acero", "steel"),
     ],
     "Anclajes": [
         Field("rod_diameter", "Diámetro"),
-        Field("rod_grade", "Grado", "choice", ROD_GRADES),
+        Field("rod_grade", "Grado", "rod"),
         Field("rods_per_side", "Anclajes por lado", "int"),
         Field("f", "Distancia f del eje a cada fila"),
         Field("rod_spacing", "Separación entre los extremos de la fila"),
@@ -115,10 +115,32 @@ class FormPanel(QWidget):
             self.widgets[field.key] = widget
             form.addRow(tr(field.label), widget)
         state.loaded.connect(self.refresh)
+        state.changed.connect(self.update_choices)
         self.refresh()
 
+    def _choices(self, f: Field) -> list[str]:
+        if f.kind == "steel":
+            return self.state.steel_names()
+        if f.kind == "rod":
+            return self.state.rod_names()
+        return list(f.options)
+
+    def update_choices(self) -> None:
+        """Refill the material lists, which follow the project library."""
+        for f in self.fields:
+            if f.kind in ("steel", "rod"):
+                box = self.widgets[f.key]
+                names = self._choices(f)
+                if [box.itemText(i) for i in range(box.count())] != names:
+                    current = box.currentText()
+                    box.blockSignals(True)
+                    box.clear()
+                    box.addItems(names)
+                    box.setCurrentIndex(max(0, box.findText(current)))
+                    box.blockSignals(False)
+
     def _make(self, f: Field) -> QWidget:
-        if f.kind == "choice":
+        if f.kind in ("choice", "steel", "rod"):
             box = QComboBox()
             if f.key == "column":
                 box.setEditable(True)
@@ -128,7 +150,7 @@ class FormPanel(QWidget):
                 completer.setFilterMode(Qt.MatchFlag.MatchContains)
                 completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
             else:
-                box.addItems(f.options)
+                box.addItems(self._choices(f))
             box.textActivated.connect(lambda text, f=f: self._commit(f, text))
             return box
         if f.kind == "bool":
@@ -163,6 +185,7 @@ class FormPanel(QWidget):
                         "rod_grade": "ASTM F1554 Gr. 36", "rods_per_side": 2, "A2_over_A1": 1.0,
                         "cracked": True, "friction_mu": 0.4, "electrode": "E70XX",
                         "grout": "1.5 in"}
+            self.update_choices()
             for f in self.fields:
                 value = self.state.get(f.section, f.key, defaults.get(f.key, ""))
                 w = self.widgets[f.key]
@@ -421,9 +444,9 @@ class BlockForm(QWidget):
         layout.addLayout(form)
         for f in fields:
             w: QWidget
-            if f.kind == "choice":
+            if f.kind in ("choice", "steel"):
                 w = QComboBox()
-                for option in f.options:
+                for option in (state.steel_names() if f.kind == "steel" else f.options):
                     w.addItem(tr(option), option)
                 w.textActivated.connect(self._commit)
             elif f.kind == "int":
@@ -440,7 +463,23 @@ class BlockForm(QWidget):
             self.widgets[f.key] = w
             form.addRow(tr(f.label), w)
         state.loaded.connect(self.refresh)
+        state.changed.connect(self._update_choices)
         self.refresh()
+
+    def _update_choices(self) -> None:
+        for f in self.fields:
+            if f.kind != "steel":
+                continue
+            box = self.widgets[f.key]
+            names = self.state.steel_names()
+            if [box.itemData(i) for i in range(box.count())] != names:
+                current = box.currentData()
+                box.blockSignals(True)
+                box.clear()
+                for name in names:
+                    box.addItem(name, name)
+                box.setCurrentIndex(max(0, box.findData(current)))
+                box.blockSignals(False)
 
     def values(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
@@ -521,7 +560,7 @@ LUG_FIELDS = [
     BlockField("embedment", "Empotramiento bajo el mortero", "75 mm"),
     BlockField("thickness", "Espesor", "32 mm"),
     BlockField("weld", "Filete a la placa (ambas caras)", "8 mm"),
-    BlockField("grade", "Acero", "ASTM A36", "choice", tuple(STEELS)),
+    BlockField("grade", "Acero", "ASTM A36", "steel"),
 ]
 
 HAIRPIN_FIELDS = [
@@ -536,13 +575,14 @@ HAIRPIN_FIELDS = [
 
 STIFFENER_FIELDS = [
     BlockField("layout", "Disposición", "alma", "choice", ("alma", "alma y bordes", "radial"),
-               tip="Perfiles W: en línea con el alma o tres por patín. Tubos: radial"),
+               tip="Perfiles W: en línea con el alma o tres por patín. Cruciformes: en línea "
+                   "con las dos almas. Tubos: radial"),
     BlockField("count", "Cantidad (radial)", 8, "int"),
     BlockField("length", "Largo desde la cara de la columna", "120 mm"),
     BlockField("height", "Alto junto a la columna", "250 mm"),
     BlockField("end_height", "Alto en el extremo libre", "25 mm"),
     BlockField("thickness", "Espesor", "12 mm"),
-    BlockField("grade", "Acero", "ASTM A36", "choice", tuple(STEELS)),
+    BlockField("grade", "Acero", "ASTM A36", "steel"),
     BlockField("weld", "Tamaño del filete", "", tip="Vacío: mínimo de la Tabla J2.4"),
 ]
 
