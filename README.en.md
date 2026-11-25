@@ -142,8 +142,7 @@ No programming needed to help. From
 - report a **calculation error** or a **bug**;
 - **request a feature**, such as a new connection type.
 
-The [step-by-step guide](https://marcel1983.github.io/#guia) (in Spanish)
-shows how to download, install and report. Questions go to
+The [step-by-step guide](https://marcel1983.github.io/en/#guide) shows how to download, install and report. Questions go to
 [Discussions](https://github.com/marcel1983/openfemconex/discussions). To
 contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
