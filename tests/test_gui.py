@@ -305,3 +305,37 @@ def test_fast_mesh_checkbox(window):
     window._ensure_mesh()
     assert st.mesh.settings.fast
     assert not window.analysis_panel.layers.isEnabled()
+
+
+def test_view_controls_and_dimensions(window):
+    viewer = window.viewer
+    assert {"zoom_in", "zoom_out", "fit", "iso", "top"} <= set(viewer.buttons)
+    for b in viewer.buttons.values():
+        b.click()  # without OpenGL the camera calls are no-ops
+    window.state.set_ext("anchors", [["-220 mm", "-150 mm"], ["220 mm", "-150 mm"],
+                                     ["220 mm", "150 mm"], ["-220 mm", "150 mm"]])
+    viewer.dims.setChecked(False)
+    viewer.numbers.setChecked(False)
+    assert window.state.valid
+    assert window.state.study().length_text(560.0) == "560 mm"
+
+
+def test_edit_combinations(window):
+    from openfemconex.gui.combos import CombinationsDialog, combination_text
+
+    assert combination_text({"D": 1.2, "L": 1.6}) == "1.2D + 1.6L"
+    assert combination_text({"D": 0.9, "W": -1.0}) == "0.9D − W"
+    st = window.state
+    dialog = CombinationsDialog(st, window)
+    dialog._copy_code()
+    assert not dialog.include.isChecked()
+    assert [c["name"] for c in dialog.custom] == ["LRFD-1", "LRFD-2"]
+    dialog.table.item(1, 3).setText("1.0")  # factor of L in LRFD-2
+    dialog._add()
+    dialog._accept()
+    combos = {c.name: c for c in st.project.load_combinations()}
+    assert set(combos) == {"LRFD-1", "LRFD-2", "Comb"}
+    assert combos["LRFD-2"].factors == {"D": 1.2, "L": 1.0}
+    assert st.data["combinations"]["include_code"] is False
+    texts = [window.loads.combos.item(r, 2).text() for r in range(window.loads.combos.rowCount())]
+    assert "1.2D + L" in texts

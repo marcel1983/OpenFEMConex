@@ -27,6 +27,7 @@ TITLES = {
     "fem.plate_plastic_strain": "Deformación plástica equivalente de la placa",
     "fem.plate_bending_tension": "Flexión de la placa por tracción de anclajes",
     "fem.weld": "Soldadura columna-placa (punto más solicitado)",
+    "fem.weld_cjp": "Soldadura CJP columna-placa: metal base de la pared (punto más solicitado)",
     "anchor.steel_tension": "Anclaje: resistencia del acero a tracción",
     "anchor.steel_shear": "Anclaje: resistencia del acero a cortante",
     "anchor.concrete_breakout_tension": "Concreto: arrancamiento del grupo en tracción",

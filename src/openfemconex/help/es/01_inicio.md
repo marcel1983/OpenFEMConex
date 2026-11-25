@@ -9,8 +9,16 @@ ACI 318 con las fuerzas que salen de ese modelo.
 1. **Proyecto › Abrir** y elija un ejemplo de la carpeta `examples`, por
    ejemplo `dg1_2ed_ej_4_7.ocnx` (ejemplo 4.7 de la Guía de Diseño 1).
 2. En **Geometría** revise la columna, la placa, los anclajes, el concreto y la
-   soldadura. El modelo 3D se actualiza al confirmar cada dato.
+   soldadura. El modelo 3D se actualiza al confirmar cada dato y muestra las
+   cotas de la placa, del arreglo de anclajes, de la distancia f y de hef (y el número de cada anclaje
+   cuando están por coordenadas). Sobre la vista: **＋** y **－** para acercar y
+   alejar, **Centrar** para volver a ver todo el modelo, y las vistas isométrica,
+   planta, frente y lateral; las casillas **Cotas** y **Números de anclaje** las
+   muestran u ocultan. El reporte incluye una vista en planta con las cotas.
 3. En **Cargas** revise los casos y marque las combinaciones que quiere resolver.
+   **Editar combinaciones** permite definir combinaciones propias con sus factores
+   (uno por caso; negativo invierte el caso) o copiar las de ASCE 7 para
+   cambiarlas y desmarcar las generadas.
 4. En **Análisis** pulse **Resolver**. CalculiX corre en segundo plano y una
    ventana flotante muestra la combinación, la etapa, cada incremento de carga
    (con sus iteraciones y el residuo), el tiempo y la barra de avance; **Cancelar**

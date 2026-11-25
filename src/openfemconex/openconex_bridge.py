@@ -61,9 +61,11 @@ def stiffeners_of(section: Section, spec: StiffenerSpec) -> tuple[Stiffener, ...
         return Stiffener(origin, direction, spec.length, spec.thickness, spec.height,
                          spec.end_height, embed)
 
+    if section.kind is SectionKind.HSS_RECT:
+        return _rect_tube_stiffeners(section, spec, make)
     if spec.layout == "radial":
         if section.kind is not SectionKind.HSS_ROUND:
-            raise ValueError("la disposición radial es para columnas circulares")
+            raise ValueError("la disposición radial es para tubos circulares y rectangulares")
         r = section.d / 2
         out = []
         for i in range(spec.count):
@@ -80,14 +82,43 @@ def stiffeners_of(section: Section, spec: StiffenerSpec) -> tuple[Stiffener, ...
                      + [make((0.0, sign * section.d2 / 2), (0.0, sign), section.tf2 / 2)
                         for sign in (-1.0, 1.0)])
     if section.kind is not SectionKind.I:
-        raise ValueError(f"la disposición '{spec.layout}' es para perfiles W; en tubos "
-                         "circulares use 'radial'")
-    ys = [0.0]
-    if spec.layout == "alma y bordes":
-        edge = section.bf / 2 - spec.thickness / 2
-        ys = [-edge, 0.0, edge]
+        raise ValueError(f"la disposición '{spec.layout}' es para perfiles W y tubos "
+                         "rectangulares; en tubos circulares use 'radial'")
+    edge = section.bf / 2 - spec.thickness / 2
+    ys = {"alma": [0.0], "alma y bordes": [-edge, 0.0, edge], "bordes": [-edge, edge]}[
+        spec.layout]
     return tuple(make((sign * section.d / 2, y), (sign, 0.0), section.tf / 2)
                  for sign in (-1.0, 1.0) for y in ys)
+
+
+def _rect_tube_stiffeners(section: Section, spec: StiffenerSpec, make) -> tuple[Stiffener, ...]:
+    """Square or rectangular HSS.
+
+    ``alma``: one plate at the middle of each face. ``alma y bordes``: three per face,
+    the outer two just inside the side walls; ``bordes``: only those two. ``radial``:
+    one on the diagonal at each corner, plus one at the middle of each face when
+    ``count`` is 8 or more.
+    """
+    d2, b2, t = section.d / 2, section.bf / 2, section.t
+    out = []
+    if spec.layout != "radial" or spec.count >= 8:
+        offsets_y = [0.0]
+        offsets_x = [0.0]
+        if spec.layout in ("alma y bordes", "bordes"):
+            # just inside the side walls, so that the plates of two faces do not meet
+            ey, ex = b2 - t - spec.thickness / 2, d2 - t - spec.thickness / 2
+            offsets_y, offsets_x = [-ey, ey], [-ex, ex]
+            if spec.layout == "alma y bordes":
+                offsets_y, offsets_x = [-ey, 0.0, ey], [-ex, 0.0, ex]
+        for sign in (-1.0, 1.0):
+            out += [make((sign * d2, y), (sign, 0.0), t / 2) for y in offsets_y]
+            out += [make((x, sign * b2), (0.0, sign), t / 2) for x in offsets_x]
+    if spec.layout == "radial":
+        r = math.sqrt(0.5)
+        for sx in (-1.0, 1.0):
+            for sy in (-1.0, 1.0):
+                out.append(make((sx * d2, sy * b2), (sx * r, sy * r), t))
+    return tuple(out)
 
 
 def steel_of(bp: BasePlate, grade: str, extras: Extras) -> Steel:

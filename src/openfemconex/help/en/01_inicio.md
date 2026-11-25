@@ -8,9 +8,17 @@ that model gives.
 
 1. **Project › Open** and choose an example from the `examples` folder, for
    instance `dg1_2ed_ej_4_7.ocnx` (Example 4.7 of Design Guide 1).
-2. In **Geometry** review the column, plate, anchors, concrete and weld. The
-   3D model updates as each value is confirmed.
+2. In **Geometry** review the column, plate, anchors, concrete and weld. The 3D
+   model updates when each value is confirmed and shows the dimensions of the
+   plate, the anchor layout, the distance f and hef (and the number of each anchor when they are
+   at coordinates). Above the view: **＋** and **－** zoom in and out, **Fit**
+   brings the whole model back, and the isometric, plan, front and side views;
+   the **Dimensions** and **Anchor numbers** boxes show or hide them. The report
+   includes a plan view with the dimensions.
 3. In **Loads** review the cases and tick the combinations to solve.
+   **Edit combinations** defines your own combinations with their factors (one
+   per case; negative reverses the case) or copies the ASCE 7 ones so that you
+   can change them and untick the generated ones.
 4. In **Analysis** press **Solve**. CalculiX runs in the background and a
    floating window shows the combination, the stage, every load increment (with
    its iterations and residual), the time and a progress bar; **Cancel** stops

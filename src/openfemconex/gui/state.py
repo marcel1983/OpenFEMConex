@@ -235,6 +235,20 @@ class ProjectState(QObject):
             self.data["cases"] = cases
             self._touch()
 
+    def set_combinations(self, include_code: bool, custom: list[dict[str, Any]]) -> None:
+        """Generated ASCE 7 combinations on or off, and the user's own combinations."""
+        combos = self.data.setdefault("combinations", {})
+        before = copy.deepcopy(combos)
+        combos["include_code"] = include_code
+        if include_code:
+            del combos["include_code"]  # the default
+        if custom:
+            combos["custom"] = copy.deepcopy(custom)
+        else:
+            combos.pop("custom", None)
+        if combos != before:
+            self._touch()
+
     def set_methods(self, methods: list[str]) -> None:
         combos = self.data.setdefault("combinations", {})
         if combos.get("methods") != methods:

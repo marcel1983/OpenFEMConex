@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from openfemconex.gui.combos import combination_text
 from openfemconex.gui.state import ProjectState
 from openfemconex.i18n import tr
 
@@ -107,6 +108,7 @@ class FormPanel(QWidget):
         heading = QLabel(f"<b>{tr(title)}</b>")
         layout.addWidget(heading)
         form = QFormLayout()
+        self.form = form
         layout.addLayout(form)
         layout.addStretch(1)
         for field in fields:
@@ -239,10 +241,16 @@ class LoadsPanel(QWidget):
         row.addWidget(QLabel(tr("Combinaciones ASCE 7:")))
         row.addWidget(self.lrfd)
         row.addWidget(self.asd)
+        self.edit_combos = QPushButton(tr("Editar combinaciones…"))
+        self.edit_combos.setToolTip(tr("Combinaciones propias con sus factores, o copia "
+                                       "editable de las de ASCE 7"))
+        self.edit_combos.clicked.connect(self.open_editor)
+        row.addWidget(self.edit_combos)
         layout.addLayout(row)
         layout.addWidget(QLabel(tr("<b>Combinaciones</b> (marque las que se resuelven)")))
-        self.combos = QTableWidget(0, 5)
-        self.combos.setHorizontalHeaderLabels([tr("Combinación"), tr("Método"), "P", "V", "M"])
+        self.combos = QTableWidget(0, 6)
+        self.combos.setHorizontalHeaderLabels([tr("Combinación"), tr("Método"), tr("Factores"),
+                                               "P", "V", "M"])
         self.combos.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.combos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.combos.itemChanged.connect(lambda _: self.selection_changed.emit())
@@ -349,7 +357,9 @@ class LoadsPanel(QWidget):
                 name.setToolTip(combo.source)
                 shear = (loads.Vx**2 + loads.Vy**2) ** 0.5
                 moment = (loads.Mx**2 + loads.My**2) ** 0.5
-                cells = [name, QTableWidgetItem(combo.method.value),
+                factors = QTableWidgetItem(combination_text(combo.factors))
+                factors.setToolTip(combo.source)
+                cells = [name, QTableWidgetItem(combo.method.value), factors,
                          QTableWidgetItem(format_value(loads.P, Kind.FORCE, units)),
                          QTableWidgetItem(format_value(shear, Kind.FORCE, units)),
                          QTableWidgetItem(format_value(moment, Kind.MOMENT, units))]
@@ -358,6 +368,11 @@ class LoadsPanel(QWidget):
         finally:
             self.combos.blockSignals(False)
         self.selection_changed.emit()
+
+    def open_editor(self) -> None:
+        from openfemconex.gui.combos import CombinationsDialog
+
+        CombinationsDialog(self.state, self).exec()
 
     def selected(self) -> list[str]:
         return [self.combos.item(r, 0).text() for r in range(self.combos.rowCount())
@@ -587,10 +602,15 @@ HAIRPIN_FIELDS = [
 ]
 
 STIFFENER_FIELDS = [
-    BlockField("layout", "Disposición", "alma", "choice", ("alma", "alma y bordes", "radial"),
-               tip="Perfiles W: en línea con el alma o tres por patín. Cruciformes: en línea "
-                   "con las dos almas. Tubos: radial"),
-    BlockField("count", "Cantidad (radial)", 8, "int"),
+    BlockField("layout", "Disposición", "alma", "choice",
+               ("alma", "alma y bordes", "bordes", "radial"),
+               tip="Perfiles W: en línea con el alma, solo en los bordes de los patines o "
+                   "ambos. Cruciformes: en línea con las dos almas. Tubos rectangulares: al "
+                   "centro de cada cara, junto a las esquinas (bordes), ambos, o en diagonal "
+                   "en las esquinas (radial). Tubos circulares: radial"),
+    BlockField("count", "Cantidad (radial)", 8, "int",
+               tip="Tubos circulares: rigidizadores alrededor. Tubos rectangulares: 4 en las "
+                   "esquinas, o 8 con uno más al centro de cada cara"),
     BlockField("length", "Largo desde la cara de la columna", "120 mm"),
     BlockField("height", "Alto junto a la columna", "250 mm"),
     BlockField("end_height", "Alto en el extremo libre", "25 mm"),

@@ -18,7 +18,8 @@ from openfemconex.model import BasePlateModel
 from openfemconex.results import Results
 from openfemconex.vtk import PARTS
 
-__all__ = ["FIELDS", "draw_model", "draw_results", "grid_from_mesh", "render_figures"]
+__all__ = ["FIELDS", "draw_anchor_numbers", "draw_dimensions", "draw_model", "draw_results",
+           "grid_from_mesh", "render_figures"]
 
 # PyVista announces a future change of the default surface algorithm; not relevant here.
 warnings.filterwarnings("ignore", message=".*extract_surface.*")
@@ -30,8 +31,115 @@ FIELDS = {
     "Desplazamiento": ("U", "Desplazamiento [mm]", "cividis"),
 }
 COLORS = {1: "#8fa7c4", 2: "#5b7ba6", 3: "#c8c8c8", 4: "#d98c3f"}
-STYLE = {"text": "black"}
-"""Colour of texts drawn in the scene (the viewer sets it for the dark theme)."""
+STYLE = {"text": "black", "dims": "#1f5fa8"}
+"""Colours of texts and dimension lines drawn in the scene (the viewer sets them for the
+dark theme)."""
+
+
+def _mm(value: float) -> str:
+    return f"{value:.0f} mm"
+
+
+def _distinct(values: list[float], tol: float = 0.5) -> list[float]:
+    out: list[float] = []
+    for v in sorted(values):
+        if not out or v - out[-1] > tol:
+            out.append(v)
+    return out
+
+
+def draw_dimensions(plotter, model: BasePlateModel, length=_mm) -> None:
+    """Dimension lines of the plate and of the anchor layout, on the top of the plate.
+
+    Along x (plate length N) on the +y side and along y (width B) on the +x side (the
+    sides facing the isometric view): the overall size and a chain through the anchor
+    positions. ``length`` formats a length in mm for the labels.
+    """
+    import pyvista as pv
+
+    N, B = model.N, model.B
+    z = model.tp + 0.004 * max(N, B)
+    size = max(N, B)
+    off, tick = 0.09 * size, 0.012 * size
+    points: list[tuple[float, float, float]] = []
+    lines: list[int] = []
+    label_at: list[tuple[float, float, float]] = []
+    labels: list[str] = []
+
+    def seg(a, b) -> None:
+        points.extend([a, b])
+        lines.extend([2, len(points) - 2, len(points) - 1])
+
+    def chain(values: list[float], along_x: bool, level: float, start: float,
+              inner: bool = False, prefix: str = "") -> None:
+        """Dimension line through ``values`` at ``level`` (y for along_x, else x).
+
+        The labels go outside the line, or inside it with ``inner`` (so that two
+        parallel chains do not put their labels on top of each other).
+        """
+        side = -np.sign(level) if inner else np.sign(level)
+        def at(v: float, w: float) -> tuple[float, float, float]:
+            return (v, w, z) if along_x else (w, v, z)
+
+        seg(at(values[0], level), at(values[-1], level))
+        for v in values:
+            seg(at(v, start), at(v, level - 0.4 * tick * np.sign(level)))  # extension
+            seg(at(v - tick, level - tick), at(v + tick, level + tick))  # tick
+        for a, b in zip(values, values[1:], strict=False):
+            if b - a > 1.0:
+                label_at.append(at((a + b) / 2, level + (1.6 if along_x else 4.0) * tick * side))
+                labels.append(prefix + length(b - a))
+
+    xs = _distinct([a.x for a in model.anchors] + [-N / 2, N / 2])
+    ys = _distinct([a.y for a in model.anchors] + [-B / 2, B / 2])
+    side_y, side_x = B / 2, N / 2
+    if len(xs) > 2:
+        chain(xs, True, side_y + off, side_y)
+        chain([-N / 2, N / 2], True, side_y + 2 * off, side_y)
+    else:
+        chain([-N / 2, N / 2], True, side_y + off, side_y)
+    if len(ys) > 2:
+        chain(ys, False, side_x + off, side_x, inner=True)
+        chain([-B / 2, B / 2], False, side_x + 2 * off, side_x)
+    else:
+        chain([-B / 2, B / 2], False, side_x + off, side_x)
+    # f and hef: their labels may hide behind the column or below the plate
+    front = len(labels)
+    # f: from the column axis to the outer anchor rows, on the -y side
+    x0 = model.ex
+    rows = [x for x in (min(a.x for a in model.anchors), max(a.x for a in model.anchors))
+            if abs(x - x0) > 1.0] if model.anchors else []
+    if rows:
+        chain(_distinct(rows + [x0]), True, -B / 2 - off, -B / 2, prefix="f = ")
+    # hef: along the first anchor of the outer row, below the top of the concrete
+    if model.anchors:
+        a = max(model.anchors, key=lambda r: (r.x, r.y))
+        xh = a.x + 0.75 * model.anchor.washer
+        zs = (0.0, -model.anchor.hef)
+        seg((xh, a.y, zs[0]), (xh, a.y, zs[1]))
+        for zz in zs:
+            seg((xh - tick, a.y, zz - tick), (xh + tick, a.y, zz + tick))
+        label_at.append((xh + 1.5 * tick, a.y, zs[1] / 2))
+        labels.append("hef = " + length(model.anchor.hef))
+    poly = pv.PolyData(np.array(points, dtype=float), lines=np.array(lines))
+    plotter.add_mesh(poly, color=STYLE["dims"], line_width=1.5)
+    for chunk, visible in ((slice(0, front), True), (slice(front, None), False)):
+        if labels[chunk]:
+            plotter.add_point_labels(np.array(label_at[chunk]), labels[chunk], font_size=11,
+                                     text_color=STYLE["dims"], shape=None,
+                                     always_visible=visible, show_points=False)
+
+
+def draw_anchor_numbers(plotter, model: BasePlateModel) -> None:
+    """Number of every anchor (as in the anchor table and the anchor forces)."""
+    if not model.anchors:
+        return
+    z = model.tp + 2.2 * model.anchor.diameter
+    points = np.array([[a.x, a.y, z] for a in model.anchors])
+    plotter.add_point_labels(points, [str(i) for i in range(1, len(points) + 1)],
+                             font_size=13, bold=True, text_color="white",
+                             shape_color="#b5651d", shape_opacity=0.95, always_visible=False,
+                             show_points=False)
 
 
 def grid_from_mesh(mesh: Mesh):
@@ -170,9 +278,9 @@ def _anchor_labels(plotter, model: BasePlateModel, results: Results, unit_force:
     points = np.array([[a.x, a.y, model.tp + 2.5 * model.anchor.diameter]
                        for a in results.anchors])
     labels = []
-    for a in results.anchors:
+    for i, a in enumerate(results.anchors, start=1):
         v = float(np.hypot(a.Vx, a.Vy))
-        text = f"N = {a.tension * unit_force:.1f} {force_label}"
+        text = f"#{i}  N = {a.tension * unit_force:.1f} {force_label}"
         if v * unit_force >= 0.05:
             text += f"\nV = {v * unit_force:.1f} {force_label}"
         labels.append(text)
@@ -189,7 +297,8 @@ def _finish(plotter, reset: bool) -> None:
 
 
 def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
-               reset: bool = True) -> None:
+               reset: bool = True, *, dimensions=None, numbers: bool = False) -> None:
+    """The model; ``dimensions`` is a length formatter to draw the dimension lines."""
     grid = grid_from_mesh(mesh)
     present = set(np.unique(grid.cell_data["part"]))
     for part, color in COLORS.items():
@@ -205,6 +314,10 @@ def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
     _lug(plotter, model)
     _rebar(plotter, model)
     _hairpins(plotter, model)
+    if dimensions is not None:
+        draw_dimensions(plotter, model, dimensions)
+    if numbers:
+        draw_anchor_numbers(plotter, model)
     _finish(plotter, reset)
 
 
@@ -247,7 +360,8 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
 def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
                    solved: list[tuple[str, Path, Results]], *, scale: float = 20.0,
                    unit_force: float = 1e-3, force_label: str = "kN",
-                   size: tuple[int, int] = (1100, 800)) -> dict[str, list[tuple[str, str]]]:
+                   size: tuple[int, int] = (1100, 800),
+                   length=_mm) -> dict[str, list[tuple[str, str]]]:
     """Render the figures of the report as PNG files in ``out``.
 
     ``solved`` lists (combination, .vtu file, results). Returns, under the key
@@ -262,8 +376,14 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
     out.mkdir(parents=True, exist_ok=True)
     figures: dict[str, list[tuple[str, str]]] = {}
 
-    previous = STYLE["text"]
-    STYLE["text"] = "black"  # the report pages are white
+    previous = dict(STYLE)
+    STYLE.update(text="black", dims="#1f5fa8")  # the report pages are white
+
+    def plan(p) -> None:
+        draw_model(p, model, mesh, dimensions=length, numbers=True, reset=False)
+        p.view_xy()
+        p.reset_camera()
+        p.camera.zoom(1.4)
 
     def shot(name: str, draw) -> str | None:
         plotter = pv.Plotter(off_screen=True, window_size=list(size))
@@ -279,6 +399,8 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
         figures[""] = [
             (tr("Geometría del modelo"), shot("fig_geometria.png",
                                           lambda p: draw_model(p, model, mesh))),
+            (tr("Planta: dimensiones de la placa y del arreglo de anclajes"),
+             shot("fig_planta.png", plan)),
             (tr("Malla de elementos finitos"), shot("fig_malla.png",
                                                 lambda p: draw_model(p, model, mesh, True))),
         ]
@@ -298,5 +420,5 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
     except Exception:  # no OpenGL context (headless machine): the report goes without figures
         return figures if figures.get("") else {}
     finally:
-        STYLE["text"] = previous
+        STYLE.update(previous)
     return figures

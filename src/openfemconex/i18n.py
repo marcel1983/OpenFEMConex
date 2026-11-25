@@ -157,7 +157,8 @@ EN: dict[str, str] = {
         "Height at the free end", "Espesor": "Thickness",
     "Perfiles W: en línea con el alma o tres por patín. Tubos: radial":
         "W shapes: in line with the web or three per flange. Tubes: radial",
-    "alma": "web", "alma y bordes": "web and edges", "radial": "radial",
+    "alma": "web", "alma y bordes": "web and edges", "bordes": "edges only",
+    "radial": "radial",
     "Posiciones por coordenadas": "Positions by coordinates",
     "x a lo largo del peralte de la columna, y a lo largo del patín, desde el centro de la "
     "placa": "x along the column depth, y along the flange, from the plate centre",
@@ -204,6 +205,88 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    'Soldadura CJP columna-placa: metal base de la pared (punto más solicitado)':
+        'CJP column-to-plate weld: base metal of the wall (most stressed point)',
+    'Con penetración completa resiste la pared de la columna: aumentar su espesor o su grado de acero, o agregar rigidizadores que repartan la carga.':  # noqa: E501
+        'With complete joint penetration the column wall governs: increase its thickness or steel grade, or add stiffeners that spread the load.',  # noqa: E501
+    'Penetración completa (CJP)':
+        'Complete joint penetration (CJP)',
+    'Soldadura columna-placa de penetración completa: la resistencia es la del metal base de la pared de la columna (AISC Tabla J2.5) y no se usa el tamaño del filete':  # noqa: E501
+        'Complete-joint-penetration column-to-plate weld: the strength is that of the base metal of the column wall (AISC Table J2.5) and the fillet size is not used',  # noqa: E501
+    'Perfiles W: en línea con el alma, solo en los bordes de los patines o ambos. Cruciformes: en línea con las dos almas. Tubos rectangulares: al centro de cada cara, junto a las esquinas (bordes), ambos, o en diagonal en las esquinas (radial). Tubos circulares: radial':  # noqa: E501
+        'W-shapes: in line with the web, only at the flange edges, or both. Cruciform: in line with both webs. Rectangular tubes: at the middle of each face, next to the corners (edges), both, or diagonal at the corners (radial). Round tubes: radial',  # noqa: E501
+    'Cada combinación necesita al menos un factor distinto de cero.':
+        'Every combination needs at least one non-zero factor.',
+    'Cada combinación necesita un nombre.':
+        'Every combination needs a name.',
+    'Comb':
+        'Comb',
+    'Combinaciones de carga':
+        'Load combinations',
+    'Hay combinaciones con el mismo nombre.':
+        'Several combinations have the same name.',
+    'Incluir las combinaciones generadas de ASCE 7':
+        'Include the generated ASCE 7 combinations',
+    'Las combinaciones ASCE 7 se generan solas a partir de los tipos de caso. Para cambiar sus factores, cópielas como combinaciones propias y desmarque las generadas. Un factor negativo invierte el caso; una celda vacía o 0 lo omite.':  # noqa: E501
+        'The ASCE 7 combinations are generated from the case types. To change their factors, copy them as your own combinations and untick the generated ones. A negative factor reverses the case; an empty cell or 0 leaves it out.',  # noqa: E501
+    'Sin combinaciones: incluya las de ASCE 7 o defina alguna propia.':
+        'No combinations: include the ASCE 7 ones or define your own.',
+    'factor no válido en {name}, caso {case}: {text}':
+        'invalid factor in {name}, case {case}: {text}',
+    'Combinaciones propias con sus factores, o copia editable de las de ASCE 7':
+        'Your own combinations with their factors, or an editable copy of the ASCE 7 ones',
+    'Editar combinaciones…':
+        'Edit combinations…',
+    'Editar combinaciones':
+        'Edit combinations',
+    'Factores':
+        'Factors',
+    'Subir':
+        'Move up',
+    'Bajar':
+        'Move down',
+    'Copiar las de ASCE 7':
+        'Copy the ASCE 7 ones',
+    'Agrega las combinaciones generadas como combinaciones propias editables':
+        'Adds the generated combinations as your own editable combinations',
+    'Tubos circulares: rigidizadores alrededor. Tubos rectangulares: 4 en las esquinas, o 8 con uno más al centro de cada cara':  # noqa: E501
+        'Round tubes: stiffeners all around. Rectangular tubes: 4 at the corners, or 8 with one more at the middle of each face',  # noqa: E501
+    'Planta: dimensiones de la placa y del arreglo de anclajes':
+        'Plan: dimensions of the plate and of the anchor layout',
+    'Centrar':
+        'Fit',
+    'Cotas':
+        'Dimensions',
+    'Dimensiones de la placa y del arreglo de anclajes':
+        'Dimensions of the plate and of the anchor layout',
+    'Frente':
+        'Front',
+    'Isométrica':
+        'Isometric',
+    'Lateral':
+        'Side',
+    'Planta':
+        'Plan',
+    'Número de cada anclaje en posiciones libres (por coordenadas), como en la tabla de anclajes y en la de fuerzas':  # noqa: E501
+        'Number of every anchor at free positions (by coordinates), as in the anchor table and the anchor forces table',  # noqa: E501
+    'Números de anclaje':
+        'Anchor numbers',
+    'Acercar':
+        'Zoom in',
+    'Alejar':
+        'Zoom out',
+    'Centrar el modelo y ajustarlo a la vista':
+        'Center the model and fit it to the view',
+    'Vista isométrica':
+        'Isometric view',
+    'Vista en planta (desde arriba)':
+        'Plan view (from above)',
+    'Vista de frente (plano x-z)':
+        'Front view (x-z plane)',
+    'Vista lateral (plano y-z)':
+        'Side view (y-z plane)',
+    'Perfiles W: en línea con el alma o tres por patín. Cruciformes: en línea con las dos almas. Tubos rectangulares: al centro de cada cara, tres por cara o en diagonal en las esquinas (radial). Tubos circulares: radial':  # noqa: E501
+        'W-shapes: in line with the web or three per flange. Cruciform: in line with both webs. Rectangular tubes: at the middle of each face, three per face or diagonal at the corners (radial). Round tubes: radial',  # noqa: E501
     "Resuelto con la malla rápida: las fuerzas en anclajes y el aplastamiento difieren menos de 3 % de la malla normal, pero la soldadura columna-placa puede quedar hasta 10 % por debajo y la deformación plástica bastante por debajo. Confirme con la malla normal antes de la memoria final.":  # noqa: E501
         "Solved with the fast mesh: anchor forces and bearing differ by less than 3 % from the normal mesh, but the column-to-plate weld may come out up to 10 % low and the plastic strain well below. Confirm with the normal mesh before the final report.",  # noqa: E501
     'Deteniendo CalculiX…':

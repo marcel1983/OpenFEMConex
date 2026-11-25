@@ -34,6 +34,9 @@ from OpenConex.
   two tees); I-shapes built up from plates with an editor and their properties;
   editor of steels and anchor rod grades with a bilinear, elastic-perfectly
   plastic, trilinear or tabulated constitutive law and a preview of the curve.
+- **View.** Dimensions of the plate, the anchor layout, f and hef; anchor
+  numbers; zoom, fit and views. Load combination editor; fillet or CJP
+  column-to-plate weld.
 - **Analysis.** Normal or fast automatic mesh (a fifth to half of the time); a
   progress window with every CalculiX increment and a Cancel button.
 - **Loads.** P, V and M about both axes; ASCE 7 LRFD and ASD or custom

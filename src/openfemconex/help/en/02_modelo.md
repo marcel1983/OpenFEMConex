@@ -24,8 +24,15 @@ Besides the OpenConex data, the `.ocnx` file can hold:
   centre. x runs along the column depth.
 - **Pedestal reinforcement** (Geometry › Pedestal reinforcement): bars, ties and height. It
   needs the pedestal dimensions.
-- **Stiffeners** (Geometry › Stiffeners): in line with the web or three per
-  flange for W shapes, radial for round tubes.
+- **Stiffeners** (Geometry › Stiffeners): for W shapes, in line with the web,
+  only at the flange edges (edges) or both (web and edges); in line with both webs
+  for cruciform columns; for square and rectangular tubes, at the middle of each
+  face (web), two per face next to the corners (edges), both, or diagonal at the
+  corners (radial: 4, or 8 with one more at the middle of each face); radial for
+  round tubes.
+- **Column-to-plate weld** (Geometry › Weld): fillet (given size or the minimum
+  of Table J2.4) or **complete joint penetration (CJP)**, checked with the base
+  metal of the column wall: √(fn² + 3 fv²) ≤ φ Fy t, φ = 0.90 (Table J2.5, J4.1).
 
 **U hairpins** (same page): inverted U bars over each anchor, one leg on each
 side. They count as anchor reinforcement in tension when the legs are within

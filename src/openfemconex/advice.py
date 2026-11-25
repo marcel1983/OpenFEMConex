@@ -177,6 +177,10 @@ def _one(check: CheckResult, bp: BasePlate, res: Results, ed: Edition, units: Un
     elif cid == "fem.plate_plastic_strain":
         out.append(tr("Aumentar el espesor de la placa (la deformación plástica baja rápido "
                       "con el espesor) o agregar rigidizadores; vuelva a resolver."))
+    elif cid == "fem.weld_cjp":
+        out.append(tr("Con penetración completa resiste la pared de la columna: aumentar su "
+                      "espesor o su grado de acero, o agregar rigidizadores que repartan la "
+                      "carga."))
     elif cid in ("fem.weld", "fem.stiffener_weld", "base_plate.lug_weld"):
         size = next((s.value for s in check.steps if s.symbol == "w"), None)
         if cid == "fem.weld":

@@ -24,8 +24,15 @@ Además de los datos de OpenConex, el archivo `.ocnx` puede llevar:
   centro de la placa. x va a lo largo del peralte de la columna.
 - **Refuerzo del pedestal** (Geometría › Refuerzo del pedestal): barras, estribos y altura.
   Necesita las dimensiones del pedestal.
-- **Rigidizadores** (Geometría › Rigidizadores): en línea con el alma o tres
-  por patín para perfiles W, y radiales para tubos circulares.
+- **Rigidizadores** (Geometría › Rigidizadores): en perfiles W, en línea con el
+  alma, solo en los bordes de los patines (bordes) o ambos (alma y bordes); en
+  línea con las dos almas en cruciformes; en tubos cuadrados y rectangulares, al
+  centro de cada cara (alma), dos por cara junto a las esquinas (bordes), ambos, o
+  en diagonal en las esquinas (radial: 4, u 8 con uno más al centro de cada cara);
+  radiales en tubos circulares.
+- **Soldadura columna-placa** (Geometría › Soldadura): filete (tamaño dado o mínimo
+  de la Tabla J2.4) o **penetración completa (CJP)**, que se verifica con el metal
+  base de la pared de la columna: √(fn² + 3 fv²) ≤ φ Fy t, φ = 0.90 (Tabla J2.5, J4.1).
 
 **Horquillas en U** (en la misma página): U invertidas sobre cada anclaje, con una
 pata a cada lado. Cuentan como refuerzo de anclaje a tracción si las patas quedan

@@ -23,7 +23,7 @@ __all__ = ["KEY", "LAWS", "CrossShape", "Extras", "Hairpins", "MaterialLaw", "Pe
            "StiffenerSpec", "law_from_dict", "load_extended", "parse_extras", "split_data"]
 
 KEY = "openfemconex"
-STIFFENER_LAYOUTS = ("alma", "alma y bordes", "radial")
+STIFFENER_LAYOUTS = ("alma", "alma y bordes", "bordes", "radial")
 HOOKS = ("90", "180", "recta")
 LAWS = ("bilineal", "elastoplastica", "trilineal", "tabla")
 """Constitutive laws of the steels in the FEM model."""
@@ -86,7 +86,8 @@ class PedestalRebar:
 @dataclass(frozen=True)
 class StiffenerSpec:
     layout: str
-    """``alma`` (one per flange, in line with the web), ``alma y bordes`` (three per
+    """``alma`` (one per flange, in line with the web), ``bordes`` (two per flange, at its
+    edges), ``alma y bordes`` (three per
     flange) or ``radial`` (round columns)."""
     length: float
     """Horizontal projection from the column face [mm]."""
@@ -201,6 +202,8 @@ class Extras:
     """Cross W-shape of a cruciform column; None = the column of the project alone."""
     laws: dict[str, MaterialLaw] | None = None
     """FEM constitutive law of each steel by name; missing = bilinear E/1000."""
+    cjp: bool = False
+    """Column-to-plate weld of complete joint penetration instead of fillets."""
 
     def law(self, grade: str) -> MaterialLaw:
         return (self.laws or {}).get(grade) or MaterialLaw()
@@ -276,8 +279,11 @@ def parse_extras(project: Project, ext: dict[str, Any]) -> Extras:
     for name, law in laws.items():
         if name in library:
             law.check(library[name].Fy, library[name].Fu)
+    weld = str(ext.get("column_weld", "filete")).lower()
+    if weld not in ("filete", "cjp"):
+        raise ValueError(f"soldadura columna-placa desconocida: {weld}")
     return Extras(anchors=anchors, pedestal=pedestal, stiffeners=stiffeners, hairpins=hairpins,
-                  cross=cross, laws=laws or None)
+                  cross=cross, laws=laws or None, cjp=weld == "cjp")
 
 
 def law_from_dict(m: dict[str, Any], stress) -> MaterialLaw:

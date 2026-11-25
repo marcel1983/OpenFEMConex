@@ -1,0 +1,44 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Tubo rectangular con rigidizadores",
+    "number": "OFC-0012",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-25",
+    "language": "es",
+    "units": "SI_kN_m"
+  },
+  "base_plate": {
+    "column": "HSS12X8X1/2",
+    "column_grade": "ASTM A500 Gr. C (rectangular)",
+    "N": "650 mm",
+    "B": "500 mm",
+    "tp": "32 mm",
+    "plate_grade": "ASTM A572 Gr. 50",
+    "fc": "28 MPa",
+    "A2_over_A1": 1.0,
+    "grout": "40 mm",
+    "rod_diameter": "1.25 in",
+    "rod_grade": "ASTM F1554 Gr. 55",
+    "rods_per_side": 2,
+    "f": "255 mm",
+    "rod_spacing": "330 mm",
+    "hef": "450 mm",
+    "cracked": true,
+    "flange_weld": "10 mm"
+  },
+  "cases": [
+    {"name": "D", "type": "D", "P": "350 kN", "M": "90 kN*m", "V": "40 kN"},
+    {"name": "L", "type": "L", "P": "450 kN", "M": "120 kN*m", "V": "50 kN"}
+  ],
+  "combinations": {"methods": ["LRFD"]},
+  "openfemconex": {
+    "stiffeners": {
+      "layout": "alma", "length": "110 mm", "height": "220 mm", "end_height": "25 mm",
+      "thickness": "12 mm", "grade": "ASTM A572 Gr. 50", "weld": "10 mm"
+    },
+    "column_weld": "cjp"
+  }
+}

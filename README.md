@@ -35,6 +35,9 @@ perfiles y los materiales.
   dos T); perfiles I armados de placas con editor y propiedades; editor de aceros
   y grados de anclaje con ley constitutiva bilineal, elastoplástica, trilineal o
   por tabla y vista previa de la curva.
+- **Vista.** Cotas de la placa, del arreglo de anclajes, de f y de hef; número de
+  cada anclaje; zoom, centrar y vistas. Editor de combinaciones de carga;
+  soldadura columna-placa de filete o CJP.
 - **Análisis.** Malla automática normal o rápida (entre un quinto y la mitad del
   tiempo); ventana de avance con cada incremento de CalculiX y botón Cancelar.
 - **Cargas.** P, V y M en los dos ejes; combinaciones ASCE 7 LRFD y ASD o propias;

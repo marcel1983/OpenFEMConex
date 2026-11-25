@@ -380,6 +380,26 @@ def fillet_weld_line(normal: float, shear: float, size: float, FEXX: float, fill
     return c.result("fem.weld", clause, r, cap, Kind.FORCE_PER_LENGTH)
 
 
+def cjp_weld_line(normal: float, shear: float, thickness: float, Fy: float,
+                  ed: Edition = CURRENT, method: Method = Method.LRFD,
+                  combo: str = "") -> CheckResult:
+    """Complete-joint-penetration weld per unit length (Table J2.5).
+
+    A CJP weld with matching filler metal is governed by the base metal: the wall of
+    thickness ``thickness`` in tension (J4.1, φ = 0.90) with the shear combined by
+    von Mises, √(fn² + 3 fv²) ≤ φ Fy t. Compression is assumed to go in bearing.
+    """
+    clause = f"{ed.aisc} J2.6, Table J2.5; J4.1"
+    c = _calc(method, combo)
+    c.step("t", r"t_{pared}", thickness, Kind.THICKNESS, clause)
+    fn, fv = max(normal, 0.0), abs(shear)
+    r = c.step("r_u", r"\sqrt{f_n^2 + 3 f_v^2}", math.hypot(fn, math.sqrt(3) * fv),
+               Kind.FORCE_PER_LENGTH, clause)
+    rn = c.step("r_n", r"F_y\,t", Fy * thickness, Kind.FORCE_PER_LENGTH, clause)
+    cap = c.available(rn, Resistance(0.90, 1.67), Kind.FORCE_PER_LENGTH, clause, "r_n")
+    return c.result("fem.weld_cjp", clause, r, cap, Kind.FORCE_PER_LENGTH)
+
+
 def rod_combined(T: float, V: float, d: float, Fnt: float, Fnv: float, lever: float,
                  ed: Edition = CURRENT, method: Method = Method.LRFD,
                  combo: str = "") -> CheckResult:
@@ -658,9 +678,14 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                 else ELECTRODES[bp.electrode]).FEXX
         fillets = 2 if hasattr(bp.column, "k_des") else 1
         worst = None
+        # CJP: the base metal of the column wall governs (matching filler metal)
+        fy_wall = min(bp.column.material.Fy, bp.Fy)
         for w in res.weld:
-            size = weld_size or bp.flange_weld or _min_fillet(min(w.thickness, bp.tp))
-            r = fillet_weld_line(w.normal, w.shear, size, fexx, fillets, ed, method, combo)
+            if extras.cjp:
+                r = cjp_weld_line(w.normal, w.shear, w.thickness, fy_wall, ed, method, combo)
+            else:
+                size = weld_size or bp.flange_weld or _min_fillet(min(w.thickness, bp.tp))
+                r = fillet_weld_line(w.normal, w.shear, size, fexx, fillets, ed, method, combo)
             if worst is None or r.ratio > worst.ratio:
                 worst = r
         if worst is not None:

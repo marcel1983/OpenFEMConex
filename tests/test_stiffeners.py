@@ -107,3 +107,35 @@ def test_stiffeners_relieve_the_plate(tmp_path):
     assert {"fem.stiffener_plastic_strain", "fem.stiffener_slenderness",
             "fem.stiffener_weld"} <= set(checks)
     assert not checks["fem.plate_bending_tension"].applicable
+
+
+@pytest.mark.parametrize("layout, count, expected", [("alma", 8, 4), ("alma y bordes", 8, 12),
+                                                     ("bordes", 8, 8),
+                                                     ("radial", 4, 4), ("radial", 8, 8)])
+def test_rectangular_tube_layouts(layout, count, expected):
+    tube = Section(SectionKind.HSS_RECT, d=300, bf=200, t=12)
+    spec = StiffenerSpec(layout, 80, 200, 12, 25, count=count)
+    plates = stiffeners_of(tube, spec)
+    assert len(plates) == expected
+    for p in plates:
+        # every plate starts on the tube wall and points away from the axis
+        x, y = p.origin
+        assert tube.distance(x, y) == 0.0
+        assert x * p.direction[0] + y * p.direction[1] > 0
+
+
+def test_w_shape_edges_only():
+    w = Section(SectionKind.I, d=320, bf=300, tf=22, tw=14)
+    plates = stiffeners_of(w, StiffenerSpec("bordes", 100, 200, 12, 25))
+    assert len(plates) == 4
+    assert all(abs(abs(p.origin[1]) - (150 - 6)) < 1e-9 for p in plates)
+
+
+def test_cjp_weld_is_governed_by_the_wall():
+    from openfemconex.checks import cjp_weld_line
+
+    r = cjp_weld_line(1000.0, 0.0, 10.0, 345.0)
+    assert r.capacity == pytest.approx(0.9 * 345.0 * 10.0)
+    assert r.ratio == pytest.approx(1000.0 / (0.9 * 3450.0))
+    shear = cjp_weld_line(0.0, 1000.0, 10.0, 345.0)
+    assert shear.demand == pytest.approx(1000.0 * 3**0.5)

@@ -16,6 +16,7 @@ from PySide6.QtGui import QColor, QDesktopServices, QPageLayout, QPageSize, QTex
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDockWidget,
     QDoubleSpinBox,
@@ -99,6 +100,7 @@ class MainWindow(QMainWindow):
         self.resize(1500, 920)
 
         self.viewer = Viewer()
+        self.viewer.options_changed.connect(lambda: self._refresh_view())
         self.loads = LoadsPanel(self.state)
         self.central = QStackedWidget()
         self.central.addWidget(self.viewer)
@@ -147,6 +149,14 @@ class MainWindow(QMainWindow):
                                        PEDESTAL_FIELDS)
         self.stiffener_form = BlockForm(self.state, "stiffeners", "Rigidizadores",
                                         STIFFENER_FIELDS)
+        self.cjp = QCheckBox(tr("Penetración completa (CJP)"))
+        self.cjp.setToolTip(tr("Soldadura columna-placa de penetración completa: la resistencia "
+                               "es la del metal base de la pared de la columna (AISC Tabla J2.5) "
+                               "y no se usa el tamaño del filete"))
+        self.cjp.toggled.connect(
+            lambda on: self.state.set_ext("column_weld", "cjp" if on else None))
+        self.state.loaded.connect(
+            lambda: self.cjp.setChecked(self.state.ext("column_weld") == "cjp"))
         additions = {"Anclajes": self.anchor_table}
         self.column_panel = ColumnPanel(self.state)
         for name, fields in SECTIONS.items():
@@ -158,6 +168,8 @@ class MainWindow(QMainWindow):
             else:
                 self.forms[name] = FormPanel(self.state, name, fields)
                 box.addWidget(self.forms[name])
+                if name == "Soldadura":
+                    self.forms[name].form.addRow("", self.cjp)
             if name in additions:
                 box.addWidget(additions[name], 1)
             scroll = QScrollArea()
@@ -310,6 +322,9 @@ class MainWindow(QMainWindow):
         g = tab("Cargas")
         g.add_button("Casos", icon("load"), lambda: self.loads.cases.setFocus())
         g.add_button("Combinaciones", icon("combo"), lambda: self.loads.combos.setFocus())
+        g.add_button("Editar combinaciones", icon("table"), self.loads.open_editor,
+                     "Combinaciones propias con sus factores, o copia editable de las de "
+                     "ASCE 7")
 
         tab = self.ribbon.add_tab("Análisis")
         g = tab("Malla")
@@ -468,7 +483,8 @@ class MainWindow(QMainWindow):
                          else tr("{n} de {d}", n=2 * int(bp.get("rods_per_side", 2)),
                                  d=bp.get("rod_diameter", "?"))),
             "Concreto": f"f'c = {bp.get('fc', '?')}",
-            "Soldadura": str(bp.get("flange_weld", tr("filete mínimo"))),
+            "Soldadura": ("CJP" if st.ext("column_weld") == "cjp"
+                          else str(bp.get("flange_weld", tr("filete mínimo")))),
             "Refuerzo del pedestal": ", ".join(filter(None, [
                 tr("{n} barras de {d}", n=st.ext("pedestal").get("bars", "?"),
                    d=st.ext("pedestal").get("bar_diameter", "?"))
@@ -631,7 +647,10 @@ class MainWindow(QMainWindow):
     def _refresh_view(self, reset: bool = False) -> None:
         if self._view != "model" or not self._ensure_mesh():
             return
-        self.viewer.show_model(self.state.model, self.state.mesh, self._edges, reset=reset)
+        st = self.state
+        self.viewer.show_model(st.model, st.mesh, self._edges, reset=reset,
+                               length=st.study().length_text,
+                               numbers=bool(st.extras.anchors))
 
     def show_results(self, combo: str | None = None) -> None:
         st = self.state

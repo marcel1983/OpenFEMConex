@@ -169,6 +169,10 @@ class Study:
         sample = fmt(1000.0, Kind.FORCE, self.project.info.unit_system(), 6).split()
         return float(sample[0]) / 1000.0, sample[-1]
 
+    def length_text(self, value: float) -> str:
+        """A dimension in the project units (mm or in)."""
+        return fmt(value, Kind.THICKNESS, self.project.info.unit_system(), 4)
+
     def figures(self, out: Path, reports: list[ComboReport], model: BasePlateModel,
                 mesh: Mesh) -> dict[str, list[tuple[str, str]]]:
         """Render the report figures into ``out`` (empty without PyVista or OpenGL)."""
@@ -179,7 +183,8 @@ class Study:
         solved = [(r.results.load, out / f"{file_stem(r.results.load)}.vtu", r.results)
                   for r in reports]
         solved = [s for s in solved if s[1].exists()]
-        figures = render_figures(out, model, mesh, solved, unit_force=factor, force_label=label)
+        figures = render_figures(out, model, mesh, solved, unit_force=factor, force_label=label,
+                                 length=self.length_text)
         # add the peak value of each figure to its caption
         u = self.project.info.unit_system()
         for r in reports:
