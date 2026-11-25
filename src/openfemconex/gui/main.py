@@ -575,8 +575,8 @@ class MainWindow(QMainWindow):
         if self.checks.rowCount() and not self.checks.selectedItems():
             self.checks.selectRow(0)
         elif not self.checks.rowCount():
-            self.detail.setHtml("<p>No hay verificaciones todavía. Resuelva el modelo en la "
-                                "pestaña Análisis.</p>")
+            self.detail.setHtml(tr("<p>No hay verificaciones todavía. Resuelva el modelo en la "
+                                   "pestaña Análisis.</p>"))
 
     # ------------------------------------------------------------------ 3D
     def _ensure_mesh(self) -> bool:
@@ -735,13 +735,23 @@ class MainWindow(QMainWindow):
             why = ("<p>" + escape(tr(
                 "No rige: ninguna barra del pedestal está a menos de 0.5·hef de un anclaje en "
                 "tracción; rige el arrancamiento del concreto.")) + "</p>")
+        tips = ""
+        rep = self.state.reports.get(name)
+        if rep is not None and r.id in rep.advice and r.applicable:
+            tips = ("<h4>" + tr("Recomendaciones") + "</h4><ul>"
+                    + "".join(f"<li>{escape(a)}</li>" for a in rep.advice[r.id]) + "</ul>"
+                    + "<p><small>" + escape(tr(
+                        "Cambios posibles para que cumpla, uno a la vez; los valores son "
+                        "estimaciones: vuelva a resolver después de cambiar los datos."))
+                    + "</small></p>")
         self.detail.setHtml(
             f"<h3>{escape(check_title(r))}</h3><p>"
             + escape(tr("Combinación {name}. Referencia: {clause}.", name=name, clause=r.clause))
             + "</p><p>" + tr("Demanda {d}, capacidad {c}, ratio <b>{r}</b>:",
                              d=escape(fmt(r.demand, r.kind, units)),
                              c=escape(fmt(r.capacity, r.kind, units)), r=f"{r.ratio:.2f}")
-            + f" <span style='color:{color}'>{verdict}</span>.</p>" + why +
+            + f" <span style='color:{color}'>{verdict}</span>.</p>" + why + tips
+            +
             f"<table cellspacing='0' cellpadding='4' border='1'><tr><th>{tr('Símbolo')}</th>"
             f"<th>{tr('Expresión')}</th><th>{tr('Valor')}</th></tr>{lines}</table>"
             "<p><small>" + tr("El reporte completo muestra las fórmulas con notación matemática.")

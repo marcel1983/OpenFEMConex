@@ -68,6 +68,8 @@ class ComboReport:
     analytical: list[CheckResult] = field(default_factory=list)
     reference: dict[str, float] = field(default_factory=dict)
     """DG1 stress-block reference: T, Y, fp (internal units)."""
+    advice: dict[str, list[str]] = field(default_factory=dict)
+    """Recommendations for the checks that do not pass, by check id."""
 
 
 _CSS = """
@@ -106,6 +108,21 @@ def _checks_table(checks: list[CheckResult], units: UnitSystem) -> str:
              _status(r), escape(r.clause)] for r in checks]
     return _table([_(h, "column") for h in ("Verificación", "Demanda", "Capacidad", "Ratio",
                                             "Estado", "Referencia")], rows, {1, 2, 3})
+
+
+def _advice(c: ComboReport) -> str:
+    """Recommendations for the checks of a combination that do not pass."""
+    if not c.advice:
+        return ""
+    titles = {r.id: check_title(r) for r in c.fem_checks}
+    items = "".join(
+        f"<li><b>{escape(titles.get(cid, cid))}</b><ul>"
+        + "".join(f"<li>{escape(a)}</li>" for a in advice) + "</ul></li>"
+        for cid, advice in c.advice.items())
+    return (f"<h3>{_('Recomendaciones')}</h3><p class='note'>"
+            + escape(_("Cambios posibles para que cumpla, uno a la vez; los valores son "
+                       "estimaciones: vuelva a resolver después de cambiar los datos."))
+            + f"</p><ul>{items}</ul>")
 
 
 def _trace(checks: list[CheckResult], units: UnitSystem) -> str:
@@ -218,6 +235,7 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
             gallery(r.load, "Gráficos de resultados"),
             f"<h3>{_('Verificaciones con demandas del FEM')}</h3>",
             _checks_table(c.fem_checks, units),
+            _advice(c),
             _trace(c.fem_checks, units) if traces else "",
         ]
         if c.analytical:

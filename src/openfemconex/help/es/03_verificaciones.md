@@ -27,3 +27,16 @@ evalúan en combinaciones LRFD.
 
 Con la edición vigente, el reporte añade el camino analítico de OpenConex
 (placa rígida y bloque de esfuerzos) con las mismas cargas, para comparar.
+
+## Recomendaciones
+
+Cuando una verificación no cumple, al seleccionarla en la pestaña Verificación
+aparece una lista de cambios posibles en los datos que se pueden ajustar: diámetro
+o grado de los anclajes, empotramiento hef, espesor y tamaño de la placa, tamaño
+del filete, refuerzo de anclaje, pedestal, llave de cortante. Donde hay una fórmula
+directa se da el valor mínimo (por ejemplo, el espesor de placa a partir de
+tp·√relación, redondeado a 1/16 in o 1 mm). El reporte incluye la misma lista
+después de la tabla de verificaciones.
+
+Son estimaciones para un cambio a la vez: el modelo de elementos finitos
+redistribuye las fuerzas, así que vuelva a resolver después de cambiar los datos.

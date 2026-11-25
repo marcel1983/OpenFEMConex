@@ -89,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     from openconex.report.builder import fmt
     from openconex.units import Kind
 
+    from openfemconex.advice import advise
     from openfemconex.checks import EDITIONS, check_fem
     from openfemconex.diagnostics import diagnose
     from openfemconex.extras import load_extended
@@ -166,7 +167,14 @@ def main(argv: list[str] | None = None) -> int:
                                               combo.name)
             except Exception as exc:  # the analytical path must not hide the FEM result
                 print(f"  (camino analítico no disponible: {exc})")
-        reports.append(ComboReport(res, combo.method.value, checks, analytical, reference))
+        advice = advise(bp, res, checks, units, edition, extras)
+        for cid, items in advice.items():
+            title = next((check_title(r) for r in checks if r.id == cid), cid)
+            print(f"  {tr('Recomendaciones')} — {title}:")
+            for item in items:
+                print(f"    - {item}")
+        reports.append(ComboReport(res, combo.method.value, checks, analytical, reference,
+                                   advice))
         status |= 0 if res.converged and all(r.status.value != "ng" for r in checks) else 1
     if reports:
         inputs = [

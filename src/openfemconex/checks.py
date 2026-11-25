@@ -367,6 +367,7 @@ def fillet_weld_line(normal: float, shear: float, size: float, FEXX: float, fill
     """
     clause = f"{ed.aisc} J2.4"
     c = _calc(method, combo)
+    c.step("w", r"\text{filete}", size, Kind.THICKNESS, clause)
     fn, fv = max(normal, 0.0) / fillets, abs(shear) / fillets
     r = c.step("r_u", r"\sqrt{f_n^2 + f_v^2}/n_w", math.hypot(fn, fv), Kind.FORCE_PER_LENGTH,
                clause)

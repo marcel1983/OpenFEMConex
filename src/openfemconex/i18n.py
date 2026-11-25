@@ -204,6 +204,88 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    'Aumentar el diámetro del anclaje a {d} ({grade}).':
+        'Increase the anchor diameter to {d} ({grade}).',
+    'O usar un grado más resistente con el mismo diámetro: {grade}.':
+        'Or use a stronger grade with the same diameter: {grade}.',
+    'Aumentar el empotramiento hef a {h} como mínimo.':
+        'Increase the embedment hef to at least {h}.',
+    'Aumentar hef no basta con los bordes actuales (hasta 25 in.): use refuerzo de anclaje o un pedestal mayor.':  # noqa: E501
+        'Increasing hef is not enough with the current edges (up to 25 in.): use anchor reinforcement or a larger pedestal.',  # noqa: E501
+    'O agregar refuerzo de anclaje (barras del pedestal a menos de 0.5·hef u horquillas en U) con As ≥ {a}, desarrollado a ambos lados del cono; así el arrancamiento deja de regir.':  # noqa: E501
+        'Or add anchor reinforcement (pedestal bars within 0.5·hef or U hairpins) with As ≥ {a}, developed on both sides of the cone; breakout then no longer governs.',  # noqa: E501
+    'O agregar anclajes para repartir la tracción.':
+        'Or add anchors to share the tension.',
+    'O tomar el cortante con una llave de cortante o por fricción (sin arandelas soldadas).':
+        'Or carry the shear with a shear lug or by friction (without welded washers).',
+    'O separar más los anclajes o alejarlos de los bordes del pedestal.':
+        'Or space the anchors further apart or away from the pedestal edges.',
+    'Aumentar el área de apoyo de la cabeza embebida a {a} (por ejemplo, una placa de {s} × {s} bajo la tuerca).':  # noqa: E501
+        'Increase the bearing area of the embedded head to {a} (for instance a {s} × {s} plate under the nut).',  # noqa: E501
+    'O usar un diámetro de anclaje mayor (tuerca más grande).':
+        'Or use a larger anchor diameter (larger nut).',
+    'Alejar los anclajes del borde lateral o agrandar el pedestal; también puede reducirse hef para que no supere 2.5 veces la distancia al borde.':  # noqa: E501
+        'Move the anchors away from the side edge or enlarge the pedestal; hef may also be reduced so that it does not exceed 2.5 times the edge distance.',  # noqa: E501
+    'Aumentar la distancia al borde en la dirección del cortante (pedestal más grande) o el espesor del pedestal.':  # noqa: E501
+        'Increase the edge distance in the direction of the shear (larger pedestal) or the pedestal depth.',  # noqa: E501
+    'O agregar estribos superiores como refuerzo de anclaje a cortante con Av ≥ {a}.':
+        'Or add top ties as anchor reinforcement in shear with Av ≥ {a}.',
+    'O tomar el cortante con una llave de cortante.':
+        'Or carry the shear with a shear lug.',
+    'Aumentar el empotramiento hef a {h} aproximadamente, o separar más los anclajes.':
+        'Increase the embedment hef to about {h}, or space the anchors further apart.',
+    'Bajar la mayor de las dos relaciones (tracción o cortante) con las recomendaciones de su verificación; la suma debe quedar en 1.2 o menos.':  # noqa: E501
+        'Lower the larger of the two ratios (tension or shear) following the advice for its check; the sum must be 1.2 or less.',  # noqa: E501
+    'Aumentar el diámetro del anclaje a {d} aproximadamente.':
+        'Increase the anchor diameter to about {d}.',
+    'O reducir el brazo de flexión: placa más delgada o arandela soldada más delgada, o tomar el cortante con una llave.':  # noqa: E501
+        'Or reduce the bending lever: thinner plate or thinner welded washer, or carry the shear with a lug.',  # noqa: E501
+    'Agrandar la placa: con el mismo largo N, el ancho B debería ser de {b} aproximadamente.':
+        'Enlarge the plate: with the same length N, the width B should be about {b}.',
+    'O un pedestal mayor que la placa (A2/A1 = {r}, máximo 4).':
+        'Or a pedestal larger than the plate (A2/A1 = {r}, at most 4).',
+    "O un concreto de f'c = {fc}.":
+        "Or concrete with f'c = {fc}.",
+    'Aumentar el espesor de la placa a {t}.':
+        'Increase the plate thickness to {t}.',
+    'O acercar los anclajes a la columna, o agregar rigidizadores.':
+        'Or move the anchors closer to the column, or add stiffeners.',
+    'Aumentar el espesor de la placa (la deformación plástica baja rápido con el espesor) o agregar rigidizadores; vuelva a resolver.':  # noqa: E501
+        'Increase the plate thickness (plastic strain drops quickly with thickness) or add stiffeners; solve again.',  # noqa: E501
+    'Aumentar el tamaño del filete a {w}.':
+        'Increase the fillet size to {w}.',
+    'Aumentar el tamaño del filete en proporción {r} (o usar soldadura de penetración completa).':
+        'Increase the fillet size by a factor of {r} (or use a complete-joint-penetration weld).',
+    'O un electrodo más resistente (E80XX).':
+        'Or a stronger electrode (E80XX).',
+    'Aumentar el espesor del rigidizador a {t} o acortar su largo.':
+        'Increase the stiffener thickness to {t} or shorten it.',
+    'Rigidizadores más gruesos o más altos; vuelva a resolver.':
+        'Thicker or taller stiffeners; solve again.',
+    'Agregar una llave de cortante, o arandelas soldadas para que los anclajes tomen el cortante.':
+        'Add a shear lug, or welded washers so that the anchors take the shear.',
+    'Aumentar el refuerzo de anclaje a As ≥ {a} (más barras a menos de 0.5·hef, más horquillas o de mayor diámetro).':  # noqa: E501
+        'Increase the anchor reinforcement to As ≥ {a} (more bars within 0.5·hef, more or larger hairpins).',  # noqa: E501
+    'Falta largo de desarrollo sobre el cono: aumentar hef en {d} como mínimo, usar barras más delgadas o con gancho.':  # noqa: E501
+        'Development length above the cone is short: increase hef by at least {d}, or use thinner or hooked bars.',  # noqa: E501
+    'Alargar las patas de las horquillas en {d} como mínimo.':
+        'Lengthen the hairpin legs by at least {d}.',
+    'Más estribos superiores, más ramas o de mayor diámetro: Av ≥ {a}.':
+        'More top ties, more legs or larger ties: Av ≥ {a}.',
+    'Más barras longitudinales o de mayor diámetro, o un pedestal mayor.':
+        'More or larger longitudinal bars, or a larger pedestal.',
+    'Usar al menos {n} barras del diámetro actual (1 % del área).':
+        'Use at least {n} bars of the current diameter (1 % of the area).',
+    'Aumentar el espesor, el ancho o el empotramiento de la llave de cortante, según el estado límite.':  # noqa: E501
+        'Increase the thickness, width or embedment of the shear lug, depending on the limit state.',  # noqa: E501
+    'Revise los datos de este componente; la relación es {r}.':
+        'Review the data of this component; the ratio is {r}.',
+    'Recomendaciones':
+        'Recommendations',
+    'Cambios posibles para que cumpla, uno a la vez; los valores son estimaciones: vuelva a resolver después de cambiar los datos.':  # noqa: E501
+        'Possible changes to make it pass, one at a time; the values are estimates: solve again after changing the data.',  # noqa: E501
+    'filete':
+        'fillet',
     "barra más cercana a un anclaje en tracción": "bar closest to an anchor in tension",
     "distancia máxima para contar una barra": "largest distance for a bar to count",
     "barras con": "bars with", "distancia anclaje-barra contada": "anchor to counted bar distance",

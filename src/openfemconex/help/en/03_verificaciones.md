@@ -27,3 +27,15 @@ combinations.
 
 With the current edition the report adds the analytical path of OpenConex
 (rigid plate and stress block) under the same loads, for comparison.
+
+## Recommendations
+
+When a check does not pass, selecting it in the Checks tab shows a list of possible
+changes to the adjustable data: anchor diameter or grade, embedment hef, plate
+thickness and size, fillet size, anchor reinforcement, pedestal, shear lug. Where a
+direct formula exists the minimum value is given (for instance the plate thickness
+from tp·√ratio, rounded up to 1/16 in. or 1 mm). The report includes the same list
+after the checks table.
+
+They are estimates for one change at a time: the finite element model
+redistributes the forces, so solve again after changing the data.

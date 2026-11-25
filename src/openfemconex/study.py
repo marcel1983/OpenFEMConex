@@ -17,6 +17,7 @@ from openconex.io.project import Project
 from openconex.report.builder import fmt
 from openconex.units import Kind
 
+from openfemconex.advice import advise
 from openfemconex.checks import EDITIONS, Edition, check_fem
 from openfemconex.extras import Extras
 from openfemconex.i18n import tr
@@ -95,7 +96,9 @@ class Study:
                                               combo.method, combo.name)
             except Exception:  # the analytical path must not hide the FEM result
                 analytical = []
-        return ComboReport(res, combo.method.value, checks, analytical, reference)
+        advice = advise(bp, res, checks, self.project.info.unit_system(), self.edition,
+                        self.extras)
+        return ComboReport(res, combo.method.value, checks, analytical, reference, advice)
 
     def inputs(self, model: BasePlateModel, mesh: Mesh | None = None) -> list[tuple[str, str]]:
         bp = self.project.base_plate_model()
