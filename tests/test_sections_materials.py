@@ -68,3 +68,12 @@ def test_fast_mesh_is_coarser(name):
     assert fast.settings.fast and fast.settings.plate_layers == 3
     assert fast.element_count < 0.6 * normal.element_count
     assert fast.settings.size_fine > normal.settings.size_fine
+
+
+def test_weld_sizes_for_drawing():
+    from openfemconex.model import min_fillet
+
+    _, model = model_from_project(EXAMPLES / "rigidizadores_w.ocnx")
+    assert model.weld == pytest.approx(min_fillet(min(model.section.min_wall, model.tp)))
+    assert model.stiffener_weld == pytest.approx(min_fillet(16.0))
+    assert not model.cjp

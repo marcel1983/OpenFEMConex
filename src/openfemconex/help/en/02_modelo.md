@@ -32,7 +32,9 @@ Besides the OpenConex data, the `.ocnx` file can hold:
   round tubes.
 - **Column-to-plate weld** (Geometry › Weld): fillet (given size or the minimum
   of Table J2.4) or **complete joint penetration (CJP)**, checked with the base
-  metal of the column wall: √(fn² + 3 fv²) ≤ φ Fy t, φ = 0.90 (Table J2.5, J4.1).
+  metal of the column wall: √(fn² + 3 fv²) ≤ φ Fy t, φ = 0.90 (Table J2.5, J4.1). The 3D view draws the fillet
+  bead in yellow (also the stiffener welds) and a CJP weld as a red line with the
+  CJP label.
 
 **U hairpins** (same page): inverted U bars over each anchor, one leg on each
 side. They count as anchor reinforcement in tension when the legs are within

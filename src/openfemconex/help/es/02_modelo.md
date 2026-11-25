@@ -32,7 +32,9 @@ Además de los datos de OpenConex, el archivo `.ocnx` puede llevar:
   radiales en tubos circulares.
 - **Soldadura columna-placa** (Geometría › Soldadura): filete (tamaño dado o mínimo
   de la Tabla J2.4) o **penetración completa (CJP)**, que se verifica con el metal
-  base de la pared de la columna: √(fn² + 3 fv²) ≤ φ Fy t, φ = 0.90 (Tabla J2.5, J4.1).
+  base de la pared de la columna: √(fn² + 3 fv²) ≤ φ Fy t, φ = 0.90 (Tabla J2.5, J4.1). La vista 3D dibuja el cordón
+  de filete en amarillo (también el de los rigidizadores) y la soldadura CJP como
+  una línea roja con la etiqueta CJP.
 
 **Horquillas en U** (en la misma página): U invertidas sobre cada anclaje, con una
 pata a cada lado. Cuentan como refuerzo de anclaje a tracción si las patas quedan

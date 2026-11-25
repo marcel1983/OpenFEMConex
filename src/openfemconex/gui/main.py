@@ -155,8 +155,7 @@ class MainWindow(QMainWindow):
                                "y no se usa el tamaño del filete"))
         self.cjp.toggled.connect(
             lambda on: self.state.set_ext("column_weld", "cjp" if on else None))
-        self.state.loaded.connect(
-            lambda: self.cjp.setChecked(self.state.ext("column_weld") == "cjp"))
+        self.state.loaded.connect(self._sync_cjp)
         additions = {"Anclajes": self.anchor_table}
         self.column_panel = ColumnPanel(self.state)
         for name, fields in SECTIONS.items():
@@ -599,6 +598,11 @@ class MainWindow(QMainWindow):
 
     def show_section(self, name: str) -> None:
         self.properties.setCurrentWidget(self.pages[name])
+
+    def _sync_cjp(self) -> None:
+        self.cjp.blockSignals(True)
+        self.cjp.setChecked(self.state.ext("column_weld") == "cjp")
+        self.cjp.blockSignals(False)
 
     def edit_sections(self) -> None:
         SectionsDialog(self.state, self).exec()

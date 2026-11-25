@@ -130,6 +130,67 @@ def draw_dimensions(plotter, model: BasePlateModel, length=_mm) -> None:
                                      always_visible=visible, show_points=False)
 
 
+WELD_COLOR, CJP_COLOR = "#e8b923", "#d0392b"
+
+
+def _outline(grid, part: int, z: float, outer_only: bool):
+    """Boundary lines of the cross-section of a part at height ``z``."""
+    body = grid.threshold([part - 0.5, part + 0.5], scalars="part")
+    if body.n_cells == 0:
+        return None
+    cut = body.slice(normal="z", origin=(0.0, 0.0, z))
+    if cut.n_points == 0:
+        return None
+    edges = cut.extract_feature_edges(boundary_edges=True, feature_edges=False,
+                                      manifold_edges=False, non_manifold_edges=False)
+    if outer_only and edges.n_points:
+        regions = edges.connectivity()
+        ids = np.unique(regions["RegionId"])
+        if len(ids) > 1:
+            def span(i):
+                b = regions.threshold([i - 0.5, i + 0.5], scalars="RegionId").bounds
+                return (b[1] - b[0]) * (b[3] - b[2])
+
+            edges = regions.threshold([max(ids, key=span) - 0.5, max(ids, key=span) + 0.5],
+                                      scalars="RegionId").extract_surface()
+    return edges
+
+
+def draw_welds(plotter, model: BasePlateModel, grid) -> None:
+    """Column-to-plate weld (fillet bead, or a CJP mark and label) and stiffener welds.
+
+    Tubes are welded on the outside only; open shapes all around.
+    """
+    from openfemconex.model import SectionKind
+
+    z = model.tp + 0.05
+    tube = model.section.kind in (SectionKind.HSS_RECT, SectionKind.HSS_ROUND)
+    col = _outline(grid, PARTS["COLUMN"], z, outer_only=tube)
+    if col is not None and col.n_points:
+        if model.cjp:
+            r = 2.5
+            plotter.add_mesh(col.tube(radius=r, n_sides=8).translate((0, 0, r), inplace=False),
+                             color=CJP_COLOR)
+            top = col.points[np.argmax(col.points[:, 0] + 0.5 * col.points[:, 1])]
+            plotter.add_point_labels(np.array([[top[0], top[1], model.tp + 0.12 *
+                                                model.section.max_dim]]), ["CJP"],
+                                     font_size=13, bold=True, text_color="white",
+                                     shape_color=CJP_COLOR, shape_opacity=0.95,
+                                     always_visible=True, show_points=False)
+        elif model.weld > 0:
+            r = 0.5 * model.weld
+            plotter.add_mesh(col.tube(radius=r, n_sides=10).translate((0, 0, 0.6 * r),
+                                                                       inplace=False),
+                             color=WELD_COLOR)
+    if model.stiffeners and model.stiffener_weld > 0:
+        st = _outline(grid, PARTS["STIFFENER"], z, outer_only=False)
+        if st is not None and st.n_points:
+            r = 0.5 * model.stiffener_weld
+            plotter.add_mesh(st.tube(radius=r, n_sides=10).translate((0, 0, 0.6 * r),
+                                                                      inplace=False),
+                             color=WELD_COLOR)
+
+
 def draw_anchor_numbers(plotter, model: BasePlateModel) -> None:
     """Number of every anchor (as in the anchor table and the anchor forces)."""
     if not model.anchors:
@@ -314,6 +375,8 @@ def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
     _lug(plotter, model)
     _rebar(plotter, model)
     _hairpins(plotter, model)
+    if not edges:
+        draw_welds(plotter, model, grid)
     if dimensions is not None:
         draw_dimensions(plotter, model, dimensions)
     if numbers:

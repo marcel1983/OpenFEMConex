@@ -18,6 +18,14 @@ E_STEEL = 200_000.0
 NU_STEEL = 0.3
 
 
+def min_fillet(t: float) -> float:
+    """Minimum fillet size for the thinner part joined (AISC 360 Table J2.4) [mm]."""
+    t_in = t / 25.4
+    size = 1 / 8 if t_in <= 1 / 4 else 3 / 16 if t_in <= 1 / 2 else 1 / 4 if t_in <= 3 / 4 \
+        else 5 / 16
+    return size * 25.4
+
+
 class SectionKind(StrEnum):
     I = "I"  # W, M, S, HP  # noqa: E741
     HSS_RECT = "HSS_RECT"
@@ -322,6 +330,12 @@ class BasePlateModel:
     """Pedestal reinforcement (extras.PedestalRebar). It is not part of the FEM model
     (the concrete is a plain elastic block): it is drawn and used by the checks."""
     stiffener_steel: Steel | None = None
+    weld: float = 0.0
+    """Fillet size of the column-to-plate weld, for drawing (0 = not drawn)."""
+    cjp: bool = False
+    """The column-to-plate weld is of complete joint penetration."""
+    stiffener_weld: float = 0.0
+    """Fillet size of the stiffener welds, for drawing."""
     column_length: float | None = None
     """Modelled column length above the plate (default 2.5 × largest section dimension)."""
     contact: ContactSettings = field(default_factory=ContactSettings)

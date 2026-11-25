@@ -32,6 +32,7 @@ from openfemconex.model import (
     ShearLug,
     Steel,
     Stiffener,
+    min_fillet,
 )
 
 __all__ = ["dg1_bending", "loads_from_forces", "model_from_base_plate", "model_from_project",
@@ -179,6 +180,10 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
         column_steel=steel_of(bp, col.grade, extras),
         N=bp.N, B=bp.B, tp=bp.tp,
         plate_steel=steel_of(bp, bp.plate_grade, extras),
+        weld=bp.flange_weld or min_fillet(min(section.min_wall, bp.tp)),
+        cjp=extras.cjp,
+        stiffener_weld=(extras.stiffeners.weld or min_fillet(extras.stiffeners.thickness)
+                        if extras.stiffeners else 0.0),
         anchors=tuple(Anchor(x, y) for x, y in positions),
         anchor=anchor, concrete=concrete,
         # the same friction coefficient as the friction check of the project

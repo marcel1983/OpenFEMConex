@@ -39,6 +39,7 @@ from openconex.units import Kind, from_internal, to_internal
 
 from openfemconex import pedestal as ped
 from openfemconex.extras import Extras
+from openfemconex.model import min_fillet
 from openfemconex.openconex_bridge import section_of
 from openfemconex.results import Results
 
@@ -451,10 +452,7 @@ def stiffener_slenderness(width: float, thickness: float, Fy: float, E: float = 
 # ------------------------------------------------------------------------------ assembly
 def _min_fillet(t: float) -> float:
     """Minimum fillet size for the thinner part joined (AISC 360 Table J2.4) [mm]."""
-    t_in = _in(t)
-    size = 1 / 8 if t_in <= 1 / 4 else 3 / 16 if t_in <= 1 / 2 else 1 / 4 if t_in <= 3 / 4 \
-        else 5 / 16
-    return to_internal(size, "in", Kind.LENGTH)
+    return min_fillet(t)
 
 
 def _tension_group(res: Results) -> list:
