@@ -33,6 +33,15 @@ that model gives.
    callouts for every element and its material and arrows to the welds (fillet
    or CJP).
 
+## Units
+
+The units are chosen in **Project › Display units** and apply everywhere:
+forms, tables, dimensions, reports and Word. Every length is in mm (SI and MKS
+systems) or in inches (US), the plate and pedestal sizes too. Changing the system
+rewrites the values of the project in the new units. A number typed without a
+unit is taken in the project units; it can also be typed with its unit
+(`22 in`, `560 mm`, `3/4 in`).
+
 ## The window
 
 - **Ribbon** on top: one tab per stage, in working order.

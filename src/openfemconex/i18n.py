@@ -205,6 +205,20 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    "Reporte sin gráficos: el visor 3D (OpenGL) no está disponible.":
+        "Report without figures: the 3D viewer (OpenGL) is not available.",
+    "No se pudieron generar los gráficos del reporte: {error}":
+        "The report figures could not be generated: {error}",
+    "Filas frente al eje débil": "Rows facing the weak axis",
+    "Sin marcar: las dos filas en x = ±f, frente a los patines (eje fuerte). Marcada: las filas en y = ±f, frente al eje débil, con los anclajes por lado repartidos a lo largo de N":  # noqa: E501
+        "Unticked: the two rows at x = ±f, facing the flanges (strong axis). Ticked: the rows at y = ±f, facing the weak axis, with the anchors per side spread along N",  # noqa: E501
+    "Malla actual: {nodes} nodos y {elements} hexaedros (tamaño fino {size}).":
+        "Current mesh: {nodes} nodes and {elements} hexahedra (fine size {size}).",
+    "{n} barras de {d}, estribos de {t} cada {s}, fy = {fy}":
+        "{n} bars of {d}, ties of {t} every {s}, fy = {fy}",
+    "{n} por anclaje de {d}, patas a {o} del anclaje, largo {L}, fy = {fy}":
+        "{n} per anchor of {d}, legs at {o} from the anchor, length {L}, fy = {fy}",
+    "cabeza de la columna {d}": "column top {d}",
     "Cortante de anclajes a través del mortero": "Anchor shear through the grout pad",
     "ACI 17.7.1.2.1: con mortero bajo la placa la resistencia del acero a cortante se multiplica por 0.80":  # noqa: E501
         "ACI 17.7.1.2.1: with grout under the plate the steel shear strength is multiplied by 0.80",

@@ -206,6 +206,8 @@ class Extras:
     """Column-to-plate weld of complete joint penetration instead of fillets."""
     connection: str = ""
     """Name of the connection (identification card of the report)."""
+    rows_weak: bool = False
+    """The two anchor rows face the weak axis: at y = ±f, the rods of a row along x."""
 
     def law(self, grade: str) -> MaterialLaw:
         return (self.laws or {}).get(grade) or MaterialLaw()
@@ -286,7 +288,8 @@ def parse_extras(project: Project, ext: dict[str, Any]) -> Extras:
         raise ValueError(f"soldadura columna-placa desconocida: {weld}")
     return Extras(anchors=anchors, pedestal=pedestal, stiffeners=stiffeners, hairpins=hairpins,
                   cross=cross, laws=laws or None, cjp=weld == "cjp",
-                  connection=str(ext.get("connection", "")).strip())
+                  connection=str(ext.get("connection", "")).strip(),
+                  rows_weak=bool(ext.get("rows_weak_axis", False)))
 
 
 def law_from_dict(m: dict[str, Any], stress) -> MaterialLaw:

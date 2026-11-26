@@ -67,6 +67,7 @@ from openfemconex.gui.worker import SolveWorker
 from openfemconex.i18n import LANGUAGES, language, set_language, tr
 from openfemconex.report import check_title
 from openfemconex.runner import CcxError, find_ccx
+from openfemconex.units import display_units
 
 EDITION_LABELS = {"current": "AISC 360-22 / ACI 318-19", "dg1-2ed": "DG1 2nd ed. (360-05 / 318-08)"}
 _LATEX = [(r"\\frac\{([^{}]*)\}\{([^{}]*)\}", r"(\1)/(\2)"), (r"\\sqrt\{([^{}]*)\}", r"√(\1)"),
@@ -277,7 +278,7 @@ class MainWindow(QMainWindow):
         g = tab("Unidades y normas")
         self.units_box = QComboBox()
         self.units_box.addItems(unit_presets())
-        self.units_box.textActivated.connect(lambda t: self.state.set("info", "units", t))
+        self.units_box.textActivated.connect(self.state.set_units)
         g.add_widget("Unidades de presentación", self.units_box)
         self.edition_box = QComboBox()
         for key in EDITIONS:
@@ -530,7 +531,7 @@ class MainWindow(QMainWindow):
         self.checks.setRowCount(0)
         if not self.state.valid:
             return
-        units = self.state.project.info.unit_system()
+        units = display_units(self.state.project.info)
         self._check_rows = []
         for name, rep in self.state.reports.items():
             for r in rep.fem_checks:
@@ -558,7 +559,7 @@ class MainWindow(QMainWindow):
         table.setRowCount(0)
         if not self.state.valid:
             return
-        units = self.state.project.info.unit_system()
+        units = display_units(self.state.project.info)
         F, L = Kind.FORCE, Kind.LENGTH
         for name, rep in self.state.reports.items():
             for i, a in enumerate(rep.results.anchors, start=1):
@@ -566,7 +567,8 @@ class MainWindow(QMainWindow):
                 table.insertRow(row)
                 cells = [name, str(i), fmt(a.x, L, units), fmt(a.y, L, units),
                          fmt(a.tension, F, units), fmt(a.Vx, F, units), fmt(a.Vy, F, units),
-                         fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units), f"{a.uplift:.3f} mm"]
+                         fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units),
+                         fmt(a.uplift, Kind.THICKNESS, units, 3)]
                 for c, text in enumerate(cells):
                     item = QTableWidgetItem(text)
                     if c >= 2:
@@ -641,9 +643,9 @@ class MainWindow(QMainWindow):
                 return False
             m = st.mesh
             self.analysis_panel.info.setText(
-                tr("Malla actual: {nodes} nodos y {elements} hexaedros (tamaño fino {size} mm).",
+                tr("Malla actual: {nodes} nodos y {elements} hexaedros (tamaño fino {size}).",
                    nodes=len(m.nodes), elements=m.element_count,
-                   size=f"{m.settings.size_fine:.1f}"))
+                   size=fmt(m.settings.size_fine, Kind.THICKNESS, st.units, 3)))
             if m.settings.fast:
                 self.analysis_panel.info.setText(self.analysis_panel.info.text() + " "
                                                  + tr("Malla rápida."))
@@ -673,7 +675,7 @@ class MainWindow(QMainWindow):
         self._view, self._current_combo = "results", name
         self.combo_box.setCurrentText(name)
         self.central.setCurrentWidget(self.viewer)
-        units = st.project.info.unit_system()
+        units = display_units(st.project.info)
         sample = fmt(1000.0, Kind.FORCE, units, 6).split()
         self.viewer.show_results(vtu, st.model, st.reports[name].results,
                                  self.field_box.currentData(), self.scale_box.value(),
@@ -756,7 +758,7 @@ class MainWindow(QMainWindow):
     def _combo_done(self, name: str, report: object) -> None:
         self._done += 1
         res = report.results
-        units = self.state.project.info.unit_system()
+        units = display_units(self.state.project.info)
         worst = max(report.fem_checks, key=lambda r: r.ratio / r.ratio_limit, default=None)
         summary = (
             f"{name}: " + (tr("convergió") if res.converged else
@@ -791,7 +793,7 @@ class MainWindow(QMainWindow):
         if not rows or not self.state.valid:
             return
         name, r = self._check_rows[min(rows)]
-        units = self.state.project.info.unit_system()
+        units = display_units(self.state.project.info)
         lines = "".join(
             f"<tr><td>{escape(plain_math(s.symbol))}</td>"
             f"<td>{escape(plain_math(s.expression))}</td>"
@@ -832,13 +834,27 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, tr("Reporte"), tr("Primero resuelva el modelo."))
             return None
         reports = list(st.reports.values())
-        figures = {}
-        if self.viewer.plotter is not None and self._ensure_mesh():
-            self.status_label.setText(tr("Generando los gráficos del reporte…"))
-            QApplication.processEvents()
-            figures = st.study().figures(st.output_dir(), reports, st.model, st.mesh)
+        figures = self._report_figures(reports)
         return st.study().report_html(reports, st.model, st.mesh, traces=traces,
                                       figures=figures, figure_base=figure_base)
+
+    def _report_figures(self, reports: list) -> dict:
+        """Figures of the report; why they are missing goes to the solver log."""
+        st = self.state
+        if self.viewer.plotter is None:
+            self.log.appendPlainText(tr("Reporte sin gráficos: el visor 3D (OpenGL) no está "
+                                        "disponible."))
+            return {}
+        if not self._ensure_mesh():
+            return {}
+        self.status_label.setText(tr("Generando los gráficos del reporte…"))
+        QApplication.processEvents()
+        study = st.study()
+        figures = study.figures(st.output_dir(), reports, st.model, st.mesh)
+        for error in study.figure_errors:
+            self.log.appendPlainText(tr("No se pudieron generar los gráficos del reporte: "
+                                        "{error}", error=error))
+        return figures
 
     def generate_report(self) -> Path | None:
         html = self._report_html()
@@ -867,11 +883,7 @@ class MainWindow(QMainWindow):
         if not path:
             return None
         reports = list(st.reports.values())
-        figures = {}
-        if self.viewer.plotter is not None and self._ensure_mesh():
-            self.status_label.setText(tr("Generando los gráficos del reporte…"))
-            QApplication.processEvents()
-            figures = st.study().figures(st.output_dir(), reports, st.model, st.mesh)
+        figures = self._report_figures(reports)
         out = st.study().report_docx(Path(path), reports, st.model, st.mesh, figures,
                                      st.output_dir())
         self.log.appendPlainText(tr("Word escrito en {path}", path=out))
@@ -879,7 +891,9 @@ class MainWindow(QMainWindow):
         return out
 
     def export_pdf(self, path: str | None = None) -> Path | None:
-        html = self._report_html(traces=False, figure_base=str(self.state.output_dir()) + "/")
+        # a file URL: a Windows path (C:\\...) is not a valid image source for QTextDocument
+        base = QUrl.fromLocalFile(str(self.state.output_dir())).toString() + "/"
+        html = self._report_html(traces=False, figure_base=base)
         if html is None:
             return None
         if not path:

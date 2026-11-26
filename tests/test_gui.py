@@ -362,3 +362,43 @@ def test_title_bar_shows_the_version(window):
     from openfemconex import __version__
 
     assert window.windowTitle().endswith(f"OpenFEMConex {__version__}")
+
+
+def test_units_follow_the_project_everywhere(window):
+    st = window.state
+    st.set_ext("hairpins", {"count": 1, "diameter": "16 mm", "offset": "75 mm",
+                            "leg_length": "600 mm"})
+    assert st.valid, st.error
+    model_tp = st.model.tp
+    st.set_units("US")
+    assert st.get("base_plate", "tp") == "1.9685 in"
+    assert st.ext("hairpins")["leg_length"] == "23.622 in"
+    assert st.data["cases"][0]["P"].endswith(" kip")
+    assert st.valid, st.error
+    assert st.model.tp == pytest.approx(model_tp, rel=1e-4)
+    # a bare number typed in a form is taken in the project units
+    edit = window.forms["Placa"].widgets["tp"]
+    edit.setText("2")
+    edit.editingFinished.emit()
+    assert st.get("base_plate", "tp") == "2 in"
+    assert window.analysis_panel.size.suffix() == " in"
+    # lengths of the report in inches, also the plate size (no metres)
+    assert st.study().length_text(25.4) == "1 in"
+    st.set_units("SI_kN_m")
+    assert st.get("base_plate", "tp") == "50.8 mm"
+    from openfemconex.units import display_units
+
+    assert display_units(st.project.info).length == "mm"
+
+
+def test_anchor_rows_facing_the_weak_axis(window):
+    st = window.state
+    xs = sorted({round(a.x) for a in st.model.anchors})
+    box = window.forms["Anclajes"].widgets["rows_weak_axis"]
+    box.setChecked(True)
+    assert st.ext("rows_weak_axis") is True
+    st.set("base_plate", "rod_spacing", "200 mm")
+    assert st.valid, st.error
+    ys = sorted({round(a.y) for a in st.model.anchors})
+    assert ys == xs  # the rows moved from x = ±f to y = ±f
+    assert {round(a.x) for a in st.model.anchors} == {-100, 100}

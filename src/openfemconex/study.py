@@ -27,6 +27,7 @@ from openfemconex.model import BasePlateModel, Loads, MeshSettings
 from openfemconex.openconex_bridge import dg1_bending, model_of, project_loads
 from openfemconex.report import ComboReport, render_report, report_blocks
 from openfemconex.solve import solve
+from openfemconex.units import display_units
 
 __all__ = ["Settings", "Study"]
 
@@ -95,7 +96,8 @@ class Study:
         bp = self.project.base_plate_model()
         reference: dict[str, float] = {}
         # free anchors or a cruciform column: the DG1 rigid-plate path does not apply
-        free = bool(self.extras.anchors) or self.extras.cross is not None
+        free = (bool(self.extras.anchors) or self.extras.cross is not None
+                or self.extras.rows_weak)
         if not (free or loads.Mx or loads.Vx or loads.Vy):
             ref = dg1_bending(bp, loads, combo.method)
             if ref.case != "not_possible":
@@ -110,7 +112,7 @@ class Study:
                                               combo.method, combo.name)
             except Exception:  # the analytical path must not hide the FEM result
                 analytical = []
-        advice = advise(bp, res, checks, self.project.info.unit_system(), self.edition,
+        advice = advise(bp, res, checks, display_units(self.project.info), self.edition,
                         self.extras)
         return ComboReport(res, combo.method.value, checks, analytical, reference, advice)
 
@@ -124,7 +126,7 @@ class Study:
 
     def inputs(self, model: BasePlateModel, mesh: Mesh | None = None) -> list[tuple[str, str]]:
         bp = self.project.base_plate_model()
-        u = self.project.info.unit_system()
+        u = display_units(self.project.info)
         cracked = tr("fisurado") if bp.cracked else tr("no fisurado")
         rows = [
             (tr("Columna"), self.column_text()),
@@ -146,19 +148,20 @@ class Study:
         if r is not None and bp.pedestal_N and bp.pedestal_B:
             rows.append((tr("Pedestal"), f"{fmt(bp.pedestal_N, Kind.LENGTH, u)} × "
                                          f"{fmt(bp.pedestal_B, Kind.LENGTH, u)}, " + tr(
-                "{n} barras de {d} mm, estribos de {t} mm cada {s} mm, fy = {fy}", n=r.bars,
-                d=f"{r.bar_diameter:.1f}", t=f"{r.tie_diameter:.1f}", s=f"{r.tie_spacing:.0f}",
-                fy=fmt(r.fy, Kind.STRESS, u))))
+                "{n} barras de {d}, estribos de {t} cada {s}, fy = {fy}", n=r.bars,
+                d=self.length_text(r.bar_diameter), t=self.length_text(r.tie_diameter),
+                s=self.length_text(r.tie_spacing), fy=fmt(r.fy, Kind.STRESS, u))))
         h = self.extras.hairpins
         if h is not None:
             rows.append((tr("Horquillas en U"), tr(
-                "{n} por anclaje de {d} mm, patas a {o} mm del anclaje, largo {L} mm, fy = {fy}",
-                n=h.count, d=f"{h.diameter:.0f}", o=f"{h.offset:.0f}", L=f"{h.leg_length:.0f}",
-                fy=fmt(h.fy, Kind.STRESS, u))))
+                "{n} por anclaje de {d}, patas a {o} del anclaje, largo {L}, fy = {fy}",
+                n=h.count, d=self.length_text(h.diameter), o=self.length_text(h.offset),
+                L=self.length_text(h.leg_length), fy=fmt(h.fy, Kind.STRESS, u))))
         s = self.extras.stiffeners
         if s is not None:
-            rows.append((tr("Rigidizadores"), f"{tr(s.layout)}: {s.length:.0f} × {s.height:.0f} × "
-                                              f"{s.thickness:.1f} mm ({s.grade})"))
+            L = self.length_text
+            rows.append((tr("Rigidizadores"), f"{tr(s.layout)}: {L(s.length)} × {L(s.height)} × "
+                                              f"{L(s.thickness)} ({s.grade})"))
         if mesh is not None:
             rows.append((tr("Malla"), tr("{nodes} nodos, {elements} hexaedros C3D8I",
                                          nodes=len(mesh.nodes), elements=mesh.element_count)
@@ -167,17 +170,17 @@ class Study:
 
     def force_unit(self) -> tuple[float, str]:
         """(factor from N, label) of the force unit used for presentation."""
-        sample = fmt(1000.0, Kind.FORCE, self.project.info.unit_system(), 6).split()
+        sample = fmt(1000.0, Kind.FORCE, display_units(self.project.info), 6).split()
         return float(sample[0]) / 1000.0, sample[-1]
 
     def length_text(self, value: float) -> str:
         """A dimension in the project units (mm or in)."""
-        return fmt(value, Kind.THICKNESS, self.project.info.unit_system(), 4)
+        return fmt(value, Kind.THICKNESS, display_units(self.project.info), 4)
 
     def callouts(self, model: BasePlateModel) -> dict[str, str]:
         """Texts of the callouts of the plan and elevation drawings: element and material."""
         bp = self.project.base_plate_model()
-        u = self.project.info.unit_system()
+        u = display_units(self.project.info)
         L = self.length_text
         ex = self.extras
         col = bp.column
@@ -222,10 +225,12 @@ class Study:
         solved = [(r.results.load, out / f"{file_stem(r.results.load)}.vtu", r.results)
                   for r in reports]
         solved = [s for s in solved if s[1].exists()]
+        self.figure_errors: list[str] = []
         figures = render_figures(out, model, mesh, solved, unit_force=factor, force_label=label,
-                                 length=self.length_text, callouts=self.callouts(model))
+                                 length=self.length_text, callouts=self.callouts(model),
+                                 errors=self.figure_errors)
         # add the peak value of each figure to its caption
-        u = self.project.info.unit_system()
+        u = display_units(self.project.info)
         for r in reports:
             res = r.results
             top = max(abs(v) for v in res.column_top_displacement)
@@ -235,7 +240,7 @@ class Study:
                                 c=fmt(res.column_von_mises_max, Kind.STRESS, u)),
                 "PEEQ": tr("máx. placa {p}, columna {c}", p=f"{100 * res.plate_peeq_max:.2f} %",
                            c=f"{100 * res.column_peeq_max:.2f} %"),
-                "_U": tr("cabeza de la columna {d} mm", d=f"{top:.2f}"),
+                "_U": tr("cabeza de la columna {d}", d=fmt(top, Kind.THICKNESS, u, 3)),
                 "CPRESS": tr("máx. {m}, media {a}",
                              m=fmt(res.bearing_pressure_max, Kind.STRESS, u),
                              a=fmt(res.bearing_pressure_mean, Kind.STRESS, u)),
@@ -263,7 +268,7 @@ class Study:
                       mesh: Mesh | None = None, traces: bool = True,
                       figures: dict | None = None) -> list:
         return report_blocks(self.report_title(), self.edition,
-                             self.project.info.unit_system(), reports,
+                             display_units(self.project.info), reports,
                              self.inputs(model, mesh), traces=traces, figures=figures,
                              ficha=self.ficha())
 
@@ -272,7 +277,7 @@ class Study:
                     traces: bool = True, figures: dict | None = None,
                     figure_base: str = "") -> str:
         return render_report(self.report_title(), self.edition,
-                             self.project.info.unit_system(), reports,
+                             display_units(self.project.info), reports,
                              self.inputs(model, mesh), image=image, traces=traces,
                              figures=figures, figure_base=figure_base, ficha=self.ficha())
 

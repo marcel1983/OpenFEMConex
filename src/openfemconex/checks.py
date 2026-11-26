@@ -591,7 +591,8 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
         # plate about the flange over its whole width (DG1, tension interface). Any other
         # rod (free layout, inside the column profile, tubes) bends it about the nearest
         # column wall over a width spread at 45 degrees (DG1 Example 4.5).
-        rows_beyond = (not extras.anchors and hasattr(col, "k_des") and extras.cross is None)
+        rows_beyond = (not extras.anchors and not extras.rows_weak and hasattr(col, "k_des")
+                       and extras.cross is None)
         single = [a for a in group if not (rows_beyond and abs(a.x) > col.d / 2)]
         bending: list[CheckResult] = []
         if rows_beyond:

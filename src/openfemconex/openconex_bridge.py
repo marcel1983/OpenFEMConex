@@ -129,12 +129,13 @@ def steel_of(bp: BasePlate, grade: str, extras: Extras) -> Steel:
     return Steel(m.Fy, m.Fu, E=m.E, nu=law.nu, name=grade, curve=law.curve(m.Fy, m.Fu, m.E))
 
 
-def _rod_positions(bp: BasePlate) -> list[tuple[float, float]]:
-    # Same layout as openconex.connections.base_plate.interference
+def _rod_positions(bp: BasePlate, weak: bool = False) -> list[tuple[float, float]]:
+    """Two rows of rods at x = ±f (OpenConex layout) or, with ``weak``, at y = ±f."""
     n = bp.rods_per_side
     ys = ([0.0] if n == 1 else
           [-bp.rod_spacing / 2 + i * bp.rod_spacing / (n - 1) for i in range(n)])
-    return [(sx * bp.f, y) for sx in (-1, 1) for y in ys]
+    rows = [(sx * bp.f, y) for sx in (-1, 1) for y in ys]
+    return [(y, x) for x, y in rows] if weak else rows
 
 
 def _hole_and_washer(diameter: float) -> tuple[float, float]:
@@ -164,7 +165,7 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
     anchor = AnchorSpec(diameter=bp.rod.diameter, hole=hole, washer=washer, hef=hef,
                         Fu=bp.rod.material.Fu, leveling_nuts=leveling_nuts,
                         welded_washers=bp.washer_thickness is not None)
-    positions = extras.anchors if extras.anchors else _rod_positions(bp)
+    positions = extras.anchors if extras.anchors else _rod_positions(bp, extras.rows_weak)
     section = section_of(col, extras.cross)
     stiffeners, stiffener_steel = (), None
     if extras.stiffeners:

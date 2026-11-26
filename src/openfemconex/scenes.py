@@ -622,8 +622,8 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
                    solved: list[tuple[str, Path, Results]], *, scale: float = 20.0,
                    unit_force: float = 1e-3, force_label: str = "kN",
                    size: tuple[int, int] = (1100, 800),
-                   length=_mm, callouts: dict[str, str] | None = None
-                   ) -> dict[str, list[tuple[str, str]]]:
+                   length=_mm, callouts: dict[str, str] | None = None,
+                   errors: list[str] | None = None) -> dict[str, list[tuple[str, str]]]:
     """Render the figures of the report as PNG files in ``out``.
 
     ``solved`` lists (combination, .vtu file, results). Returns, under the key
@@ -632,7 +632,9 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
     """
     try:
         import pyvista as pv
-    except ImportError:
+    except ImportError as exc:
+        if errors is not None:
+            errors.append(f"PyVista: {exc}")
         return {}
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
@@ -686,7 +688,9 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
                                lambda p, f=field: draw_results(
                                    p, vtu, model, results, f, scale, unit_force, force_label)))
                 for field, caption in captions.items()]
-    except Exception:  # no OpenGL context (headless machine): the report goes without figures
+    except Exception as exc:  # no OpenGL context: the report goes without (some) figures
+        if errors is not None:
+            errors.append(f"{type(exc).__name__}: {exc}")
         return figures if figures.get("") else {}
     finally:
         STYLE.update(previous)

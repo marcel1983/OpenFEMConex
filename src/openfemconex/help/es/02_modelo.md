@@ -20,6 +20,9 @@ La carga axial se aplica primero y los momentos y cortantes después.
 
 Además de los datos de OpenConex, el archivo `.ocnx` puede llevar:
 
+- **Filas de anclajes frente al eje débil** (Geometría › Anclajes): sin marcar, las
+  dos filas van en x = ±f, frente a los patines; marcada, en y = ±f, con los
+  anclajes por lado repartidos a lo largo de N.
 - **Anclajes por coordenadas** (Geometría › Anclajes): tabla x, y desde el
   centro de la placa. x va a lo largo del peralte de la columna.
 - **Refuerzo del pedestal** (Geometría › Refuerzo del pedestal): barras, estribos y altura.

@@ -10,7 +10,8 @@ from typing import Any
 from openconex.core.loads import LoadType
 from openconex.core.materials import BOLTS
 from openconex.core.shapes import aisc_shapes
-from openconex.units import PRESETS, Kind, format_value
+from openconex.report.builder import fmt
+from openconex.units import PRESETS, Kind, format_value, to_internal
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -33,6 +34,23 @@ from PySide6.QtWidgets import (
 from openfemconex.gui.combos import combination_text
 from openfemconex.gui.state import ProjectState
 from openfemconex.i18n import tr
+from openfemconex.units import convert_text, display_units, with_unit
+
+STRESS_KEYS = {"fc", "fy", "Fy", "Fu", "E", "Fnt", "Fnv_N", "Fnv_X", "hardening"}
+"""Keys of stress values; every other quantity typed in a form is a length."""
+FORCE_KEYS = {"P", "V", "V_weak", "column_V", "column_P"}
+MOMENT_KEYS = {"M", "M_weak"}
+
+
+def key_kind(key: str) -> Kind:
+    if key in STRESS_KEYS:
+        return Kind.STRESS
+    if key in FORCE_KEYS:
+        return Kind.FORCE
+    if key in MOMENT_KEYS:
+        return Kind.MOMENT
+    return Kind.LENGTH
+
 
 COLUMN_TYPES = ("W", "M", "S", "HP", "HSS", "PIPE")
 
@@ -83,6 +101,10 @@ SECTIONS: dict[str, list[Field]] = {
         Field("rod_diameter", "Diámetro"),
         Field("rod_grade", "Grado", "rod"),
         Field("rods_per_side", "Anclajes por lado", "int"),
+        Field("rows_weak_axis", "Filas frente al eje débil", "bool", section="openfemconex",
+              tip="Sin marcar: las dos filas en x = ±f, frente a los patines (eje fuerte). "
+                  "Marcada: las filas en y = ±f, frente al eje débil, con los anclajes por lado "
+                  "repartidos a lo largo de N"),
         Field("f", "Distancia f del eje a cada fila"),
         Field("rod_spacing", "Separación entre los extremos de la fila"),
         Field("hef", "Empotramiento hef"),
@@ -192,6 +214,9 @@ class FormPanel(QWidget):
 
     def _commit(self, f: Field, value: Any) -> None:
         if not self._loading:
+            if isinstance(value, str) and f.section == "base_plate" and f.kind == "text":
+                # a bare number is taken in the project units (mm or in, MPa, ...)
+                value = with_unit(value, key_kind(f.key), self.state.units)
             self.state.set(f.section, f.key, value)
 
     def refresh(self) -> None:
@@ -316,7 +341,8 @@ class LoadsPanel(QWidget):
                     item = self.cases.item(r, c)
                     text = item.text().strip() if item else ""
                     if text:
-                        case[key] = text
+                        case[key] = (text if key == "name"
+                                     else with_unit(text, key_kind(key), self.state.units))
             out.append(case)
         return out
 
@@ -330,7 +356,8 @@ class LoadsPanel(QWidget):
         name = next(n for n in ("D", "L", "W", "S", "E", *[f"C{i}" for i in range(1, 99)])
                     if n not in names)
         kind = name if name in {t.value for t in LoadType} else "L"
-        cases.append({"name": name, "type": kind, "P": "0 kN", "M": "0 kN*m"})
+        u = self.state.units
+        cases.append({"name": name, "type": kind, "P": f"0 {u.force}", "M": f"0 {u.moment}"})
         self.state.set_cases(cases)
         self._load_cases()
 
@@ -361,7 +388,7 @@ class LoadsPanel(QWidget):
             self.combos.setRowCount(0)
             if not self.state.valid:
                 return
-            units = self.state.project.info.unit_system()
+            units = display_units(self.state.project.info)
             for combo, loads in self.state.study().combinations():
                 r = self.combos.rowCount()
                 self.combos.insertRow(r)
@@ -406,11 +433,12 @@ class AnalysisPanel(QWidget):
         layout.addLayout(form)
         self.size = QDoubleSpinBox()
         self.size.setRange(0.0, 100.0)
-        self.size.setSuffix(" mm")
         self.size.setSpecialValueText(tr("automático"))
         self.size.setToolTip(tr("Tamaño de elemento junto a la columna y los agujeros. Automático: "
                                 "el menor espesor entre la pared de la columna y la placa."))
-        self.size.valueChanged.connect(lambda v: state.set_setting("size", v or None))
+        self.size.valueChanged.connect(self._size_changed)
+        state.loaded.connect(self._size_units)
+        self._size_units()
         self.fast = QCheckBox(tr("Malla rápida (prioriza el tiempo de solución)"))
         self.fast.setToolTip(tr(
             "Sigue siendo automática, con elementos de unas dos veces el tamaño normal en la "
@@ -444,6 +472,22 @@ class AnalysisPanel(QWidget):
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
         layout.addStretch(1)
+
+    def _size_units(self) -> None:
+        """The fine size in the project length unit (mm or in)."""
+        unit = self.state.units.thickness
+        factor = to_internal(1.0, unit, Kind.LENGTH)
+        self._factor = factor
+        self.size.blockSignals(True)
+        self.size.setSuffix(f" {unit}")
+        self.size.setDecimals(1 if factor < 2 else 3)
+        self.size.setSingleStep(1.0 if factor < 2 else 0.0625)
+        self.size.setRange(0.0, 100.0 / factor)
+        self.size.setValue((self.state.settings.size or 0.0) / factor)
+        self.size.blockSignals(False)
+
+    def _size_changed(self, value: float) -> None:
+        self.state.set_setting("size", value * self._factor or None)
 
     def _fast_toggled(self, on: bool) -> None:
         self.state.set_setting("fast", on)
@@ -535,7 +579,7 @@ class BlockForm(QWidget):
             elif isinstance(w, QCheckBox):
                 out[f.key] = w.isChecked()
             elif w.text().strip():
-                out[f.key] = w.text().strip()
+                out[f.key] = with_unit(w.text(), key_kind(f.key), self.state.units)
         return out
 
     def _commit(self, *_: object) -> None:
@@ -562,7 +606,9 @@ class BlockForm(QWidget):
             self.enabled.setChecked(bool(data))
             data = data or {}
             for f in self.fields:
-                value = data.get(f.key, f.default)
+                default = (convert_text(f.default, self.state.units) if f.kind == "text"
+                           and isinstance(f.default, str) else f.default)
+                value = data.get(f.key, default)
                 w = self.widgets[f.key]
                 if isinstance(w, QComboBox):
                     w.setCurrentIndex(max(0, w.findData(str(value))))
@@ -681,7 +727,8 @@ class AnchorTable(QWidget):
         out = []
         for r in range(self.table.rowCount()):
             cells = [self.table.item(r, c) for c in (0, 1)]
-            out.append([c.text().strip() if c else "0" for c in cells])
+            out.append([with_unit(c.text() if c else "0", Kind.LENGTH, self.state.units)
+                        for c in cells])
         return out
 
     def refresh(self) -> None:
@@ -702,7 +749,9 @@ class AnchorTable(QWidget):
             return
         if on and not self.table.rowCount() and self.state.model is not None:
             # start from the current pattern so that points are only moved or added
-            self._fill([[f"{a.x:.1f} mm", f"{a.y:.1f} mm"] for a in self.state.model.anchors])
+            u = self.state.units
+            self._fill([[fmt(a.x, Kind.LENGTH, u, 5), fmt(a.y, Kind.LENGTH, u, 5)]
+                        for a in self.state.model.anchors])
         self._commit()
 
     def _commit(self, *_: object) -> None:
@@ -711,7 +760,8 @@ class AnchorTable(QWidget):
 
     def _add(self) -> None:
         rows = self.rows()
-        rows.append(["0 mm", "0 mm"])
+        zero = f"0 {self.state.units.length}"
+        rows.append([zero, zero])
         self._fill(rows)
         self._commit()
 

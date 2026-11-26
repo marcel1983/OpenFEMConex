@@ -12,6 +12,7 @@ from typing import Any
 
 from openconex.core.materials import BOLTS, STEELS
 from openconex.io.project import FORMAT_VERSION, Project, WSectionInput
+from openconex.units import UnitSystem
 from PySide6.QtCore import QObject, Signal
 
 from openfemconex import __version__
@@ -21,6 +22,7 @@ from openfemconex.mesh import Mesh
 from openfemconex.model import BasePlateModel
 from openfemconex.report import ComboReport
 from openfemconex.study import Settings, Study
+from openfemconex.units import convert_data, display_units
 
 TEMPLATE: dict[str, Any] = {
     "format_version": FORMAT_VERSION,
@@ -230,6 +232,21 @@ class ProjectState(QObject):
         if cross and cross.get("cross") in renames:
             cross["cross"] = renames[cross["cross"]]
         self._touch()
+
+    @property
+    def units(self) -> UnitSystem:
+        """Display units of the project: every length in mm or in."""
+        name = self.data.get("info", {}).get("units", "SI_kN_m")
+        return display_units(name if isinstance(name, str) else "SI_kN_m")
+
+    def set_units(self, name: str) -> None:
+        """Change the unit system and rewrite every value of the project in it."""
+        if self.data.get("info", {}).get("units") == name:
+            return
+        self.data = convert_data(self.data, display_units(name))
+        self.data.setdefault("info", {})["units"] = name
+        self._touch()
+        self.loaded.emit()  # the forms show the converted values
 
     def set_cases(self, cases: list[dict[str, Any]]) -> None:
         if cases != self.data.get("cases"):

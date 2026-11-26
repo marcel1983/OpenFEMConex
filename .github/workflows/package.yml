@@ -60,6 +60,10 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -m "not ccx"
+      - name: Report figures off screen (diagnostic)
+        if: runner.os != 'Linux'
+        continue-on-error: true
+        run: python packaging/render_check.py render_check
       - name: Version of the archives
         shell: bash
         run: |

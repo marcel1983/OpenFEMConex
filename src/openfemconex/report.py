@@ -162,7 +162,7 @@ def _fem_summary_blocks(c: ComboReport, units: UnitSystem) -> list[Block]:
     ]
     anchors = [[str(i), fmt(a.x, L, units), fmt(a.y, L, units), fmt(a.tension, F, units),
                 fmt(a.Vx, F, units), fmt(a.Vy, F, units),
-                fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units), f"{a.uplift:.3f} mm"]
+                fmt((a.Vx**2 + a.Vy**2) ** 0.5, F, units), fmt(a.uplift, Kind.THICKNESS, units, 3)]
                for i, a in enumerate(r.anchors, start=1)]
     return [("table", [_("Resultado"), "FEM", _("DG1 (bloque rectangular)")], rows, {1, 2}),
             ("h3", _("Fuerzas en anclajes (FEM)")),

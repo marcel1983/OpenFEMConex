@@ -33,6 +33,16 @@ ACI 318 con las fuerzas que salen de ese modelo.
    que indican cada elemento y su material, y flechas a las soldaduras (filete o
    CJP).
 
+## Unidades
+
+Las unidades se eligen en **Proyecto › Unidades de presentación** y rigen en todo
+el programa: formularios, tablas, cotas, reportes y Word. Todas las longitudes
+van en mm (sistemas SI y MKS) o en pulgadas (US), incluso las dimensiones de la
+placa y del pedestal. Al cambiar de sistema, los valores del proyecto se
+reescriben en las nuevas unidades. Un número escrito sin unidad se toma en las
+unidades del proyecto; también puede escribirse con su unidad (`22 in`, `560 mm`,
+`3/4 in`).
+
 ## La ventana
 
 - **Ribbon** arriba: una pestaña por etapa, en el orden de trabajo.

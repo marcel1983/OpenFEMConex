@@ -42,6 +42,7 @@ from openfemconex.extras import LAWS, law_from_dict
 from openfemconex.gui.state import ProjectState
 from openfemconex.i18n import tr
 from openfemconex.model import Section, SectionKind
+from openfemconex.units import convert_data, convert_text
 
 I_TYPES = ("W", "M", "S", "HP")
 STEEL_COLOR = QColor("#5b7fb0")
@@ -62,11 +63,7 @@ def i_shape_labels() -> list[str]:
 
 
 def _units(state: ProjectState) -> UnitSystem:
-    if state.project is not None:
-        return state.project.info.unit_system()
-    from openconex.units import PRESETS
-    units = state.get("info", "units", "SI_kN_m")
-    return PRESETS.get(units, PRESETS["SI_kN_m"]) if isinstance(units, str) else PRESETS["SI_kN_m"]
+    return state.units
 
 
 def _text(value: Any) -> str:
@@ -394,8 +391,10 @@ class SectionsDialog(QDialog):
         self._fill(len(self._w_rows()) - 1)
 
     def _new(self) -> None:
-        self._add({"type": "W", "name": self._unique(tr("Perfil armado")), "d": "450 mm",
-                   "bf": "300 mm", "tf": "22 mm", "tw": "12 mm", "grade": "ASTM A572 Gr. 50"})
+        dims = convert_data({"d": "450 mm", "bf": "300 mm", "tf": "22 mm", "tw": "12 mm"},
+                            self.units)
+        self._add({"type": "W", "name": self._unique(tr("Perfil armado")), **dims,
+                   "grade": "ASTM A572 Gr. 50"})
 
     def _duplicate(self) -> None:
         sec = self._current()
@@ -701,7 +700,7 @@ class MaterialsDialog(QDialog):
         self._loading = True
         try:
             if self.table.rowCount() == 0:
-                fy = self.steel_edits["Fy"].text() or "250 MPa"
+                fy = self.steel_edits["Fy"].text() or convert_text("250 MPa", self.units)
                 self._append_row(fy, "0")
             else:
                 last = self.table.item(self.table.rowCount() - 1, 0)
@@ -813,8 +812,8 @@ class MaterialsDialog(QDialog):
 
     def _new_steel(self) -> None:
         name = self._unique_steel(tr("Acero nuevo"))
-        self.materials.append({"name": name, "Fy": "250 MPa", "Fu": "400 MPa",
-                               "E": "200000 MPa"})
+        self.materials.append({"name": name, **convert_data(
+            {"Fy": "250 MPa", "Fu": "400 MPa", "E": "200000 MPa"}, self.units)})
         self._fill_steels(name)
 
     def _duplicate_steel(self) -> None:
@@ -973,8 +972,9 @@ class MaterialsDialog(QDialog):
 
     def _new_bolt(self) -> None:
         name = self._unique_bolt(tr("Grado nuevo"))
-        self.bolts.append({"name": name, "Fu": "58 ksi", "Fy": "36 ksi", "Fnt": "43.5 ksi",
-                           "Fnv_N": "23.2 ksi", "Fnv_X": "29 ksi"})
+        self.bolts.append({"name": name, **convert_data(
+            {"Fu": "58 ksi", "Fy": "36 ksi", "Fnt": "43.5 ksi", "Fnv_N": "23.2 ksi",
+             "Fnv_X": "29 ksi"}, self.units)})
         self._fill_bolts(name)
 
     def _duplicate_bolt(self) -> None:

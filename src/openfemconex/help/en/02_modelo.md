@@ -20,6 +20,9 @@ The axial load is applied first and the moments and shears afterwards.
 
 Besides the OpenConex data, the `.ocnx` file can hold:
 
+- **Anchor rows facing the weak axis** (Geometry › Anchors): unticked, the two
+  rows are at x = ±f, facing the flanges; ticked, at y = ±f, with the anchors per
+  side spread along N.
 - **Anchors by coordinates** (Geometry › Anchors): an x, y table from the plate
   centre. x runs along the column depth.
 - **Pedestal reinforcement** (Geometry › Pedestal reinforcement): bars, ties and height. It

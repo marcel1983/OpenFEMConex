@@ -10,6 +10,7 @@ from pathlib import Path
 
 from openfemconex.model import MeshSettings
 from openfemconex.results import Results
+from openfemconex.units import display_units
 
 KIP = 4448.2216152605
 INCH = 25.4
@@ -106,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
 
     set_language(project.info.language)
     model = model_of(project, leveling_nuts=args.leveling_nuts, mu=args.mu, extras=extras)
-    free = bool(extras.anchors) or extras.cross is not None
+    free = bool(extras.anchors) or extras.cross is not None or extras.rows_weak
     combos = project_loads(project)
     us = project.info.units == "US"
     if args.list:
@@ -132,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     bp = project.base_plate_model()
     edition = EDITIONS[args.edition]
     cases = project.case_forces()
-    units = project.info.unit_system()
+    units = display_units(project.info)
     reports = []
     for combo, loads in combos:
         for note in diagnose(model, loads):
