@@ -155,7 +155,7 @@ def test_dark_theme(window, isolated_settings):
     assert QApplication.instance().palette().color(QPalette.ColorRole.Window).lightness() > 150
 
 
-def test_help_topics_in_both_languages():
+def test_help_topics_in_both_languages(qtbot):
     from openfemconex.gui.help import HelpDialog, topics
 
     es, en = topics("es"), topics("en")
