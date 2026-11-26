@@ -14,6 +14,7 @@ from openconex.core.materials import BOLTS, STEELS
 from openconex.io.project import FORMAT_VERSION, Project, WSectionInput
 from PySide6.QtCore import QObject, Signal
 
+from openfemconex import __version__
 from openfemconex.extras import KEY, Extras, parse_extras, split_data
 from openfemconex.i18n import tr
 from openfemconex.mesh import Mesh
@@ -315,4 +316,4 @@ class ProjectState(QObject):
 
     def title(self) -> str:
         name = self.path.name if self.path else tr("sin título")
-        return f"{name}{' *' if self.dirty else ''} — OpenFEMConex"
+        return f"{name}{' *' if self.dirty else ''} — OpenFEMConex {__version__}"

@@ -83,11 +83,11 @@ Descarga la última versión desde
 [GitHub Releases](https://github.com/marcel1983/openfemconex/releases/latest),
 en la sección *Assets*. No hace falta instalar Python ni CalculiX: van dentro.
 
-- **Windows:** `openfemconex-windows-x64.zip`. Descomprime la carpeta completa
+- **Windows:** `openfemconex-vX.Y.Z-windows-x64.zip`. Descomprime la carpeta completa
   y ejecuta `openfemconex.exe`.
-- **Linux:** `openfemconex-linux-x86_64.tar.gz`. Descomprime y ejecuta
+- **Linux:** `openfemconex-vX.Y.Z-linux-x86_64.tar.gz`. Descomprime y ejecuta
   `openfemconex/openfemconex`.
-- **macOS (Apple Silicon):** `openfemconex-macos-arm64.zip`, que contiene
+- **macOS (Apple Silicon):** `openfemconex-vX.Y.Z-macos-arm64.zip`, que contiene
   `OpenFEMConex.app`.
 
 Los ejecutables no están firmados. En Windows, si aparece SmartScreen, elige

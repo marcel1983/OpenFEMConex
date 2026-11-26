@@ -356,3 +356,9 @@ def test_title_block_heads_the_report(window):
     assert rows["Ingeniero"] == "Ing. Prueba" and rows["Revisión"] == "B"
     assert rows["Conexión"] == "PB-1, eje A-3"
     assert "PB-1" in study.report_title()
+
+
+def test_title_bar_shows_the_version(window):
+    from openfemconex import __version__
+
+    assert window.windowTitle().endswith(f"OpenFEMConex {__version__}")

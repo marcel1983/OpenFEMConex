@@ -60,18 +60,31 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -m "not ccx"
+      - name: Version of the archives
+        shell: bash
+        run: |
+          code=$(python -c "import openfemconex; print(openfemconex.__version__)")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ "$GITHUB_REF_NAME" != "v$code" ]]; then
+              echo "::error::the tag $GITHUB_REF_NAME does not match the version $code in the code"
+              exit 1
+            fi
+            echo "VERSION=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=v$code-dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
       - name: Build
         run: pyinstaller --noconfirm packaging/openfemconex.spec
       - name: Archive (Linux)
         if: runner.os == 'Linux'
-        run: tar -czf openfemconex-linux-x86_64.tar.gz -C dist openfemconex
+        run: tar -czf "openfemconex-$VERSION-linux-x86_64.tar.gz" -C dist openfemconex
       - name: Archive (macOS)
         if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent dist/OpenFEMConex.app openfemconex-macos-arm64.zip
+        run: ditto -c -k --keepParent dist/OpenFEMConex.app "openfemconex-$VERSION-macos-arm64.zip"
       - name: Archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path dist/openfemconex -DestinationPath openfemconex-windows-x64.zip
+        run: Compress-Archive -Path dist/openfemconex -DestinationPath "openfemconex-$env:VERSION-windows-x64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: openfemconex-${{ runner.os }}
