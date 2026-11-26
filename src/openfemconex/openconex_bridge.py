@@ -183,6 +183,7 @@ def model_from_base_plate(bp: BasePlate, *, mu: float | None = None,
         plate_steel=steel_of(bp, bp.plate_grade, extras),
         weld=bp.flange_weld or min_fillet(min(section.min_wall, bp.tp)),
         cjp=extras.cjp,
+        rows_weak=extras.rows_weak and not extras.anchors,
         stiffener_weld=(extras.stiffeners.weld or min_fillet(extras.stiffeners.thickness)
                         if extras.stiffeners else 0.0),
         anchors=tuple(Anchor(x, y) for x, y in positions),

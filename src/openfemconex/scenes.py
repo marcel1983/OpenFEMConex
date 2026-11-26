@@ -106,12 +106,21 @@ def draw_dimensions(plotter, model: BasePlateModel, length=_mm) -> None:
         chain([-B / 2, B / 2], False, side_x + off, side_x)
     # f and hef: their labels may hide behind the column or below the plate
     front = len(labels)
-    # f: from the column axis to the outer anchor rows, on the -y side
-    x0 = model.ex
-    rows = [x for x in (min(a.x for a in model.anchors), max(a.x for a in model.anchors))
-            if abs(x - x0) > 1.0] if model.anchors else []
-    if rows:
-        chain(_distinct(rows + [x0]), True, -B / 2 - off, -B / 2, prefix="f = ")
+    # f: from the column axis to the outer anchor rows, measured across the two rows
+    # (along x for rows facing the flanges, along y for rows facing the weak axis)
+    if model.anchors:
+        ax = _distinct([a.x for a in model.anchors])
+        ay = _distinct([a.y for a in model.anchors])
+        along_x = (not model.rows_weak if not (len(ay) == 2 and len(ax) > 2)
+                   else False)
+        c0 = model.ex if along_x else model.ey
+        values = ax if along_x else ay
+        rows = [v for v in (min(values), max(values)) if abs(v - c0) > 1.0]
+        if rows:
+            if along_x:
+                chain(_distinct(rows + [c0]), True, -B / 2 - off, -B / 2, prefix="f = ")
+            else:
+                chain(_distinct(rows + [c0]), False, -N / 2 - off, -N / 2, prefix="f = ")
     # hef: along the first anchor of the outer row, below the top of the concrete
     if model.anchors:
         a = max(model.anchors, key=lambda r: (r.x, r.y))

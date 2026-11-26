@@ -402,3 +402,4 @@ def test_anchor_rows_facing_the_weak_axis(window):
     ys = sorted({round(a.y) for a in st.model.anchors})
     assert ys == xs  # the rows moved from x = ±f to y = ±f
     assert {round(a.x) for a in st.model.anchors} == {-100, 100}
+    assert st.model.rows_weak  # the dimension of f is drawn along y

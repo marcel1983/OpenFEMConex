@@ -336,6 +336,8 @@ class BasePlateModel:
     """The column-to-plate weld is of complete joint penetration."""
     stiffener_weld: float = 0.0
     """Fillet size of the stiffener welds, for drawing."""
+    rows_weak: bool = False
+    """The two anchor rows face the weak axis (at y = ±f); for the dimension of f."""
     column_length: float | None = None
     """Modelled column length above the plate (default 2.5 × largest section dimension)."""
     contact: ContactSettings = field(default_factory=ContactSettings)
