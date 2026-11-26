@@ -216,19 +216,81 @@ def anchor_pullout(bearing_area: float, fc: float, demand: float, ed: Edition = 
 
 def anchor_side_face_blowout(ca1: float, bearing_area: float, fc: float, demand: float,
                              hef: float, ed: Edition = CURRENT, spacing: float = 0.0,
-                             combo: str = "") -> CheckResult:
-    """Side-face blowout of headed anchors near an edge; applies if hef > 2.5 ca1."""
+                             combo: str = "", ca2: float | None = None) -> CheckResult:
+    """Side-face blowout of headed anchors near an edge; applies if hef > 2.5 ca1.
+
+    One anchor: Nsb, reduced by (1 + ca2/ca1)/4 near a corner (ca2 < 3 ca1). A row of
+    anchors along the edge (``spacing`` = distance between the outer ones, < 6 ca1):
+    Nsbg = (1 + s/(6 ca1)) Nsb, with Nsb without the corner factor.
+    """
     clause = ed.anchor("blowout")
     c = _calc(Method.LRFD, combo)
+    c.step("c_{a1}", "c_{a1}", ca1, Kind.LENGTH, clause)
     abrg = from_internal(bearing_area, Kind.AREA, "in**2")
     nsb = c.step("N_{sb}", r"160 c_{a1} \sqrt{A_{brg}} \sqrt{f'_c}",
                  _lbf(160 * _in(ca1) * math.sqrt(abrg) * math.sqrt(_psi(fc))), Kind.FORCE, clause)
+    symbol = "N_{sb}"
     if spacing:
         nsb = c.step("N_{sbg}", r"\left(1 + \frac{s}{6c_{a1}}\right) N_{sb}",
-                     (1 + spacing / (6 * ca1)) * nsb, Kind.FORCE, clause)
-    cap = c.available(nsb, ed.concrete_b, Kind.FORCE, clause, "N_{sb}")
-    return c.result("anchor.side_face_blowout", clause, demand, cap, Kind.FORCE,
-                    applicable=hef > 2.5 * ca1)
+                     (1 + spacing / (6 * ca1)) * nsb, Kind.FORCE, clause, s=(spacing, Kind.LENGTH))
+        symbol = "N_{sbg}"
+    elif ca2 is not None and ca2 < 3 * ca1:
+        c.step("c_{a2}", "c_{a2}", ca2, Kind.LENGTH, clause)
+        nsb = c.step("N_{sb}", r"\frac{1 + c_{a2}/c_{a1}}{4} N_{sb}", (1 + ca2 / ca1) / 4 * nsb,
+                     Kind.FORCE, clause)
+    cap = c.available(nsb, ed.concrete_b, Kind.FORCE, clause, symbol)
+    cid = "anchor.side_face_blowout_group" if spacing else "anchor.side_face_blowout"
+    return c.result(cid, clause, demand, cap, Kind.FORCE, applicable=hef > 2.5 * ca1)
+
+
+def _faces(bp: BasePlate, group: list, model_anchors: list) -> dict[str, float]:
+    """Position of each concrete face near the anchors: x-, x+ (along N), y-, y+ (along B)."""
+    e = _edges(bp, group, model_anchors)
+    xs, ys = [a.x for a in group], [a.y for a in group]
+    faces = {"x-": None if e.bottom is None else min(xs) - e.bottom,
+             "x+": None if e.top is None else max(xs) + e.top,
+             "y-": None if e.left is None else min(ys) - e.left,
+             "y+": None if e.right is None else max(ys) + e.right}
+    return {k: v for k, v in faces.items() if v is not None}
+
+
+def _blowout_checks(bp: BasePlate, group: list, model_anchors: list, area: float,
+                    ed: Edition, combo: str) -> list[CheckResult]:
+    """Side-face blowout of the anchors in tension near each face (ACI Table 17.5.2).
+
+    For every face, the row of anchors nearest to it: the most loaded anchor alone
+    (with the corner factor) and, when the row has several anchors closer than 6 ca1,
+    the row as a group with the sum of their tensions.
+    """
+    faces = _faces(bp, group, model_anchors)
+    worst_single = worst_group = None
+    for name, pos in faces.items():
+        along_x = name.startswith("x")
+
+        def dist(a, pos=pos, along_x=along_x):
+            return abs((a.x if along_x else a.y) - pos)
+
+        ca1 = min(dist(a) for a in group)
+        if not ca1 or bp.hef <= 2.5 * ca1:
+            continue
+        row = [a for a in group if dist(a) <= ca1 + 1.0]
+        # distance to the nearest perpendicular face, for the corner factor
+        perp = [v for k, v in faces.items() if k[0] != name[0]]
+        top = max(row, key=lambda a: a.tension)
+        ca2 = min((abs((top.y if along_x else top.x) - v) for v in perp), default=None)
+        single = anchor_side_face_blowout(ca1, area, bp.fc, top.tension, bp.hef, ed,
+                                          combo=combo, ca2=ca2)
+        if worst_single is None or single.ratio > worst_single.ratio:
+            worst_single = single
+        if len(row) > 1:
+            coords = [a.y if along_x else a.x for a in row]
+            s = max(coords) - min(coords)
+            if 0 < s < 6 * ca1:
+                g = anchor_side_face_blowout(ca1, area, bp.fc, sum(a.tension for a in row),
+                                             bp.hef, ed, spacing=s, combo=combo)
+                if worst_group is None or g.ratio > worst_group.ratio:
+                    worst_group = g
+    return [r for r in (worst_single, worst_group) if r is not None]
 
 
 def anchor_breakout_shear(d: float, hef: float, ca1: float, fc: float, demand: float,
@@ -576,11 +638,8 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
                                           hairpins=extras.hairpins))
             area = bp.bearing_area or heavy_hex_bearing_area(rod.diameter)
             out.append(anchor_pullout(area, bp.fc, tmax, ed, bp.cracked, combo))
-            ca1 = min(edges.values(), default=None)
-            if ca1 and bp.hef:
-                blow = anchor_side_face_blowout(ca1, area, bp.fc, tmax, bp.hef, ed, combo=combo)
-                if blow.applicable:
-                    out.append(blow)
+            if bp.hef:
+                out.extend(_blowout_checks(bp, group, res.anchors, area, ed, combo))
 
     # -- shear
     V = math.hypot(res.applied["Vx"], res.applied["Vy"]) * res.load_fraction
@@ -652,7 +711,8 @@ def check_fem(bp: BasePlate, res: Results, ed: Edition = CURRENT,
         if lrfd:
             tension = [r.ratio for r in out if r.applicable and r.id in (
                 "anchor.steel_tension", "anchor.concrete_breakout_tension", "anchor.pullout",
-                "anchor.side_face_blowout", "anchor.reinforcement")]
+                "anchor.side_face_blowout", "anchor.side_face_blowout_group",
+                "anchor.reinforcement")]
             shear = [r.ratio for r in out if r.applicable and r.id in (
                 "anchor.steel_shear", "anchor.concrete_breakout_shear", "anchor.pryout",
                 "anchor.reinforcement_shear")]

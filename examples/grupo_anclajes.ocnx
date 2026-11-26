@@ -1,0 +1,54 @@
+{
+  "format_version": 9,
+  "info": {
+    "name": "Grupo de 8 anclajes en pedestal",
+    "number": "OFC-0013",
+    "client": "OpenFEMConex",
+    "engineer": "",
+    "revision": "0",
+    "date": "2026-11-25",
+    "language": "es",
+    "units": "MKS"
+  },
+  "base_plate": {
+    "column": "HSS6X4X3/8",
+    "column_grade": "ASTM A500 Gr. C (rectangular)",
+    "N": "33 cm",
+    "B": "25 cm",
+    "tp": "2.5 cm",
+    "plate_grade": "ASTM A572 Gr. 50",
+    "fc": "281.226 kgf/cm**2",
+    "A2_over_A1": 1.0,
+    "grout": "0 cm",
+    "grout_pad": false,
+    "rod_diameter": "0.75 in",
+    "rod_grade": "ASTM F1554 Gr. 36",
+    "rods_per_side": 2,
+    "f": "12.5 cm",
+    "rod_spacing": "17 cm",
+    "hef": "25 cm",
+    "cracked": false,
+    "pedestal_N": "60 cm",
+    "pedestal_B": "30 cm",
+    "flange_weld": "5/16 in"
+  },
+  "cases": [
+    {"name": "AXIAL", "type": "D", "P": "-54 tf"},
+    {"name": "CORTANTE", "type": "D", "V": "21 tf"},
+    {"name": "MOMENTO", "type": "D", "M": "2.7 tf*m"}
+  ],
+  "combinations": {
+    "methods": ["LRFD"],
+    "include_code": false,
+    "custom": [
+      {"name": "C1", "method": "LRFD", "factors": {"AXIAL": 1.0}},
+      {"name": "C2", "method": "LRFD", "factors": {"CORTANTE": 1.0}},
+      {"name": "C3", "method": "LRFD", "factors": {"MOMENTO": 1.0}}
+    ]
+  },
+  "openfemconex": {
+    "anchors": [["-12.5 cm", "-8.5 cm"], ["-4.17 cm", "-8.5 cm"], ["4.17 cm", "-8.5 cm"],
+                ["12.5 cm", "-8.5 cm"], ["12.5 cm", "8.5 cm"], ["4.17 cm", "8.5 cm"],
+                ["-4.17 cm", "8.5 cm"], ["-12.5 cm", "8.5 cm"]]
+  }
+}

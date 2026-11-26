@@ -13,11 +13,21 @@ norma. Las ediciones se eligen en **Proyecto › Normas**:
 | Placa | Deformación plástica (límite configurable, 5 %) y flexión por tracción de anclajes |
 | Anclajes | Acero a tracción y cortante, extracción, desprendimiento lateral |
 | Anclajes | Tracción, cortante y flexión con arandela soldada (AISC J3.7/J3.8) |
-| Concreto | Arrancamiento en tracción y en cortante, palanca (pryout), interacción |
+| Concreto | Arrancamiento del grupo en tracción y en cortante, palanca del grupo (pryout), desprendimiento lateral del anclaje más cargado y del grupo junto al borde, interacción |
 | Pedestal | Refuerzo de anclaje a tracción (barras y horquillas en U) y cortante, flexocompresión, cuantía mínima |
 | Cortante | Fricción, o llave de cortante (aplastamiento, acero y soldadura) |
 | Soldadura | Columna-placa y rigidizadores, con aumento direccional (J2.4) |
 | Rigidizadores | Deformación plástica y esbeltez del borde libre |
+
+Los anclajes se revisan como pide la Tabla 17.5.2 de ACI 318: de a uno el acero,
+la extracción y el desprendimiento lateral del más cargado (con el factor de
+esquina si ca2 < 3 ca1); como grupo, con la suma de las fuerzas del FEM, el
+arrancamiento en tracción (área proyectada ANc de los anclajes en tracción, hef'
+si hay tres o más bordes cerca, ψec,N con la excentricidad de la resultante), el
+arrancamiento en cortante, la palanca (Vcpg = kcp Ncbg con todos los anclajes) y
+el desprendimiento lateral de cada fila junto a un borde
+(Nsbg = (1 + s/6ca1) Nsb, si s < 6 ca1). La interacción usa la mayor relación de
+tracción y la mayor de cortante.
 
 Una fila *No rige* es una alternativa que no gobierna: por ejemplo, el
 arrancamiento del concreto cuando el refuerzo de anclaje del pedestal cumple.

@@ -23,6 +23,7 @@ __all__ = ["FIELDS", "draw_anchor_numbers", "draw_dimensions", "draw_model", "dr
 
 # PyVista announces a future change of the default surface algorithm; not relevant here.
 warnings.filterwarnings("ignore", message=".*extract_surface.*")
+warnings.filterwarnings("ignore", message=r"(?s).*default value of `algorithm`.*")
 
 FIELDS = {
     "von Mises": ("von_Mises", "von Mises [MPa]", "turbo"),

@@ -205,6 +205,9 @@ EN: dict[str, str] = {
         "welded washers, the model assumes the anchors take the shear after the plate slides "
         "in the holes (DG1).",
     "Aviso: {msg}": "Warning: {msg}",
+    "Cortante de anclajes a través del mortero": "Anchor shear through the grout pad",
+    "ACI 17.7.1.2.1: con mortero bajo la placa la resistencia del acero a cortante se multiplica por 0.80":  # noqa: E501
+        "ACI 17.7.1.2.1: with grout under the plate the steel shear strength is multiplied by 0.80",
     'Exportar Word':
         'Export Word',
     'Word escrito en {path}':
@@ -700,9 +703,12 @@ EN: dict[str, str] = {
     "Anclaje: resistencia del acero a cortante": "Anchor: steel strength in shear",
     "Concreto: arrancamiento del grupo en tracción": "Concrete: group breakout in tension",
     "Anclaje: extracción (pullout)": "Anchor: pullout",
-    "Concreto: desprendimiento lateral": "Concrete: side-face blowout",
-    "Concreto: arrancamiento en cortante": "Concrete: breakout in shear",
-    "Concreto: desprendimiento por palanca (pryout)": "Concrete: pryout",
+    "Concreto: desprendimiento lateral del anclaje más cargado":
+        "Concrete: side-face blowout of the most loaded anchor",
+    "Concreto: desprendimiento lateral del grupo junto al borde":
+        "Concrete: side-face blowout of the group along the edge",
+    "Concreto: arrancamiento del grupo en cortante": "Concrete: group breakout in shear",
+    "Concreto: desprendimiento por palanca del grupo (pryout)": "Concrete: group pryout",
     "Anclaje: interacción tracción y cortante": "Anchor: tension and shear interaction",
     "Cortante por fricción": "Shear by friction",
     "Refuerzo de anclaje a tracción (barras y horquillas)":

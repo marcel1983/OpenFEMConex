@@ -13,11 +13,20 @@ formula. The editions are chosen in **Project › Codes**:
 | Plate | Plastic strain (configurable limit, 5 %) and bending from anchor tension |
 | Anchors | Steel in tension and shear, pullout, side-face blowout |
 | Anchors | Tension, shear and bending with welded washer (AISC J3.7/J3.8) |
-| Concrete | Breakout in tension and shear, pryout, interaction |
+| Concrete | Group breakout in tension and shear, group pryout, side-face blowout of the most loaded anchor and of the group along the edge, interaction |
 | Pedestal | Anchor reinforcement in tension (bars and U hairpins) and shear, axial force and bending, minimum steel |
 | Shear | Friction, or shear lug (bearing, steel and weld) |
 | Weld | Column-to-plate and stiffeners, with directional increase (J2.4) |
 | Stiffeners | Plastic strain and slenderness of the free edge |
+
+Anchors are checked as ACI 318 Table 17.5.2 asks: one by one the steel, pullout
+and side-face blowout of the most loaded anchor (with the corner factor when
+ca2 < 3 ca1); as a group, with the sum of the FEM forces, the breakout in tension
+(projected area ANc of the anchors in tension, hef' with three or more edges
+nearby, ψec,N with the eccentricity of the resultant), the breakout in shear,
+pryout (Vcpg = kcp Ncbg with all the anchors) and the side-face blowout of each
+row along an edge (Nsbg = (1 + s/6ca1) Nsb, when s < 6 ca1). The interaction
+uses the largest tension ratio and the largest shear ratio.
 
 A row marked *Not governing* is an alternative that does not govern: for
 instance concrete breakout when the anchor reinforcement of the pedestal works.

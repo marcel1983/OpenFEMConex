@@ -136,7 +136,7 @@ def _one(check: CheckResult, bp: BasePlate, res: Results, ed: Edition, units: Un
                       "placa de {s} × {s} bajo la tuerca).", a=fmt(area, Kind.AREA, units),
                       s=fmt(_round_up(side, units, Kind.LENGTH), Kind.LENGTH, units)))
         out.append(tr("O usar un diámetro de anclaje mayor (tuerca más grande)."))
-    elif cid == "anchor.side_face_blowout":
+    elif cid in ("anchor.side_face_blowout", "anchor.side_face_blowout_group"):
         out.append(tr("Alejar los anclajes del borde lateral o agrandar el pedestal; también "
                       "puede reducirse hef para que no supere 2.5 veces la distancia al borde."))
     elif cid == "anchor.concrete_breakout_shear":

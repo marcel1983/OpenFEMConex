@@ -95,6 +95,9 @@ SECTIONS: dict[str, list[Field]] = {
         Field("pedestal_N", "Pedestal, largo", tip="Vacío: concreto sin bordes cercanos"),
         Field("pedestal_B", "Pedestal, ancho"),
         Field("grout", "Espesor de mortero"),
+        Field("grout_pad", "Cortante de anclajes a través del mortero", "bool",
+              tip="ACI 17.7.1.2.1: con mortero bajo la placa la resistencia del acero a "
+                  "cortante se multiplica por 0.80"),
         Field("cracked", "Concreto fisurado", "bool"),
         Field("friction_mu", "Fricción μ (verificación)", "float"),
     ],
@@ -197,6 +200,7 @@ class FormPanel(QWidget):
             defaults = {"column_grade": "ASTM A992", "plate_grade": "ASTM A572 Gr. 50",
                         "rod_grade": "ASTM F1554 Gr. 36", "rods_per_side": 2, "A2_over_A1": 1.0,
                         "cracked": True, "friction_mu": 0.4, "electrode": "E70XX",
+                        "grout_pad": True,
                         "grout": "1.5 in"}
             self.update_choices()
             for f in self.fields:
