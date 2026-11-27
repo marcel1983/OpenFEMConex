@@ -122,7 +122,8 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
     # compression to give friction (net uplift with shear, no lug): then the plate slides
     # in the holes until the rods bear (DG1). Otherwise friction carries it and the
     # springs are only a weak restraint against rigid-body sliding.
-    no_friction = loads.P <= 0 and (loads.Vx or loads.Vy) and model.lug is None
+    no_friction = (loads.P <= 0 and (loads.Vx or loads.Vy) and model.lug is None
+                   and not model.anchor.friction_only)
     k_lat = (ks.lateral if model.anchor.welded_washers or no_friction
              else 1e-3 * ks.lateral)
     lug_nodes: tuple[int, ...] = ()

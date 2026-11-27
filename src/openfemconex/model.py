@@ -147,6 +147,9 @@ class AnchorSpec:
     """With leveling nuts the rods also take compression."""
     welded_washers: bool = False
     """Plate washers welded to the plate: the rods then also take shear."""
+    friction_only: bool = False
+    """The shear goes by friction even without axial compression (through-bolts: the
+    moment couple presses the plate on the wall); the rods only restrain sliding."""
 
     @property
     def area(self) -> float:

@@ -106,7 +106,8 @@ def fem_model(conn: ThroughBoltConnection, far: bool = False) -> BasePlateModel:
     washer = max(min(2.0 * db, 1.9 * room), hole + 1.0)
     bolt = BOLTS[ep.bolt.grade]
     spec = AnchorSpec(diameter=db, hole=hole, washer=washer, hef=m.thickness + t_far,
-                      Fu=bolt.Fu, welded_washers=conn.shear is ShearTransfer.GROUT)
+                      Fu=bolt.Fu, welded_washers=conn.shear is ShearTransfer.GROUT,
+                      friction_only=conn.shear is ShearTransfer.FRICTION)
     # the block: the wall around the plate, at most one thickness beyond its edges
     margin = min(m.thickness, N)
     width = B + 2 * margin

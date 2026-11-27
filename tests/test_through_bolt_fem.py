@@ -55,6 +55,8 @@ def test_fem_bolt_tension_and_bearing_match_the_couple(tmp_path):
     assert max(bottom) < 0.02 * T
     assert res.bearing_force == pytest.approx(T, rel=0.10)
     assert res.bearing_centroid[0] < 0  # compression under the bottom flange
+    # friction: the shear goes through the contact, not through the bolts
+    assert sum(abs(a.Vx) for a in res.anchors) < 0.05 * combo.V
     ids = {c.id for c in side.checks}
     assert {"through_bolt.fem_bolt_tension", "through_bolt.fem_bearing",
             "through_bolt.fem_friction", "through_bolt.fem_plate_strain"} <= ids
