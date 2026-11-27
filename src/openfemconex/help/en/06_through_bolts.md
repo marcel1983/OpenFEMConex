@@ -5,20 +5,24 @@ cross it inside sleeves (no bond) and are anchored on a **continuous back
 plate** on the far face. There may be another beam on the far side, on the same
 bolts.
 
-The checks of this topic are in the `openfemconex.through_bolt` module. This
-first version covers a single beam with the shear taken by friction; the grout
-scheme and the opposite connection are described here and are completed in the
-next versions.
+The checks of this topic are in the `openfemconex.through_bolt` module
+(analytic; the interface and the CalculiX model come later). It covers one beam
+or two opposite beams, with the shear by friction or with grout.
 
 ## Load path
 
-With the beam moment M and the lever arm z = d − tf between the flange centres:
+For each beam, with its moment M (positive with tension at the top), its shear
+V and the lever arm z = d − tf between the flange centres:
 
-- the bolts at the tension flange carry **T = |M|/z − P/2** to the back plate,
-  which bears on the far face of the concrete (no bond: all the tension reaches
-  the back plate);
-- the end plate bears on the near face at the compression flange with
-  **C = T + P** (P positive in compression).
+- its tension flange pulls the bolts of that group (top or bottom) with
+  **T = |M|/z − P/2**, and its compression flange bears on its face with
+  **C = T + P** (P positive in compression);
+- the bolts of a group carry the larger tension of the two sides,
+  **Tb = max(T1, T2)**; the plate of the side that pulls less bears on its face
+  with Tb − Ti (with one beam, the back plate gets the whole T);
+- so each face has a bearing zone at the top and one at the bottom. What is not
+  balanced across the thickness, ΔF, is carried by a diagonal strut and the
+  vertical bars, and bends the member with **ΔM = (M1 − M2) + (V1 − V2) h/2**.
 
 ## 1. Shear: by friction or with grout
 
@@ -39,9 +43,16 @@ user-defined μ (0.55 by default). The bolts carry no shear.
 
 **Grout.** The sleeve is grouted over a length ℓg next to the near face; the
 bolt bears laterally on the grout. To keep it unbonded, the bolt is wrapped with
-a debonding tape or sheath inside the grout. Checks: bolt combined tension and
-shear (AISC J3.7), bearing at the plate holes (J3.10), bolt bearing on the grout
-(ACI §22.8) and bolt bending if there is a gap.
+a debonding tape or sheath inside the grout. Checks:
+
+- most loaded bolt with the tension of its group, the shear V/n of the more
+  loaded side and the bending over the gap g between plate and grout (lever
+  g/2), with the reduced tension of AISC J3.7 (as the rod with a welded plate
+  washer of Design Guide 1);
+- bolt bearing on the grout: V/n ≤ φ 0.85 f'cg d ℓ, with ℓ = min(ℓg, 4d)
+  because the pressure concentrates next to the face;
+- shear, bearing and tearout at the plate holes with the bolts of the
+  compression zone (Design Guides 16 and 4).
 
 - For: does not depend on compression; works with one side loaded, with axial
   tension and in seismic design.
@@ -55,7 +66,7 @@ shear (AISC J3.7), bearing at the plate holes (J3.10), bolt bearing on the grout
 | Check | Reference | How |
 |---|---|---|
 | Bearing under each plate | ACI 318 §22.8 | A1 = core (flange or washers) plus a plate cantilever l with φ Fy tp²/4 = fp l²/2; A2 from the 1:2 frustum within the member |
-| Punching at the back plate | ACI 318 §22.6 | Force T; b0 at d/2 from the bearing area, cut by the edges of a column (αs = 40 or 20) |
+| Punching of each group | ACI 318 §22.6 | Force not balanced by the other face; b0 at d/2 from the bearing area, cut by the edges of a column (αs = 40 or 20) |
 | Bursting behind each plate | §25.9 (analogy), Ch. 23 | T_burst = 0.25 F (1 − a/H), H = a + h, against the bars of both faces within H |
 
 ![Far face](img/en/concreto_cara.png)
@@ -88,9 +99,19 @@ both sides (ACI 318 Ch. 15) belong to the global analysis.
 ![Opposite connection](img/en/conexion_opuesta.png)
 
 With a beam on the far side, the back plate is the end plate of the other beam
-and the bolts are shared. Each plate is checked in both roles. The concrete gets
-the unbalanced moment ΔM; under seismic loads the moments act in the same sense
-and both the top and the bottom rows are in tension.
+and the bolts are shared. Both plates must have the same bolt rows, gage and
+diameter, and the beam axes must be at the same height.
+
+| Case | Bolts | Concrete |
+|---|---|---|
+| A. Balanced (M1 = M2) | Tb = T, not 2T | Compression at the bottom of both faces only: no strut or punching, ΔM ≈ 0 |
+| B. Unbalanced | Tb = max(T1, T2) | Plate 2 bears at the top with T1 − T2; ΔM = M1 − M2 |
+| C. One side | Tb = T1 | Plate 2 works as the back plate; ΔM = M1 |
+| D. Seismic (same sense) | Top and bottom rows in tension | ΔF = T + C; ΔM = M1 + M2 |
+
+Each beam has its end-plate checks (those of beam 2 show "viga 2" in the
+combination) and, with friction, its own shear by friction with the compression
+on its face. Under seismic loads friction should not be relied on: use grout.
 
 ## Data
 
@@ -99,4 +120,5 @@ and both the top and the bottom rows are in tension.
 | Beam and end plate | Shape, bolt layout (Design Guides 16 and 4), thickness, welds |
 | Back plate | Width, height, thickness, steel, washer diameter |
 | Wall or column | Kind, thickness (along the bolts), column width, f'c, cover, vertical and horizontal bars at each face, distance to the ends, axial force |
-| Shear | Friction (μ) or grout |
+| Opposite beam | Shape and end plate with the same bolts; loads V2, M2, P2 |
+| Shear | Friction (μ) or grout (length ℓg, grout f'c, gap g) |

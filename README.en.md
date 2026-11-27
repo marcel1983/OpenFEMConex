@@ -59,7 +59,8 @@ from OpenConex.
   wall or column with unbonded through-bolts and a continuous back plate:
   analytic checks of the plate (Design Guides 16 and 4), of the concrete
   (bearing §22.8, punching §22.6, bursting, strut-and-tie Ch. 23, flexure and
-  axial force of the wall or column) and of the shear by friction. For now in the
+  axial force of the wall or column) and of the shear by friction or with grout;
+  one beam or two opposite beams on the same bolts. For now in the
   `through_bolt` module and the help; no interface or FEM yet.
 - **Editions.** Current codes (AISC 360-22, ACI 318-19) or those of DG1 2nd ed.
   (AISC 360-05, ACI 318-08) to reproduce its examples.

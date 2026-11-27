@@ -725,22 +725,40 @@ EN: dict[str, str] = {
     "Concreto: desprendimiento por palanca del grupo (pryout)": "Concrete: group pryout",
     "Anclaje: interacción tracción y cortante": "Anchor: tension and shear interaction",
     "Cortante por fricción": "Shear by friction",
-    "Pernos pasantes: aplastamiento bajo la placa frontal":
-        "Through-bolts: bearing under the end plate",
-    "Pernos pasantes: aplastamiento bajo la placa posterior":
-        "Through-bolts: bearing under the back plate",
-    "Pernos pasantes: punzonamiento por la placa posterior":
-        "Through-bolts: punching shear at the back plate",
+    "Pernos pasantes: aplastamiento bajo la placa frontal, arriba":
+        "Through-bolts: bearing under the end plate, top",
+    "Pernos pasantes: hendimiento detrás de la placa frontal, arriba":
+        "Through-bolts: bursting behind the end plate, top",
+    "Pernos pasantes: aplastamiento bajo la placa frontal, abajo":
+        "Through-bolts: bearing under the end plate, bottom",
+    "Pernos pasantes: hendimiento detrás de la placa frontal, abajo":
+        "Through-bolts: bursting behind the end plate, bottom",
     "Pernos pasantes: cortante por fricción en la placa frontal":
         "Through-bolts: shear by friction at the end plate",
-    "Pernos pasantes: hendimiento detrás de la placa frontal":
-        "Through-bolts: bursting behind the end plate",
-    "Pernos pasantes: hendimiento detrás de la placa posterior":
-        "Through-bolts: bursting behind the back plate",
+    "Pernos pasantes: apoyo del perno en el grout, placa frontal":
+        "Through-bolts: bolt bearing on the grout, end plate",
+    "Pernos pasantes: aplastamiento bajo la placa del otro lado, arriba":
+        "Through-bolts: bearing under the far plate, top",
+    "Pernos pasantes: hendimiento detrás de la placa del otro lado, arriba":
+        "Through-bolts: bursting behind the far plate, top",
+    "Pernos pasantes: aplastamiento bajo la placa del otro lado, abajo":
+        "Through-bolts: bearing under the far plate, bottom",
+    "Pernos pasantes: hendimiento detrás de la placa del otro lado, abajo":
+        "Through-bolts: bursting behind the far plate, bottom",
+    "Pernos pasantes: cortante por fricción en la placa del otro lado":
+        "Through-bolts: shear by friction at the far plate",
+    "Pernos pasantes: apoyo del perno en el grout, placa del otro lado":
+        "Through-bolts: bolt bearing on the grout, far plate",
+    "Pernos pasantes: punzonamiento de la zona de arriba":
+        "Through-bolts: punching shear of the top zone",
+    "Puntal y tensor: nodo de arriba": "Strut-and-tie: top node",
+    "Pernos pasantes: punzonamiento de la zona de abajo":
+        "Through-bolts: punching shear of the bottom zone",
+    "Puntal y tensor: nodo de abajo": "Strut-and-tie: bottom node",
+    "Pernos pasantes: tracción, cortante y flexión del perno con grout":
+        "Through-bolts: bolt tension, shear and bending with grout",
     "Puntal y tensor: ángulo entre puntal y tensor": "Strut-and-tie: angle between strut and tie",
     "Puntal y tensor: puntal diagonal del concreto": "Strut-and-tie: diagonal concrete strut",
-    "Puntal y tensor: nodo en la placa posterior": "Strut-and-tie: node at the back plate",
-    "Puntal y tensor: nodo en la placa frontal": "Strut-and-tie: node at the end plate",
     "Puntal y tensor: refuerzo vertical como tensor": "Strut-and-tie: vertical bars as tie",
     "Puntal y tensor: desarrollo del tensor más allá del nodo":
         "Strut-and-tie: development of the tie past the node",
