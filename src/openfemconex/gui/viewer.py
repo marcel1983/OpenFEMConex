@@ -152,6 +152,20 @@ class Viewer(QWidget):
                      reset)
         self.plotter.render()
 
+    def show_through_bolt(self, conn, reset: bool = True) -> None:
+        """Through-bolt connection: wall or column, beams, plates and bolts."""
+        from openfemconex import tb_scene
+
+        if not self._begin(tr("Pernos pasantes: {n} pernos", n=conn.bolts)):
+            return
+        camera = None if reset else self.plotter.camera_position
+        tb_scene.draw(self.plotter, conn)
+        if camera is None:
+            tb_scene.isometric(self.plotter)
+        else:
+            self.plotter.camera_position = camera
+        self.plotter.render()
+
     def screenshot(self, path: str | Path) -> Path | None:
         if self.plotter is None:
             return None

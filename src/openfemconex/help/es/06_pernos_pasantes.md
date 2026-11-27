@@ -6,7 +6,7 @@ que lo atraviesan dentro de una camisa (sin adherencia) y se anclan en una
 lado, con los mismos pernos.
 
 Las verificaciones de este tema están en el módulo `openfemconex.through_bolt`
-(cálculo analítico; la interfaz y el modelo CalculiX vienen después). Cubre una
+(cálculo analítico; el modelo CalculiX viene después). Cubre una
 viga o dos vigas opuestas, con el cortante por fricción o con grout.
 
 ## Camino de las fuerzas
@@ -113,6 +113,20 @@ gramil y diámetro de pernos; los ejes de las vigas, a la misma altura.
 Cada viga tiene sus revisiones de placa de extremo (las de la viga 2 llevan
 «viga 2» en la combinación) y, con fricción, su propio cortante por fricción con
 la compresión de su cara. En sismo no conviene confiar en la fricción: use grout.
+
+## En la interfaz
+
+**Proyecto › Agregar conexión › Pernos pasantes en concreto** agrega una
+conexión con los datos del primer ejemplo. Al seleccionarla en el árbol:
+
+- **Geometría**: viga, placa de extremo, placa posterior, muro o columna, viga
+  opuesta y cortante; la vista 3D muestra el muro, las placas, los pernos y el
+  grout de las camisas.
+- **Cargas**: combinaciones mayoradas (LRFD) en la cara del muro: V, M y P de la
+  viga 1 y, con viga opuesta, V2, M2 y P2.
+- **Análisis › Calcular**: corre todas las verificaciones (sin CalculiX
+  todavía). **Verificación** muestra la tabla y la traza de la fila elegida.
+- **Reporte**: HTML (con la vista 3D y los esquemas de esta ayuda) o PDF.
 
 ## Datos
 

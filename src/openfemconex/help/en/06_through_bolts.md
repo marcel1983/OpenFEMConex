@@ -6,7 +6,7 @@ plate** on the far face. There may be another beam on the far side, on the same
 bolts.
 
 The checks of this topic are in the `openfemconex.through_bolt` module
-(analytic; the interface and the CalculiX model come later). It covers one beam
+(analytic; the CalculiX model comes later). It covers one beam
 or two opposite beams, with the shear by friction or with grout.
 
 ## Load path
@@ -112,6 +112,20 @@ diameter, and the beam axes must be at the same height.
 Each beam has its end-plate checks (those of beam 2 show "viga 2" in the
 combination) and, with friction, its own shear by friction with the compression
 on its face. Under seismic loads friction should not be relied on: use grout.
+
+## In the interface
+
+**Project › Add connection › Through-bolts in concrete** adds a connection with
+the data of the first example. When it is selected in the tree:
+
+- **Geometry**: beam, end plate, back plate, wall or column, opposite beam and
+  shear; the 3D view shows the wall, the plates, the bolts and the grout in the
+  sleeves.
+- **Loads**: factored (LRFD) combinations at the wall face: V, M and P of beam 1
+  and, with an opposite beam, V2, M2 and P2.
+- **Analysis › Calculate**: runs every check (no CalculiX yet). **Checks** shows
+  the table and the trace of the selected row.
+- **Report**: HTML (with the 3D view and the diagrams of this topic) or PDF.
 
 ## Data
 

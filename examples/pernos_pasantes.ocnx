@@ -1,0 +1,161 @@
+{
+  "format_version": 14,
+  "info": {
+    "name": "Ejemplo pernos pasantes",
+    "number": "",
+    "client": "",
+    "engineer": "",
+    "revision": "0",
+    "language": "es",
+    "units": "SI_kN_m"
+  },
+  "openfemconex": {
+    "connections": [
+      {
+        "type": "through_bolt",
+        "name": "PP-1 muro, una viga",
+        "beam": "W18X50",
+        "beam_grade": "ASTM A992",
+        "end_plate": {
+          "layout": "extended_4",
+          "bolt_diameter": "1 in",
+          "bolt_grade": "ASTM F3125 Gr. A325",
+          "width": "8 in",
+          "thickness": "1 in",
+          "gage": "5.5 in",
+          "pf": "1.75 in",
+          "pb": "3.5 in",
+          "pf_o": "1.75 in",
+          "pext": "3.5 in",
+          "grade": "ASTM A36",
+          "web_weld": "5/16 in"
+        },
+        "back_plate": {
+          "width": "10 in",
+          "height": "",
+          "thickness": "1 in",
+          "grade": "ASTM A36",
+          "washer": ""
+        },
+        "member": {
+          "kind": "wall",
+          "thickness": "500 mm",
+          "fc": "28 MPa",
+          "cover": "40 mm",
+          "vertical_diameter": "19 mm",
+          "vertical_spacing": "150 mm",
+          "horizontal_diameter": "12 mm",
+          "horizontal_spacing": "200 mm",
+          "fy": "420 MPa",
+          "width": "",
+          "top": "",
+          "bottom": "",
+          "axial": "",
+          "cross_ties": true
+        },
+        "shear": {
+          "type": "friction",
+          "mu": 0.55,
+          "grout_length": "150 mm",
+          "grout_fc": "",
+          "gap": "6 mm"
+        },
+        "opposite": null,
+        "combinations": [
+          {
+            "name": "1.2D + 1.6L",
+            "V": "100 kN",
+            "M": "180 kN*m",
+            "P": "",
+            "V2": "",
+            "M2": "",
+            "P2": ""
+          },
+          {
+            "name": "1.2D + 1.0L",
+            "V": "70 kN",
+            "M": "100 kN*m",
+            "P": "",
+            "V2": "",
+            "M2": "",
+            "P2": ""
+          }
+        ]
+      },
+      {
+        "type": "through_bolt",
+        "name": "PP-2 dos vigas opuestas",
+        "beam": "W18X50",
+        "beam_grade": "ASTM A992",
+        "end_plate": {
+          "layout": "extended_4",
+          "bolt_diameter": "1 in",
+          "bolt_grade": "ASTM F3125 Gr. A325",
+          "width": "8 in",
+          "thickness": "1 in",
+          "gage": "5.5 in",
+          "pf": "1.75 in",
+          "pb": "3.5 in",
+          "pf_o": "1.75 in",
+          "pext": "3.5 in",
+          "grade": "ASTM A36",
+          "web_weld": "5/16 in"
+        },
+        "back_plate": {
+          "width": "10 in",
+          "height": "",
+          "thickness": "1 in",
+          "grade": "ASTM A36",
+          "washer": ""
+        },
+        "member": {
+          "kind": "wall",
+          "thickness": "500 mm",
+          "fc": "28 MPa",
+          "cover": "40 mm",
+          "vertical_diameter": "19 mm",
+          "vertical_spacing": "150 mm",
+          "horizontal_diameter": "12 mm",
+          "horizontal_spacing": "200 mm",
+          "fy": "420 MPa",
+          "width": "",
+          "top": "",
+          "bottom": "",
+          "axial": "",
+          "cross_ties": true
+        },
+        "shear": {
+          "type": "grout",
+          "mu": 0.55,
+          "grout_length": "150 mm",
+          "grout_fc": "",
+          "gap": "6 mm"
+        },
+        "opposite": {
+          "beam": "W18X50",
+          "beam_grade": "ASTM A992"
+        },
+        "combinations": [
+          {
+            "name": "1.2D + 1.6L, viva solo en la viga 1",
+            "V": "160 kN",
+            "M": "150 kN*m",
+            "P": "",
+            "V2": "90 kN",
+            "M2": "80 kN*m",
+            "P2": ""
+          },
+          {
+            "name": "1.2D + 1.0E + L",
+            "V": "120 kN",
+            "M": "130 kN*m",
+            "P": "",
+            "V2": "60 kN",
+            "M2": "-90 kN*m",
+            "P2": ""
+          }
+        ]
+      }
+    ]
+  }
+}

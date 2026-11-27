@@ -862,3 +862,130 @@ EN: dict[str, str] = {
     "{n} barras de {d} mm, estribos de {t} mm cada {s} mm, fy = {fy}":
         "{n} bars of {d} mm, ties of {t} mm every {s} mm, fy = {fy}",
 }
+
+# several connections per project and the through-bolt connection in the interface
+_CONNECTIONS: dict[str, str] = {
+    "Conexiones": "Connections", "Agregar conexión": "Add connection",
+    "Quitar conexión": "Remove connection", "Nuevo proyecto": "New project",
+    "Agrega al proyecto una conexión de otro tipo, elegido con su imagen":
+        "Adds a connection of another type to the project, picked from its picture",
+    "Quita del proyecto la conexión seleccionada":
+        "Removes the selected connection from the project",
+    "¿Quitar la conexión {name} del proyecto?": "Remove connection {name} from the project?",
+    "Elija el tipo de conexión. Un proyecto puede tener varias conexiones; cada una tiene "
+    "sus datos, cargas y reporte.":
+        "Pick the connection type. A project can hold several connections; each one has "
+        "its own data, loads and report.",
+    "(próximamente)": "(coming soon)",
+    "Placa base": "Base plate", "Pernos pasantes en concreto": "Through-bolts in concrete",
+    "Corte simple": "Shear tab", "Momento con placa de extremo": "Moment end plate",
+    "Empalme de viga": "Beam splice",
+    "Columna sobre placa base con anclajes en pedestal o fundación. Modelo de elementos "
+    "finitos con CalculiX y verificaciones AISC 360, DG1 y ACI 318.":
+        "Column on a base plate with anchors in a pedestal or footing. Finite element "
+        "model with CalculiX and AISC 360, DG1 and ACI 318 checks.",
+    "Viga con placa de extremo y pernos pasantes en un muro o columna nuevo de concreto, "
+    "con placa posterior corrida o viga opuesta. Cálculo analítico (el modelo CalculiX "
+    "vendrá después).":
+        "Beam end plate with through-bolts across a new concrete wall or column, with a "
+        "continuous back plate or an opposite beam. Analytic checks (the CalculiX model "
+        "will come later).",
+    "Placa simple a la columna. Próximamente.": "Single plate to the column. Coming soon.",
+    "Viga a columna de acero. Próximamente.": "Beam to steel column. Coming soon.",
+    "Empalme con cubreplacas. Próximamente.": "Splice with cover plates. Coming soon.",
+    "El proyecto ya tiene una placa base (una por proyecto en esta versión)":
+        "The project already has a base plate (one per project in this version)",
+    "el proyecto ya tiene una placa base": "the project already has a base plate",
+    "el proyecto necesita al menos una conexión": "the project needs at least one connection",
+    "el proyecto no tiene placa base": "the project has no base plate",
+    "Identificación": "Identification", "Nombre de la conexión": "Connection name",
+    "Por ejemplo: PP-1, muro eje 3": "For example: PP-1, wall on grid 3",
+    "Viga": "Beam", "Perfil": "Shape", "Acero": "Steel",
+    "Perfiles W, M, S y HP del catálogo AISC": "W, M, S and HP shapes of the AISC catalog",
+    "Placa de extremo": "End plate", "Disposición": "Layout", "Ancho bp": "Width bp",
+    "Espesor tp": "Thickness tp", "Diámetro de los pernos": "Bolt diameter",
+    "Grado de los pernos": "Bolt grade", "Gramil g": "Gage g",
+    "pf (fila interior a la cara del patín)": "pf (inner row to the flange face)",
+    "pb (entre filas interiores)": "pb (between inner rows)",
+    "Solo para las disposiciones con dos filas entre los patines":
+        "Only for the layouts with two rows between the flanges",
+    "pf,o (fila exterior al patín)": "pf,o (outer row to the flange)",
+    "Placas extendidas": "Extended plates", "Extensión pext": "Extension pext",
+    "Filete del alma": "Web fillet weld", "Filete de los patines": "Flange fillet weld",
+    "Vacío: soldadura de penetración completa": "Empty: complete joint penetration weld",
+    "Placa posterior": "Back plate", "Ancho": "Width", "Alto": "Height",
+    "Espesor": "Thickness",
+    "Vacío: el alto de la placa de extremo + 50 mm": "Empty: the end plate height + 50 mm",
+    "Diámetro de arandela": "Washer diameter",
+    "Vacío: el núcleo de apoyo es la placa misma": "Empty: the bearing core is the plate",
+    "Muro o columna": "Wall or column", "Tipo": "Type", "Muro": "Wall",
+    "Espesor h (dirección de los pernos)": "Thickness h (along the bolts)",
+    "Ancho de la columna": "Column width",
+    "Solo columnas; un muro es continuo a los lados":
+        "Columns only; a wall is continuous at the sides",
+    "f'c": "f'c", "Recubrimiento libre": "Clear cover",
+    "Barras verticales, diámetro": "Vertical bars, diameter",
+    "Barras verticales, separación": "Vertical bars, spacing",
+    "Barras horizontales, diámetro": "Horizontal bars, diameter",
+    "Barras horizontales, separación": "Horizontal bars, spacing",
+    "fy del refuerzo": "Reinforcement fy",
+    "Estribos que cruzan el espesor": "Ties across the thickness",
+    "El puntal se revisa con βs = 0.75 en vez de 0.4":
+        "The strut is checked with βs = 0.75 instead of 0.4",
+    "Distancia al extremo superior": "Distance to the top end",
+    "Distancia al extremo inferior": "Distance to the bottom end",
+    "Vacío: el elemento continúa": "Empty: the member continues",
+    "Carga axial (compresión +)": "Axial force (compression +)",
+    "Viga opuesta": "Opposite beam",
+    "Hay una viga del otro lado (conexión opuesta)":
+        "There is a beam on the far side (opposite connection)",
+    "Cortante": "Shear", "Transferencia": "Transfer", "Grout en las camisas": "Grout in sleeves",
+    "Coeficiente de fricción μ": "Friction coefficient μ", "Largo con grout ℓg":
+        "Grouted length ℓg", "f'c del grout": "Grout f'c",
+    "Vacío: el f'c del concreto": "Empty: the concrete f'c",
+    "Holgura g entre placa y grout": "Gap g between plate and grout",
+    "Con viga del otro lado, su placa de extremo es la placa posterior: usa la misma placa y "
+    "los mismos pernos que la viga 1 (filas, gramil y diámetro).":
+        "With a beam on the far side, its end plate is the back plate: it uses the same plate "
+        "and bolts as beam 1 (rows, gage and diameter).",
+    "Fricción: el cortante pasa por la compresión de cada cara (solo la compresión permanente "
+    "según ACI 318 §22.9). Grout: los pernos se apoyan en el grout de la camisa; vea la ayuda.":
+        "Friction: the shear goes through the compression on each face (only the permanent "
+        "compression per ACI 318 §22.9). Grout: the bolts bear on the grout in the sleeve; "
+        "see the help.",
+    "Placa corrida en la cara opuesta; no se usa cuando hay viga opuesta.":
+        "Continuous plate on the far face; not used with an opposite beam.",
+    "valor con unidad, p. ej. 1 in o 25 mm": "value with unit, e.g. 1 in or 25 mm",
+    "M (+ tracción arriba)": "M (+ tension at top)", "P (compresión +)": "P (compression +)",
+    "Combinaciones mayoradas (LRFD) en la cara del muro o columna. V positivo hacia abajo, M "
+    "positivo con tracción arriba, P positiva en compresión. V2, M2 y P2 son de la viga "
+    "opuesta. Un número sin unidad se toma en las unidades del proyecto.":
+        "Factored (LRFD) combinations at the face of the wall or column. V positive "
+        "downwards, M positive with tension at the top, P positive in compression. V2, M2 and "
+        "P2 belong to the opposite beam. A number without unit is taken in the project units.",
+    "Agregar combinación": "Add combination", "Quitar": "Remove",
+    "Cálculo analítico": "Analytic checks", "Calcular": "Calculate",
+    "Verifica todas las combinaciones (AISC 360, DG16/DG4 y ACI 318)":
+        "Checks every combination (AISC 360, DG16/DG4 and ACI 318)",
+    "Modelo FEM": "FEM model",
+    "El modelo de elementos finitos de esta conexión vendrá en una fase siguiente":
+        "The finite element model of this connection will come in a later phase",
+    "Nombre de la conexión; el proyecto, cliente e ingeniero son los del proyecto":
+        "Connection name; the project, client and engineer are those of the project",
+    "Pernos pasantes": "Through-bolts",
+    "Camino de cargas, esquemas de cortante y verificaciones de esta conexión":
+        "Load path, shear diagrams and checks of this connection",
+    "No se pudo calcular: {error}": "Could not calculate: {error}",
+    "<p>Sin verificaciones todavía: use Análisis › Calcular.</p>":
+        "<p>No checks yet: use Analysis › Calculate.</p>",
+    "Los resultados están desactualizados: vuelva a calcular.":
+        "The results are out of date: calculate again.",
+    "Listo. Sin resultados: use Análisis › Calcular.":
+        "Ready. No results: use Analysis › Calculate.",
+    "Al ras, 2 pernos (2F)": "Flush, 2 bolts (2F)", "Al ras, 4 pernos (4F)": "Flush, 4 bolts (4F)",
+    "Extendida, 4 pernos (4E)": "Extended, 4 bolts (4E)",
+    "Extendida rigidizada (4ES)": "Extended stiffened (4ES)",
+    "Extendida rigidizada, 8 pernos (8ES)": "Extended stiffened, 8 bolts (8ES)",
+    "sin calcular": "not calculated", "Pernos pasantes: {n} pernos": "Through-bolts: {n} bolts",
+}
+EN.update({k: v for k, v in _CONNECTIONS.items() if k not in EN})
