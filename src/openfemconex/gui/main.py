@@ -69,6 +69,7 @@ from openfemconex.gui.worker import SolveWorker
 from openfemconex.i18n import LANGUAGES, language, set_language, tr
 from openfemconex.report import check_title
 from openfemconex.runner import CcxError, find_ccx
+from openfemconex.through_bolt_project import combinations as tb_combinations
 from openfemconex.through_bolt_project import summary as tb_summary
 from openfemconex.units import display_units
 
@@ -439,18 +440,44 @@ class MainWindow(QMainWindow):
 
         tab = self.tb_ribbon.add_tab("Cargas")
         g = tab("Cargas")
-        g.add_button("Combinaciones", icon("combo"),
-                     lambda: self.central.setCurrentWidget(self.tb.combinations))
+        g.add_button("Casos", icon("load"), lambda: (
+            self.central.setCurrentWidget(self.tb.combinations),
+            self.tb.combinations.cases.setFocus()))
+        g.add_button("Combinaciones", icon("combo"), lambda: (
+            self.central.setCurrentWidget(self.tb.combinations),
+            self.tb.combinations.combos.setFocus()))
+        g.add_button("Editar combinaciones", icon("table"),
+                     lambda: self.tb.combinations.open_editor(),
+                     "Combinaciones propias con sus factores, o copia editable de las de "
+                     "ASCE 7")
 
         tab = self.tb_ribbon.add_tab("Análisis")
-        g = tab("Cálculo analítico")
-        g.add_button("Calcular", icon("play"), self.calculate_tb,
-                     "Verifica todas las combinaciones (AISC 360, DG16/DG4 y ACI 318)")
+        g = tab("Malla")
+        g.add_button("Ajustes", icon("table"), self.show_analysis_settings,
+                     "Tamaño de malla, malla rápida, capas, hilos de CalculiX y límite de "
+                     "deformación plástica (los mismos de la placa base)")
         g = tab("CalculiX")
-        later = g.add_button("Modelo FEM", icon("mesh"), lambda: None,
-                             "El modelo de elementos finitos de esta conexión vendrá en una "
-                             "fase siguiente")
-        later.setEnabled(False)
+        self.tb_solve_button = g.add_button(
+            "Resolver", icon("play"), self.solve_tb,
+            "Calcula las verificaciones analíticas y resuelve con CalculiX las combinaciones "
+            "marcadas en Cargas: placas sobre el concreto, pernos sin adherencia y soldaduras")
+        self.tb_stop_button = g.add_button("Detener", icon("stop"), self.stop_tb)
+        self.tb_stop_button.setEnabled(False)
+        g.add_button("Avance", icon("table"), self.show_progress,
+                     "Muestra el avance detallado de CalculiX")
+        g = tab("Resultados")
+        self.tb_fem_box = QComboBox()
+        self.tb_fem_box.setMinimumWidth(170)
+        self.tb_fem_box.textActivated.connect(self.show_tb_fem)
+        g.add_widget("Combinación", self.tb_fem_box)
+        self.tb_field_box = QComboBox()
+        for name in FIELDS:
+            self.tb_field_box.addItem(tr(name), name)
+        # the plate on the far face: back plate or end plate of the opposite beam
+        self.tb_field_box.addItem(tr("Presión de contacto en la cara opuesta"),
+                                  "Presión de contacto|far")
+        self.tb_field_box.activated.connect(lambda _: self.show_tb_fem())
+        g.add_widget("Resultado", self.tb_field_box)
 
         tab = self.tb_ribbon.add_tab("Verificación")
         g = tab("Verificaciones")
@@ -483,7 +510,8 @@ class MainWindow(QMainWindow):
         self.ribbons.setCurrentWidget(self.tb_ribbon if through else self.ribbon)
         self.viewer.dims.setVisible(not through)
         self.viewer.numbers.setVisible(not through)
-        for w, on in ((self.log, not through), (self.checks, not through),
+        self.analysis_panel.set_base_plate(not through)
+        for w, on in ((self.log, True), (self.checks, not through),
                       (self.anchor_forces, not through), (self.tb.checks, through)):
             self.bottom.setTabVisible(self.bottom.indexOf(w), on)
         if through:
@@ -547,12 +575,16 @@ class MainWindow(QMainWindow):
         if name in ("Geometría", "Proyecto"):
             if self.properties.currentWidget() not in self.tb.pages.values():
                 self.properties.setCurrentWidget(self.tb.pages["Viga"])
-        elif name in ("Análisis", "Verificación", "Reporte"):
+        elif name == "Análisis":
+            self.properties.setCurrentWidget(self.analysis_panel)
+            self.bottom.setCurrentWidget(self.log)
+        elif name in ("Verificación", "Reporte"):
             self.show_tb_checks()
 
     def _show_tb_view(self, reset: bool = False) -> None:
         if self.mode != "through_bolt" or self.tb.index < 0:
             return
+        self._view = "tb"
         self._update_status()
         try:
             conn = self.tb.connection()
@@ -575,8 +607,141 @@ class MainWindow(QMainWindow):
             self.tb.checks.selectRow(0)
 
     def _on_tb_results(self) -> None:
+        current = self.tb_fem_box.currentText()
+        labels = [label for label, _ in self.tb.fem_sides()]
+        self.tb_fem_box.clear()
+        self.tb_fem_box.addItems(labels)
+        if current in labels:
+            self.tb_fem_box.setCurrentText(current)
         self._update_status()
         self._fill_tree()
+
+    def solve_tb(self) -> None:
+        """Analytic checks of every combination, then CalculiX for the checked ones."""
+        from openfemconex.checks import EDITIONS as EDS
+        from openfemconex.gui.through_bolt_panel import FemWorker
+        from openfemconex.model import MeshSettings
+        from openfemconex.through_bolt_project import combinations
+
+        if getattr(self, "tb_worker", None) is not None:
+            return
+        if not self.tb.calculate():
+            QMessageBox.warning(self, tr("Resolver"), tr("No se pudo calcular: {error}",
+                                                          error=self.tb.error))
+            return
+        self.show_tb_checks()
+        try:
+            find_ccx(self.state.settings.ccx)
+        except CcxError as exc:
+            QMessageBox.warning(self, "CalculiX", tr(
+                "Verificaciones analíticas listas; el modelo CalculiX no se resolvió: "
+                "{error}", error=exc))
+            return
+        chosen = set(self.tb.combinations.selected())
+        combos = [c for c in combinations(self.tb.data, self.state.units) if c.name in chosen]
+        if not combos:
+            QMessageBox.information(self, tr("Resolver"), tr(
+                "Verificaciones analíticas listas. Marque en Cargas las combinaciones que "
+                "se resuelven con CalculiX."))
+            return
+        st = self.state.settings
+        mesh = MeshSettings(size_fine=st.size, plate_layers=st.layers, fast=st.fast)
+        worker = FemWorker(self.tb.connection(), combos, self.tb.fem_dir(),
+                           EDS.get(st.edition, EDS["current"]), st.ccx, st.fast, st.threads,
+                           settings=mesh, strain_limit=st.strain_limit)
+        worker.stage.connect(self._tb_stage)
+        worker.started_combo.connect(self._tb_combo_started)
+        worker.combo_done.connect(self._tb_combo_done)
+        worker.combo_failed.connect(self._tb_combo_failed)
+        worker.cancelled.connect(self._cancelled)
+        worker.finished.connect(self._tb_solve_finished)
+        self.tb_worker = worker
+        self._cancelled_run = False
+        self.tb_solve_button.setEnabled(False)
+        self.tb_stop_button.setEnabled(True)
+        self.bottom.setCurrentWidget(self.log)
+        self.log.appendPlainText(tr("{n} combinaciones con CalculiX ({mesh}, {t} hilos). "
+                                    "Salida: {out}", n=len(combos), t=st.threads,
+                                    out=self.tb.fem_dir(),
+                                    mesh=tr("malla rápida") if st.fast else tr("malla normal")))
+        axial = any(c.P > 0 or c.P2 > 0 for c in combos)  # then two load steps
+        self.solve_progress.start(len(combos), 0, 0, st.threads, steps=2 if axial else 1)
+        self.progress.setValue(0)
+        self.progress.show()
+        self._progress_timer.start()
+        worker.start()
+
+    def _tb_stage(self, text: str) -> None:
+        self.status_label.setText(text)
+        self.status_label.setStyleSheet("")
+        self.solve_progress.stage(text)
+
+    def _tb_combo_started(self, name: str, sta: str) -> None:
+        self.log.appendPlainText(tr("{name}: resolviendo con CalculiX…", name=name))
+        self.solve_progress.combo_started(name, Path(sta))
+
+    def _tb_combo_done(self, name: str, sides: list) -> None:
+        units = self.state.units
+        self.tb.attach_fem(name, sides)
+        res = sides[0].results if sides else None
+        checks = [c for s in sides for c in s.checks if c.applicable]
+        worst = max(checks, key=lambda r: r.ratio, default=None)
+        if res is None:
+            summary = f"{name}: " + tr("sin carga")
+        else:
+            summary = (
+                f"{name}: " + (tr("convergió") if res.converged else
+                               tr("NO convergió ({pct} % de la carga)",
+                                  pct=f"{100 * res.load_fraction:.0f}"))
+                + tr(" en {s} s. Tracción total en pernos {t}, compresión {c}.",
+                     s=f"{sum(s.results.solver.get('seconds', 0) for s in sides):.0f}",
+                     t=fmt(res.anchor_tension_total, Kind.FORCE, units),
+                     c=fmt(res.bearing_force, Kind.FORCE, units))
+                + (tr(" Gobierna {check}: {ratio}.", check=check_title(worst),
+                      ratio=f"{worst.ratio:.2f}") if worst else ""))
+        self.log.appendPlainText(summary)
+        self.solve_progress.combo_finished(summary)
+
+    def _tb_combo_failed(self, name: str, msg: str) -> None:
+        text = tr("{name}: no se pudo resolver: {error}", name=name, error=msg)
+        self.log.appendPlainText(text)
+        self.solve_progress.combo_finished(text)
+
+    def stop_tb(self) -> None:
+        if getattr(self, "tb_worker", None) is not None:
+            self.tb_worker.cancel.set()
+            self.log.appendPlainText(tr("Deteniendo CalculiX…"))
+
+    def _tb_solve_finished(self) -> None:
+        self.tb_worker = None
+        self.solve_progress.finished(self._cancelled_run)
+        self._progress_timer.stop()
+        self.tb_solve_button.setEnabled(True)
+        self.tb_stop_button.setEnabled(False)
+        self.progress.hide()
+        self._update_status()
+        if self.tb.fem_sides():
+            self.tb_ribbon.select("Análisis")
+            self.show_tb_fem(self.tb.fem_sides()[0][0])
+            self.show_tb_checks()
+
+    def show_tb_fem(self, label: str | None = None) -> None:
+        sides = dict(self.tb.fem_sides())
+        label = label or self.tb_fem_box.currentText()
+        side = sides.get(label)
+        if side is None or side.vtu is None or not side.vtu.exists():
+            return
+        self.tb_fem_box.setCurrentText(label)
+        self.central.setCurrentWidget(self.viewer)
+        self._view = "tb_fem"
+        units = self.state.units
+        sample = fmt(1000.0, Kind.FORCE, units, 6).split()
+        field, _sep, face = str(self.tb_field_box.currentData()).partition("|")
+        if face == "far" and side.model.far is None and side.model.opposite is None:
+            face = ""  # rigid far face: nothing to show there
+        self.viewer.show_results(side.vtu, side.model, side.results, field, 20.0,
+                                 unit_force=float(sample[0]) / 1000.0, force_label=sample[-1],
+                                 reset=True, face=face or "front")
 
     def _tb_topic(self) -> int:
         for i, (_, text) in enumerate(topics()):
@@ -609,11 +774,46 @@ class MainWindow(QMainWindow):
             return ""
         return QUrl.fromLocalFile(str(folder)).toString() + "/"
 
+    def _tb_fem_figures(self, folder: Path) -> dict:
+        """Figures of the CalculiX models (model, mesh, stresses, strains, displacements
+        and contact pressure on both plates) rendered into ``folder``."""
+        from openfemconex.scenes import render_through_bolt_figures
+
+        sides = [s for _, s in self.tb.fem_sides()]
+        if not sides:
+            return {}
+        if self.viewer.plotter is None:
+            self.log.appendPlainText(tr("Reporte sin gráficos: el visor 3D (OpenGL) no está "
+                                        "disponible."))
+            return {}
+        self.status_label.setText(tr("Generando los gráficos del reporte…"))
+        QApplication.processEvents()
+        sample = fmt(1000.0, Kind.FORCE, self.state.units, 6).split()
+        conn = self.tb.connection()
+        far = (tr("placa de extremo de la viga 2") if conn.opposite is not None
+               else tr("placa posterior"))
+        errors: list[str] = []
+        figures = render_through_bolt_figures(
+            folder, sides, far_caption=far, unit_force=float(sample[0]) / 1000.0,
+            force_label=sample[-1], errors=errors)
+        for error in errors:
+            self.log.appendPlainText(tr("No se pudieron generar los gráficos del reporte: "
+                                        "{error}", error=error))
+        return figures
+
+    def _tb_report(self, folder: Path) -> str:
+        base = self._tb_picture(folder)
+        picture = bool(base)
+        figures = self._tb_fem_figures(folder)
+        if figures and not base:
+            base = QUrl.fromLocalFile(str(folder)).toString() + "/"
+        return self.tb.report_html(figure_base=base, fem_figures=figures, picture=picture)
+
     def generate_tb_report(self) -> Path | None:
         if not self._tb_report_ready():
             return None
         folder = self._tb_report_dir()
-        html = self.tb.report_html(figure_base=self._tb_picture(folder))
+        html = self._tb_report(folder)
         path = folder / "reporte.html"
         path.write_text(html, encoding="utf-8")
         self.status_label.setText(tr("Reporte escrito en {path}", path=path))
@@ -633,7 +833,7 @@ class MainWindow(QMainWindow):
             path, _ = QFileDialog.getSaveFileName(self, tr("Exportar PDF"), default, "PDF (*.pdf)")
         if not path:
             return None
-        html = self.tb.report_html(figure_base=self._tb_picture(folder))
+        html = self._tb_report(folder)
         html = html.replace("<details>", "<details open>")
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
@@ -797,8 +997,11 @@ class MainWindow(QMainWindow):
         loads = QTreeWidgetItem(item, [tr("Combinaciones")])
         loads.setData(0, Qt.ItemDataRole.UserRole, ("tb_loads", index))
         results = self.tb.results if current else []
-        for combo in conn.get("combinations") or []:
-            name = str(combo.get("name", ""))
+        try:
+            names = [c.name for c in tb_combinations(conn, self.state.units)]
+        except Exception:  # the cases are being edited
+            names = []
+        for name in names:
             res = next((r for r in results if r.combo.name == name), None)
             if res is None or res.worst is None:
                 text, color = tr("sin calcular"), "#888888"
@@ -1095,6 +1298,8 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def stop(self) -> None:
+        if getattr(self, "tb_worker", None) is not None:
+            self.stop_tb()
         if self.worker is not None:
             self.worker.cancel.set()
             self.log.appendPlainText(tr("Deteniendo CalculiX…"))
@@ -1114,7 +1319,7 @@ class MainWindow(QMainWindow):
         self.solve_progress.combo_started(name, sta)
 
     def _poll_progress(self) -> None:
-        if self.worker is None:
+        if self.worker is None and getattr(self, "tb_worker", None) is None:
             return
         if not self.solve_progress.isVisible():
             self.solve_progress.poll()
@@ -1332,6 +1537,9 @@ class MainWindow(QMainWindow):
         if self.worker is not None:
             self.worker.cancel.set()
             self.worker.wait(5000)
+        if getattr(self, "tb_worker", None) is not None:
+            self.tb_worker.cancel.set()
+            self.tb_worker.wait(5000)
         if not self._confirm_discard():
             event.ignore()
             return

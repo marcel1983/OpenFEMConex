@@ -86,6 +86,11 @@ class ProjectState(QObject):
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         if "base_plate" not in data and not (data.get(KEY) or {}).get("connections"):
             raise ValueError("el archivo no contiene ninguna conexión")
+        from openfemconex import through_bolt_project as tbp
+
+        for conn in (data.get(KEY) or {}).get("connections") or []:
+            if conn.get("type") == tbp.TYPE:
+                tbp.migrate(conn)  # combinations typed factored -> load cases
         self._replace(data, Path(path))
 
     def save(self, path: str | Path | None = None) -> Path:
@@ -341,6 +346,17 @@ class ProjectState(QObject):
             combos.pop("custom", None)
         if combos != before:
             self._touch()
+
+    def set_combination_option(self, key: str, value: Any) -> None:
+        """``SDS``, ``rho``, ``omega0`` of the generated combinations; None removes it."""
+        combos = self.data.setdefault("combinations", {})
+        if combos.get(key) == value:
+            return
+        if value is None:
+            combos.pop(key, None)
+        else:
+            combos[key] = value
+        self._touch()
 
     def set_methods(self, methods: list[str]) -> None:
         combos = self.data.setdefault("combinations", {})

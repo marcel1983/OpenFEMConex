@@ -24,36 +24,29 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from openfemconex.gui.loads import LoadsSource
 from openfemconex.gui.state import ProjectState
 from openfemconex.i18n import tr
+from openfemconex.load_cases import combination_text
 
 METHODS = ("LRFD", "ASD")
-
-
-def combination_text(factors: dict[str, float]) -> str:
-    """1.2D + 1.6L."""
-    parts = []
-    for name, f in factors.items():
-        if f == 0:
-            continue
-        sign = "−" if f < 0 else "+"
-        parts.append((sign, f"{abs(f):g}{name}" if abs(f) != 1 else name))
-    if not parts:
-        return "0"
-    text = ("−" if parts[0][0] == "−" else "") + parts[0][1]
-    return text + "".join(f" {s} {t}" for s, t in parts[1:])
 
 
 class CombinationsDialog(QDialog):
     """Own combinations as a table of factors, one column per load case."""
 
-    def __init__(self, state: ProjectState, parent: QWidget | None = None) -> None:
+    def __init__(self, source: LoadsSource | ProjectState,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("Combinaciones de carga"))
         self.resize(900, 520)
-        self.state = state
-        self.cases = [c.get("name", "") for c in state.data.get("cases", [])]
-        options = state.data.get("combinations", {})
+        if isinstance(source, ProjectState):
+            from openfemconex.gui.panels import BasePlateLoads
+
+            source = BasePlateLoads(source)
+        self.source = source
+        self.cases = [c.get("name", "") for c in source.cases()]
+        options = source.options()
         self.custom: list[dict[str, Any]] = copy.deepcopy(options.get("custom", []))
         layout = QVBoxLayout(self)
         note = QLabel(tr("Las combinaciones ASCE 7 se generan solas a partir de los tipos de "
@@ -113,7 +106,7 @@ class CombinationsDialog(QDialog):
             for r, combo in enumerate(self.custom):
                 self.table.setItem(r, 0, QTableWidgetItem(combo.get("name", "")))
                 method = QComboBox()
-                method.addItems(METHODS)
+                method.addItems([m for m in METHODS if m in self.source.methods])
                 method.setCurrentText(str(combo.get("method", "LRFD")))
                 method.currentTextChanged.connect(lambda _=None: self._changed())
                 self.table.setCellWidget(r, 1, method)
@@ -175,9 +168,11 @@ class CombinationsDialog(QDialog):
 
     def _unique(self, base: str) -> str:
         names = {c.get("name") for c in self.custom}
-        if self.include.isChecked() and self.state.project is not None:
-            names |= {c.name for c in self.state.project.load_combinations()
-                      if c.source != "custom"}
+        if self.include.isChecked():
+            try:
+                names |= {c.name for c in self.source.code_combinations()}
+            except ValueError:
+                pass
         k, name = 1, base
         while name in names:
             k += 1
@@ -187,7 +182,7 @@ class CombinationsDialog(QDialog):
     def _add(self) -> None:
         self._changed()
         first = self.cases[0] if self.cases else "D"
-        self.custom.append({"name": self._unique(tr("Comb")), "method": "LRFD",
+        self.custom.append({"name": self._unique(tr("Comb")), "method": self.source.methods[0],
                             "factors": {first: 1.0}})
         self._fill(len(self.custom) - 1)
 
@@ -218,11 +213,14 @@ class CombinationsDialog(QDialog):
     def _copy_code(self) -> None:
         """The generated combinations as editable ones; the generated ones are then off."""
         self._changed()
-        if self.state.project is None:
+        try:
+            generated = self.source.code_combinations()
+        except ValueError as exc:
+            self.error.setText(str(exc))
             return
         names = {c.get("name") for c in self.custom}
-        for combo in self.state.project.load_combinations():
-            if combo.source == "custom" or combo.name in names:
+        for combo in generated:
+            if combo.name in names:
                 continue
             entry = {"name": combo.name, "method": combo.method.value,
                      "factors": dict(combo.factors), "source": combo.source}
@@ -256,5 +254,5 @@ class CombinationsDialog(QDialog):
         if problem:
             QMessageBox.warning(self, tr("Combinaciones de carga"), problem)
             return
-        self.state.set_combinations(self.include.isChecked(), custom)
+        self.source.set_combinations(self.include.isChecked(), custom)
         self.accept()

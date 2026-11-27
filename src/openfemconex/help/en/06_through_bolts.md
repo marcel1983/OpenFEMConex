@@ -6,7 +6,7 @@ plate** on the far face. There may be another beam on the far side, on the same
 bolts.
 
 The checks of this topic are in the `openfemconex.through_bolt` module
-(analytic; the CalculiX model comes later). It covers one beam
+(analytic checks and a CalculiX model). It covers one beam
 or two opposite beams, with the shear by friction or with grout.
 
 ## Load path
@@ -119,13 +119,66 @@ on its face. Under seismic loads friction should not be relied on: use grout.
 the data of the first example. When it is selected in the tree:
 
 - **Geometry**: beam, end plate, back plate, wall or column, opposite beam and
-  shear; the 3D view shows the wall, the plates, the bolts and the grout in the
-  sleeves.
-- **Loads**: factored (LRFD) combinations at the wall face: V, M and P of beam 1
-  and, with an opposite beam, V2, M2 and P2.
-- **Analysis › Calculate**: runs every check (no CalculiX yet). **Checks** shows
-  the table and the trace of the selected row.
-- **Report**: HTML (with the 3D view and the diagrams of this topic) or PDF.
+  shear; the 3D view shows the wall with its vertical and horizontal bars (ties
+  in a column), the plates, the bolts and the grout in the sleeves.
+- **Loads**: as for the base plate. Service load cases with their type (D, L,
+  W, E…) and their forces at the wall face: V, M and P of beam 1 and, with an
+  opposite beam, V2, M2 and P2. Their types give the ASCE 7 LRFD combinations
+  (the seismic ones when S<sub>DS</sub> is given; ρ and Ω0 optional). **Edit
+  combinations** adds your own combinations or copies the generated ones to
+  change their factors; the list marks the ones solved with CalculiX. An older
+  project, with factored combinations, is converted: each combination becomes a
+  case with its own combination of factor 1.
+- **Analysis**: **Settings** has the same options as the base plate (mesh size,
+  fast mesh, layers, CalculiX threads, plastic strain limit). **Solve** does it
+  all: the analytic checks of every combination and the CalculiX model of the
+  checked ones, with the progress window (increments, iterations and time) and
+  the solver log. **Checks** shows the table and the trace of the selected row.
+- **Results** (Analysis tab): combination, beam and field (von Mises, plastic
+  strain, displacement, contact pressure of the end plate and **contact pressure
+  on the far face**: back plate or end plate of beam 2).
+- **Report**: HTML or PDF, in the same order as the base plate report: data, 3D
+  view, the diagrams of this topic, isometric views of the CalculiX model and
+  its mesh, loads; for each combination the FEM results (table compared with the
+  analytic model, bolt forces, plots of von Mises stress, plastic strain,
+  displacements and contact pressure on both plates, checks with the FEM forces)
+  and then the analytic checks and the trace; at the end the summary, the
+  recommendations for what does not pass and the installation requirements of
+  the through-bolts that make the assumptions of the analysis valid (sealed
+  unbonded sleeves, seated plates, snug nuts without pretension, grout only
+  where it is relied on).
+
+## CalculiX model
+
+**Analysis › Solve** solves each combination with CalculiX. The end plate
+bearing on the face of the wall or column is the same problem as a base plate
+on its concrete block, so that model is used:
+
+- the beam and its end plate are elastic-plastic steel solids; the plate bears
+  on the concrete through contact (no tension) and, with shear by friction,
+  with friction μ;
+- the concrete is an elastic block as deep as the wall thickness h, held above
+  and below (the wall or column goes on past the connection);
+- the back plate is a flexible steel solid bearing on the far face through
+  contact (no tension, no friction): with a thin plate the compression gathers
+  behind the bolts in tension;
+- with an opposite beam, the other beam and its end plate replace the back
+  plate, as a mirror image across the wall, and both beams are loaded **at the
+  same time** in one model: the unbalanced case (gravity with different spans)
+  and the seismic one (both beams rotate the same way, so one plate bears at the
+  top while the other bears at the bottom) come from one solution;
+- each bolt is a tension-only spring E·A/L, with L = h plus both plate
+  thicknesses, since it is unbonded in the sleeve; it joins the nuts on both
+  plates; with grout the bolts also take the shear.
+
+Its forces check the most loaded bolt (with prying, J3.6), the plastic strain
+of the plate (5 %), bearing with the contact resultant, friction and the flange
+and web welds; with a back plate, also its plastic strain and the bearing under
+it; with an opposite beam, the same for beam 2 with the results of its face. The
+concrete checks (punching, bursting, strut-and-tie, wall
+flexure) stay analytic. The 3D view shows the model with the beam vertical (the
+base plate axes). **Fast mesh** is on by default: each combination takes a few
+minutes.
 
 ## Data
 

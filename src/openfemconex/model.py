@@ -11,7 +11,7 @@ x = y = 0.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 E_STEEL = 200_000.0
@@ -147,6 +147,9 @@ class AnchorSpec:
     """With leveling nuts the rods also take compression."""
     welded_washers: bool = False
     """Plate washers welded to the plate: the rods then also take shear."""
+    friction_only: bool = False
+    """The shear goes by friction even without axial compression (through-bolts: the
+    moment couple presses the plate on the wall); the rods only restrain sliding."""
 
     @property
     def area(self) -> float:
@@ -241,6 +244,9 @@ class Loads:
     Mx: float = 0.0
     My: float = 0.0
     name: str = "LOAD"
+    opposite: Loads | None = None
+    """Forces of the opposite beam (``BasePlateModel.opposite``), in its own axes: z out
+    of the far face, x up, the same signs as these."""
 
 
 @dataclass(frozen=True)
@@ -307,6 +313,23 @@ class ContactSettings:
 
 
 @dataclass(frozen=True)
+class FarPlate:
+    """Plate on the far face of the block (z = -H), anchoring the rods (through-bolts).
+
+    With it the block is no longer fixed at its base: the rods pull this plate against
+    the far face, and the block is held at its ends x = ±N/2 (a wall or column that
+    continues above and below the connection).
+    """
+
+    width: float
+    """Size along y."""
+    height: float
+    """Size along x."""
+    thickness: float
+    steel: Steel
+
+
+@dataclass(frozen=True)
 class BasePlateModel:
     section: Section
     column_steel: Steel
@@ -342,6 +365,17 @@ class BasePlateModel:
     """Modelled column length above the plate (default 2.5 × largest section dimension)."""
     contact: ContactSettings = field(default_factory=ContactSettings)
     title: str = ""
+    far: FarPlate | None = None
+    """Flexible plate on the far face anchoring the rods (through-bolt connections)."""
+    opposite: BasePlateModel | None = None
+    """Second column (beam) with its plate on the far face, on the same rods: its plate
+    and column are the mirror image below the block (through-bolt connection with an
+    opposite beam). Its anchors and concrete are those of this model."""
+
+    @property
+    def two_faces(self) -> bool:
+        """The rods cross the block to a plate on its far face (block held at its ends)."""
+        return self.far is not None or self.opposite is not None
 
     @property
     def Lc(self) -> float:
@@ -378,3 +412,12 @@ class BasePlateModel:
             raise ValueError("the concrete block must be at least the plate size")
         if self.anchor.hole >= self.anchor.washer:
             raise ValueError("the washer must be larger than the hole")
+        if self.opposite is not None:
+            o = self.opposite
+            if self.far is not None or o.opposite is not None or o.far is not None:
+                raise ValueError("an opposite column replaces the far plate")
+            if len(o.anchors) != len(self.anchors) or any(
+                    abs(a.x - b.x) > 1e-6 or abs(a.y - b.y) > 1e-6
+                    for a, b in zip(o.anchors, self.anchors, strict=True)):
+                raise ValueError("the opposite plate must have the same anchors")
+            replace(o, concrete=self.concrete).validate()

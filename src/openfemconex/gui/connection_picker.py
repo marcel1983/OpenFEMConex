@@ -38,7 +38,7 @@ TYPES = (
     ConnectionType("through_bolt", "Pernos pasantes en concreto",
                    "Viga con placa de extremo y pernos pasantes en un muro o columna nuevo de "
                    "concreto, con placa posterior corrida o viga opuesta. Cálculo analítico "
-                   "(el modelo CalculiX vendrá después)."),
+                   "y modelo CalculiX de la placa de extremo."),
     ConnectionType("shear_tab", "Corte simple", "Placa simple a la columna. Próximamente.",
                    False),
     ConnectionType("moment_end_plate", "Momento con placa de extremo",

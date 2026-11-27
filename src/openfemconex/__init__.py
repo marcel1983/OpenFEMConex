@@ -2,4 +2,4 @@
 # Copyright (C) 2026 The OpenFEMConex contributors
 """Base plate connections by finite elements (CalculiX) to AISC and ACI."""
 
-__version__ = "0.7.1"
+__version__ = "0.8.0"

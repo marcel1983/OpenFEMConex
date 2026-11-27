@@ -61,24 +61,23 @@
           "gap": "6 mm"
         },
         "opposite": null,
-        "combinations": [
+        "combinations": {
+          "methods": [
+            "LRFD"
+          ]
+        },
+        "cases": [
           {
-            "name": "1.2D + 1.6L",
-            "V": "100 kN",
-            "M": "180 kN*m",
-            "P": "",
-            "V2": "",
-            "M2": "",
-            "P2": ""
+            "name": "D",
+            "type": "D",
+            "V": "40 kN",
+            "M": "70 kN*m"
           },
           {
-            "name": "1.2D + 1.0L",
-            "V": "70 kN",
-            "M": "100 kN*m",
-            "P": "",
-            "V2": "",
-            "M2": "",
-            "P2": ""
+            "name": "L",
+            "type": "L",
+            "V": "32.5 kN",
+            "M": "60 kN*m"
           }
         ]
       },
@@ -135,24 +134,51 @@
           "beam": "W18X50",
           "beam_grade": "ASTM A992"
         },
-        "combinations": [
+        "combinations": {
+          "methods": [
+            "LRFD"
+          ],
+          "custom": [
+            {
+              "name": "Patrón: viva solo en la viga 1",
+              "method": "LRFD",
+              "factors": {
+                "D": 1.2,
+                "L1": 1.6
+              },
+              "source": "alternancia de la viva"
+            }
+          ],
+          "SDS": 0.6
+        },
+        "cases": [
           {
-            "name": "1.2D + 1.6L, viva solo en la viga 1",
-            "V": "160 kN",
-            "M": "150 kN*m",
-            "P": "",
-            "V2": "90 kN",
-            "M2": "80 kN*m",
-            "P2": ""
+            "name": "D",
+            "type": "D",
+            "V": "70 kN",
+            "M": "60 kN*m",
+            "V2": "55 kN",
+            "M2": "45 kN*m"
           },
           {
-            "name": "1.2D + 1.0E + L",
-            "V": "120 kN",
-            "M": "130 kN*m",
-            "P": "",
-            "V2": "60 kN",
-            "M2": "-90 kN*m",
-            "P2": ""
+            "name": "L1",
+            "type": "L",
+            "V": "40 kN",
+            "M": "35 kN*m"
+          },
+          {
+            "name": "L2",
+            "type": "L",
+            "V2": "25 kN",
+            "M2": "20 kN*m"
+          },
+          {
+            "name": "E",
+            "type": "E",
+            "V": "8 kN",
+            "M": "60 kN*m",
+            "V2": "-8 kN",
+            "M2": "-70 kN*m"
           }
         ]
       }

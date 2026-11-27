@@ -85,6 +85,14 @@ TITLES = {
     "through_bolt.stm_tie": "Puntal y tensor: refuerzo vertical como tensor",
     "through_bolt.stm_tie_anchorage": "Puntal y tensor: desarrollo del tensor más allá del nodo",
     "through_bolt.member_flexure": "Muro o columna: flexocompresión junto a la conexión",
+    "through_bolt.fem_bolt_tension": "FEM: tracción del perno más cargado (con efecto palanca)",
+    "through_bolt.fem_plate_strain": "FEM: deformación plástica de la placa de extremo",
+    "through_bolt.fem_bearing": "FEM: aplastamiento del concreto bajo la placa de extremo",
+    "through_bolt.fem_friction": "FEM: cortante por fricción con la compresión del modelo",
+    "through_bolt.fem_weld_flange": "FEM: soldadura de los patines a la placa de extremo",
+    "through_bolt.fem_weld_web": "FEM: soldadura del alma a la placa de extremo",
+    "through_bolt.fem_back_plate_strain": "FEM: deformación plástica de la placa posterior",
+    "through_bolt.fem_back_bearing": "FEM: aplastamiento del concreto bajo la placa posterior",
 }
 
 
