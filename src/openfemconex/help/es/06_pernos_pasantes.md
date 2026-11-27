@@ -141,7 +141,7 @@ conexión con los datos del primer ejemplo. Al seleccionarla en el árbol:
   deformación plástica, desplazamiento, presión de contacto de la placa de
   extremo y **presión de contacto en la cara opuesta**: placa posterior o placa
   de la viga 2).
-- **Reporte**: HTML o PDF, en el mismo orden que el de la placa base: datos,
+- **Reporte**: HTML, PDF o Word (.docx, editable), en el mismo orden que el de la placa base: datos,
   vista 3D, esquemas de esta ayuda, isométricos del modelo CalculiX y de su
   malla, cargas; por combinación, los resultados del FEM (tabla comparada con
   el modelo analítico, fuerzas en los pernos, gráficos de esfuerzos de von

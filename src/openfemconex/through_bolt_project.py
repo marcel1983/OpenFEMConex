@@ -416,14 +416,38 @@ def summary(data: dict[str, Any]) -> str:
 def report_html(data: dict[str, Any], results: list[ComboResult], units: UnitSystem,
                 info: dict[str, Any], edition: str = "current", figures: str = "",
                 figure_base: str = "", fem_figures: dict | None = None,
-                picture: bool = True) -> str:
-    """Calculation report of one connection.
+                picture: bool = False) -> str:
+    """Calculation report of one connection as HTML (see ``report_blocks``)."""
+    from openfemconex.report import blocks_to_html
+
+    return blocks_to_html(report_blocks(data, results, units, info, edition, figures,
+                                        figure_base, fem_figures, picture))
+
+
+def report_docx(path, figure_dir, data: dict[str, Any], results: list[ComboResult],
+                units: UnitSystem, info: dict[str, Any], edition: str = "current",
+                figures: str = "", fem_figures: dict | None = None,
+                picture: bool = False):
+    """Editable Word report with the same content; the 3D picture and the FEM figures
+    are read from ``figure_dir``, the help figures from the folder ``figures``."""
+    from openfemconex.report_docx import write_docx
+
+    blocks = report_blocks(data, results, units, info, edition, figures, "", fem_figures,
+                           picture)
+    return write_docx(blocks, path, figure_dir)
+
+
+def report_blocks(data: dict[str, Any], results: list[ComboResult], units: UnitSystem,
+                  info: dict[str, Any], edition: str = "current", figures: str = "",
+                  figure_base: str = "", fem_figures: dict | None = None,
+                  picture: bool = False) -> list:
+    """Calculation report of one connection, as the blocks of ``openfemconex.report``.
 
     ``figures`` is the folder (or URL) of the help figures; ``figure_base`` is put
     in front of the 3D picture ``conexion.png`` (with ``picture``) and of the FEM
     figures ``fem_figures`` (see ``scenes.render_through_bolt_figures``).
     """
-    from openfemconex.report import _checks_block, _traces_block, blocks_to_html, check_title
+    from openfemconex.report import _checks_block, _traces_block, check_title
 
     ed = EDITIONS.get(edition, EDITIONS["current"])
     conn = build(data, units)
@@ -486,7 +510,7 @@ def report_html(data: dict[str, Any], results: list[ComboResult], units: UnitSys
         ("h2", "Datos"),
         ("table", ["Elemento", "Datos"], rows, set()),
     ]
-    if figure_base and picture:
+    if picture:
         blocks.append(("figs", "Conexión", [("Vista 3D", f"{figure_base}conexion.png")], False))
     if fem_figures.get(""):
         blocks.append(("figs", "Modelo de elementos finitos",
@@ -568,4 +592,4 @@ def report_html(data: dict[str, Any], results: list[ComboResult], units: UnitSys
         "para el análisis global.",
         "Herramienta de apoyo: la responsabilidad del diseño es del profesional que lo firma.",
     ]))
-    return blocks_to_html(blocks)
+    return blocks

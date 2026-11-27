@@ -53,6 +53,13 @@ a = Analysis(
     excludes=["tkinter", "matplotlib.tests", "IPython", "PySide6.QtWebEngineCore",
               "PySide6.QtWebEngineWidgets", "PySide6.QtQml", "PySide6.QtQuick"],
 )
+if sys.platform.startswith("linux"):
+    # Use the C++ and GCC runtimes of the system: the copies of the build machine are
+    # older than what the system's OpenGL drivers (Mesa) need on newer distributions,
+    # and VTK then cannot create its GLX context ("GLXBadFBConfig"/symbol errors).
+    SYSTEM_LIBS = ("libstdc++.so", "libgcc_s.so")
+    a.binaries = [b for b in a.binaries
+                  if not Path(b[0]).name.startswith(SYSTEM_LIBS)]
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="openfemconex", console=False,
           upx=False)

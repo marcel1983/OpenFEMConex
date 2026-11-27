@@ -582,18 +582,31 @@ class ThroughBoltEditor(QObject):
             return text, "#2e9e4f" if ok else "#d03040"
         return tr("Listo. Sin resultados: use Análisis › Resolver."), ""
 
-    def report_html(self, figure_base: str = "", help_figures: bool = True,
-                    fem_figures: dict | None = None, picture: bool = True) -> str:
+    @staticmethod
+    def help_dir() -> str:
+        """Folder of the help figures (the diagrams put in the report)."""
         from importlib import resources
 
-        folder = ""
-        if help_figures:
-            img = resources.files("openfemconex.help") / "img" / "es"
-            folder = str(img)
-        return tbp.report_html(self.data, self.results, self.state.units,
-                               self.state.data.get("info", {}), self.state.settings.edition,
-                               figures=folder, figure_base=figure_base,
+        return str(resources.files("openfemconex.help") / "img" / "es")
+
+    def _report_args(self) -> tuple:
+        return (self.data, self.results, self.state.units, self.state.data.get("info", {}),
+                self.state.settings.edition)
+
+    def report_html(self, figure_base: str = "", help_figures: bool | str = True,
+                    fem_figures: dict | None = None, picture: bool = True) -> str:
+        """``help_figures``: True for the help folder, or the folder (relative to the
+        report) where they were copied."""
+        folder = help_figures if isinstance(help_figures, str) else (
+            self.help_dir() if help_figures else "")
+        return tbp.report_html(*self._report_args(), figures=folder, figure_base=figure_base,
                                fem_figures=fem_figures, picture=picture)
+
+    def report_docx(self, path, figure_dir, fem_figures: dict | None = None,
+                    picture: bool = True):
+        return tbp.report_docx(path, figure_dir, *self._report_args(),
+                               figures=self.help_dir(), fem_figures=fem_figures,
+                               picture=picture)
 
 
 class FemWorker(QThread):

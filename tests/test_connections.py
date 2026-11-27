@@ -200,6 +200,15 @@ def test_window_report_of_a_through_bolt_connection(window, tmp_path):
     assert path is not None and "Resumen" in path.read_text(encoding="utf-8")
     pdf = window.export_tb_pdf(str(tmp_path / "pp.pdf"))
     assert pdf.stat().st_size > 10_000
+    # the HTML names its images relative to its folder (a browser does not resolve
+    # "file:" URLs of a relative path) and carries the help diagrams with it
+    import re
+
+    srcs = re.findall(r'<img src="([^"]+)"', path.read_text(encoding="utf-8"))
+    assert srcs and all(not s.startswith(("file:", "/")) for s in srcs)
+    assert all((path.parent / s).exists() for s in srcs)
+    docx = window.export_tb_docx(str(tmp_path / "pp.docx"))
+    assert docx.stat().st_size > 10_000
 
 
 def test_new_project_dialog_picks_the_type(window, monkeypatch):
