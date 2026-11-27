@@ -112,6 +112,28 @@ que con el método de la guía sí. El concreto del modelo es elástico, lo que
 limita cuánto puede extenderse el apoyo; aun así es una diferencia que el
 ingeniero debe conocer al usar placas flexibles.
 
+## Pernos pasantes en concreto
+
+Módulo `openfemconex.through_bolt` (analítico, sin FEM todavía): viga con placa
+frontal unida a un muro o columna nuevo con pernos pasantes sin adherencia y una
+placa posterior corrida, o una segunda viga del otro lado con los mismos pernos.
+Cada cara tiene una zona de apoyo arriba y otra abajo; los pernos de cada grupo
+llevan la mayor tracción de los dos lados y la fuerza no equilibrada ΔF cruza el
+espesor por un puntal diagonal. La ayuda integrada (tema *Pernos pasantes en concreto*)
+explica el camino de las fuerzas con esquemas.
+
+| Componente | Verificación |
+|---|---|
+| Placa frontal, pernos, soldaduras | Las de placa de extremo de las Guías de Diseño 16 y 4 (OpenConex) para cada viga; la placa de la otra cara hace de ala de la columna |
+| Concreto | Aplastamiento bajo cada placa (§22.8) con el área limitada por la flexión de la placa; punzonamiento de la fuerza no equilibrada de cada grupo (§22.6), con b0 recortado por los bordes de una columna; hendimiento detrás de cada placa (§25.9 por analogía) |
+| Muro o columna | Puntal y tensor del par T·z (Cap. 23): ángulo, puntal, nodos C-C-T, refuerzo vertical como tensor y su desarrollo; flexocompresión de la franja de muro o de la columna con ΔM = (M1 − M2) + (V1 − V2) h/2 (§22.4) |
+| Cortante | Fricción bajo la compresión de cada cara (DG1) o, con grout, perno más cargado a tracción, cortante y flexión sobre la holgura (AISC J3.7) y apoyo del perno en el grout (§22.8) |
+
+Las pruebas (`tests/test_through_bolt.py`) comparan cada verificación con un
+cálculo a mano independiente, incluidos los casos de la conexión opuesta
+(balanceada, desbalanceada, un solo lado y sismo). Pendiente: interfaz, proyecto
+`.ocnx` y modelo CalculiX.
+
 ## Pendiente
 
 - Rotura del metal base en la soldadura (J4) y soldadura de penetración.

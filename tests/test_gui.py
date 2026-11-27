@@ -166,6 +166,27 @@ def test_help_topics_in_both_languages(qtbot):
     assert "Verificaciones" in dialog.page.toPlainText()
 
 
+def test_help_figures_load(qtbot):
+    import re
+
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QImage, QTextDocument
+
+    from openfemconex.gui.help import HelpDialog, topics
+
+    for lang in ("es", "en"):
+        text = dict(topics(lang))
+        title = "Pernos pasantes en concreto" if lang == "es" else "Through-bolts in concrete"
+        figures = re.findall(r"\]\((img/[^)]+)\)", text[title])
+        assert len(figures) == 6
+    dialog = HelpDialog(None, [t for t, _ in topics()].index("Pernos pasantes en concreto"))
+    qtbot.addWidget(dialog)
+    for path in figures:
+        data = dialog.page.loadResource(QTextDocument.ResourceType.ImageResource.value,
+                                        QUrl(path.replace("/en/", "/es/")))
+        assert QImage.fromData(data).width() > 600, path
+
+
 def test_english_interface(qtbot, monkeypatch):
     from openfemconex.i18n import EN, set_language, tr
 

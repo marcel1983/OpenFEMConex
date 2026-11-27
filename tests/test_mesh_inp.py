@@ -102,3 +102,26 @@ def test_washer_outside_plate_is_rejected():
     bad = BasePlateModel(**{**model.__dict__, "anchors": (Anchor(240.0, 0.0),)})
     with pytest.raises(ValueError, match="washer"):
         build_mesh(bad)
+
+
+def test_stopped_run_is_not_reused(tmp_path, monkeypatch):
+    """A run stopped after its first increments leaves .frd/.dat/.sta files: with
+    ``reuse`` the same deck must be solved again instead of read as the solution."""
+    from openfemconex import solve as solve_mod
+
+    model = _model(SECTIONS["W"])
+    loads = Loads(P=500e3, Vx=40e3, My=80e6, name="C1")
+    settings = MeshSettings(fast=True)
+    inp = solve_mod.solve(model, loads, tmp_path, settings=settings, only_write=True)
+    for ext in (".frd", ".dat", ".sta"):  # what a stopped ccx leaves behind
+        inp.with_suffix(ext).write_text("partial\n")
+
+    class Ran(Exception):
+        pass
+
+    def fake_ccx(*args, **kwargs):
+        raise Ran
+
+    monkeypatch.setattr(solve_mod, "run_ccx", fake_ccx)
+    with pytest.raises(Ran):
+        solve_mod.solve(model, loads, tmp_path, settings=settings, reuse=True)

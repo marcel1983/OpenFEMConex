@@ -89,8 +89,9 @@ def fraction(increments: list[Increment], steps: int = 2) -> float:
     return AXIAL_SHARE + (1 - AXIAL_SHARE) * last.step_time
 
 
-def describe(inc: Increment) -> str:
-    load = tr("carga axial") if inc.step == 1 else tr("momentos y cortantes")
+def describe(inc: Increment, steps: int = 2) -> str:
+    load = (tr("todas las cargas") if steps == 1 else
+            tr("carga axial") if inc.step == 1 else tr("momentos y cortantes"))
     if inc.cutback:
         return tr("Paso {step} ({load}), incremento {n}: no convergió en {it} iteraciones; se "
                   "reintenta con un incremento menor", step=inc.step, load=load, n=inc.number,
@@ -163,10 +164,14 @@ class SolveProgress(QDialog):
         self._done = self._total = 0
         self._t0 = self._tc = 0.0
         self._finished = False
+        self._steps = 2
 
     # -- driven by the main window
-    def start(self, total: int, elements: int, nodes: int, threads: int) -> None:
+    def start(self, total: int, elements: int, nodes: int, threads: int,
+              steps: int = 2) -> None:
+        """``steps``: load steps of each run (1 when everything is applied at once)."""
         self._done, self._total, self._finished = 0, total, False
+        self._steps = steps
         self._t0 = time.monotonic()
         self.log.clear()
         self.cancel_button.setText(tr("Cancelar"))
@@ -174,9 +179,12 @@ class SolveProgress(QDialog):
         self.hide_button.show()
         self.combo_bar.setValue(0)
         self.total_bar.setValue(0)
-        self.add(tr("Malla de {elements} hexaedros y {nodes} nodos; {n} combinaciones; "
-                    "CalculiX con {t} hilos.", elements=elements, nodes=nodes, n=total,
-                    t=threads))
+        if elements:
+            self.add(tr("Malla de {elements} hexaedros y {nodes} nodos; {n} combinaciones; "
+                        "CalculiX con {t} hilos.", elements=elements, nodes=nodes, n=total,
+                        t=threads))
+        else:  # each run meshes its own model
+            self.add(tr("{n} combinaciones; CalculiX con {t} hilos.", n=total, t=threads))
         self._timer.start()
         self.show()
         self.raise_()
@@ -228,14 +236,14 @@ class SolveProgress(QDialog):
             return
         incs = read_increments(self._sta)
         for inc in incs[self._seen:]:
-            self.add("  " + describe(inc))
+            self.add("  " + describe(inc, self._steps))
         self._seen = len(incs)
-        f = fraction(incs)
+        f = fraction(incs, self._steps)
         if incs:
             self.combo_bar.setValue(int(1000 * f))
             last = incs[-1]
             it = last_iteration(self._sta.with_suffix(".cvg"))
-            detail = describe(last)
+            detail = describe(last, self._steps)
             if it is not None:
                 detail += "\n" + tr("Iteración {i} del incremento siguiente; residuo de fuerza "
                                     "máximo {r} N", i=it[0], r=f"{it[1]:.3g}")

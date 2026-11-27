@@ -7,12 +7,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from openconex.core.loads import LoadType
 from openconex.core.materials import BOLTS
 from openconex.core.shapes import aisc_shapes
 from openconex.report.builder import fmt
-from openconex.units import PRESETS, Kind, format_value, to_internal
-from PySide6.QtCore import Qt, Signal
+from openconex.units import PRESETS, Kind, to_internal
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -31,10 +30,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from openfemconex.gui.combos import combination_text
+from openfemconex.gui.loads import CaseColumn, LoadsEditor, LoadsSource
 from openfemconex.gui.state import ProjectState
 from openfemconex.i18n import tr
-from openfemconex.units import convert_text, display_units, with_unit
+from openfemconex.units import convert_text, with_unit
 
 STRESS_KEYS = {"fc", "fy", "Fy", "Fu", "E", "Fnt", "Fnv_N", "Fnv_X", "hardening"}
 """Keys of stress values; every other quantity typed in a form is a length."""
@@ -252,173 +251,59 @@ CASE_COLUMNS = (("name", "Caso"), ("type", "Tipo"), ("P", "P (compresión +)"), 
                 ("M", "M (eje fuerte)"), ("V_weak", "V eje débil"), ("M_weak", "M eje débil"))
 
 
-class LoadsPanel(QWidget):
-    """Editable table of load cases and the list of combinations to solve."""
+class BasePlateLoads(LoadsSource):
+    """The cases and combinations of the base plate, in the OpenConex project."""
 
-    selection_changed = Signal()
+    columns = tuple(CaseColumn(k, label, key_kind(k)) for k, label in CASE_COLUMNS[2:])
+    methods = ("LRFD", "ASD")
+    result_heads = ("P", "V", "M")
 
     def __init__(self, state: ProjectState) -> None:
-        super().__init__()
         self.state = state
-        self._loading = False
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(tr("<b>Casos de carga</b> (valores con unidad, p. ej. 100 kip)")))
-        self.cases = QTableWidget(0, len(CASE_COLUMNS))
-        self.cases.setHorizontalHeaderLabels([tr(label) for _, label in CASE_COLUMNS])
-        self.cases.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.cases.itemChanged.connect(self._cases_edited)
-        layout.addWidget(self.cases, 2)
-        row = QHBoxLayout()
-        add, remove = QPushButton(tr("Agregar caso")), QPushButton(tr("Quitar caso"))
-        add.clicked.connect(self._add_case)
-        remove.clicked.connect(self._remove_case)
-        self.lrfd, self.asd = QCheckBox("LRFD"), QCheckBox("ASD")
-        self.lrfd.toggled.connect(self._methods_edited)
-        self.asd.toggled.connect(self._methods_edited)
-        for w in (add, remove):
-            row.addWidget(w)
-        row.addStretch(1)
-        row.addWidget(QLabel(tr("Combinaciones ASCE 7:")))
-        row.addWidget(self.lrfd)
-        row.addWidget(self.asd)
-        self.edit_combos = QPushButton(tr("Editar combinaciones…"))
-        self.edit_combos.setToolTip(tr("Combinaciones propias con sus factores, o copia "
-                                       "editable de las de ASCE 7"))
-        self.edit_combos.clicked.connect(self.open_editor)
-        row.addWidget(self.edit_combos)
-        layout.addLayout(row)
-        layout.addWidget(QLabel(tr("<b>Combinaciones</b> (marque las que se resuelven)")))
-        self.combos = QTableWidget(0, 6)
-        self.combos.setHorizontalHeaderLabels([tr("Combinación"), tr("Método"), tr("Factores"),
-                                               "P", "V", "M"])
-        self.combos.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.combos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.combos.itemChanged.connect(lambda _: self.selection_changed.emit())
-        layout.addWidget(self.combos, 3)
-        self._unchecked: set[str] = set()
-        state.loaded.connect(self._load_cases)
-        state.changed.connect(self._load_combos)
-        self._load_cases()
-        self._load_combos()
 
-    # -- cases
-    def _load_cases(self) -> None:
-        self._loading = True
-        try:
-            cases = self.state.data.get("cases", [])
-            # replaced cell widgets are only deleted later by the event loop: hide them
-            # now so that they never show behind the new ones
-            for old in self.cases.findChildren(QComboBox):
-                old.hide()
-                old.deleteLater()
-            self.cases.setRowCount(0)
-            self.cases.setRowCount(len(cases))
-            for r, case in enumerate(cases):
-                for c, (key, _) in enumerate(CASE_COLUMNS):
-                    if key == "type":
-                        box = QComboBox()
-                        box.addItems([t.value for t in LoadType])
-                        box.setCurrentText(str(case.get("type", "D")))
-                        box.currentTextChanged.connect(lambda _: self._cases_edited())
-                        self.cases.setCellWidget(r, c, box)
-                    else:
-                        self.cases.setItem(r, c, QTableWidgetItem(str(case.get(key, ""))))
-            methods = self.state.data.get("combinations", {}).get("methods", ["LRFD"])
-            self.lrfd.setChecked("LRFD" in methods)
-            self.asd.setChecked("ASD" in methods)
-            self._unchecked.clear()
-        finally:
-            self._loading = False
+    @property
+    def units(self):
+        return self.state.units
 
-    def _read_cases(self) -> list[dict[str, Any]]:
+    def cases(self) -> list[dict[str, Any]]:
+        return list(self.state.data.get("cases", []))
+
+    def options(self) -> dict[str, Any]:
+        return dict(self.state.data.get("combinations", {}))
+
+    def set_cases(self, cases: list[dict[str, Any]]) -> None:
+        self.state.set_cases(cases)
+
+    def set_combinations(self, include_code: bool, custom: list[dict[str, Any]]) -> None:
+        self.state.set_combinations(include_code, custom)
+
+    def set_methods(self, methods: list[str]) -> None:
+        self.state.set_methods(methods)
+
+    def set_option(self, key: str, value: Any) -> None:
+        self.state.set_combination_option(key, value)
+
+    def combinations(self):
+        if not self.state.valid:
+            raise ValueError(self.state.error)
         out = []
-        for r in range(self.cases.rowCount()):
-            case: dict[str, Any] = {}
-            for c, (key, _) in enumerate(CASE_COLUMNS):
-                if key == "type":
-                    case[key] = self.cases.cellWidget(r, c).currentText()
-                else:
-                    item = self.cases.item(r, c)
-                    text = item.text().strip() if item else ""
-                    if text:
-                        case[key] = (text if key == "name"
-                                     else with_unit(text, key_kind(key), self.state.units))
-            out.append(case)
+        for combo, loads in self.state.study().combinations():
+            shear = (loads.Vx**2 + loads.Vy**2) ** 0.5
+            moment = (loads.Mx**2 + loads.My**2) ** 0.5
+            out.append((combo, [(loads.P, Kind.FORCE), (shear, Kind.FORCE),
+                                (moment, Kind.MOMENT)]))
         return out
 
-    def _cases_edited(self, *_: object) -> None:
-        if not self._loading:
-            self.state.set_cases(self._read_cases())
 
-    def _add_case(self) -> None:
-        cases = self._read_cases()
-        names = {c.get("name") for c in cases}
-        name = next(n for n in ("D", "L", "W", "S", "E", *[f"C{i}" for i in range(1, 99)])
-                    if n not in names)
-        kind = name if name in {t.value for t in LoadType} else "L"
-        u = self.state.units
-        cases.append({"name": name, "type": kind, "P": f"0 {u.force}", "M": f"0 {u.moment}"})
-        self.state.set_cases(cases)
-        self._load_cases()
+class LoadsPanel(LoadsEditor):
+    """Load cases and combinations of the base plate (the shared Loads tab)."""
 
-    def _remove_case(self) -> None:
-        row = self.cases.currentRow()
-        cases = self._read_cases()
-        if 0 <= row < len(cases) and len(cases) > 1:
-            del cases[row]
-            self.state.set_cases(cases)
-            self._load_cases()
-
-    def _methods_edited(self) -> None:
-        if not self._loading:
-            methods = [m for m, box in (("LRFD", self.lrfd), ("ASD", self.asd))
-                       if box.isChecked()]
-            self.state.set_methods(methods or ["LRFD"])
-
-    # -- combinations
-    def _load_combos(self) -> None:
-        for r in range(self.combos.rowCount()):
-            item = self.combos.item(r, 0)
-            if item is not None and item.checkState() == Qt.CheckState.Unchecked:
-                self._unchecked.add(item.text())
-            elif item is not None:
-                self._unchecked.discard(item.text())
-        self.combos.blockSignals(True)
-        try:
-            self.combos.setRowCount(0)
-            if not self.state.valid:
-                return
-            units = display_units(self.state.project.info)
-            for combo, loads in self.state.study().combinations():
-                r = self.combos.rowCount()
-                self.combos.insertRow(r)
-                name = QTableWidgetItem(combo.name)
-                name.setFlags(name.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                name.setCheckState(Qt.CheckState.Unchecked if combo.name in self._unchecked
-                                   else Qt.CheckState.Checked)
-                name.setToolTip(combo.source)
-                shear = (loads.Vx**2 + loads.Vy**2) ** 0.5
-                moment = (loads.Mx**2 + loads.My**2) ** 0.5
-                factors = QTableWidgetItem(combination_text(combo.factors))
-                factors.setToolTip(combo.source)
-                cells = [name, QTableWidgetItem(combo.method.value), factors,
-                         QTableWidgetItem(format_value(loads.P, Kind.FORCE, units)),
-                         QTableWidgetItem(format_value(shear, Kind.FORCE, units)),
-                         QTableWidgetItem(format_value(moment, Kind.MOMENT, units))]
-                for c, cell in enumerate(cells):
-                    self.combos.setItem(r, c, cell)
-        finally:
-            self.combos.blockSignals(False)
-        self.selection_changed.emit()
-
-    def open_editor(self) -> None:
-        from openfemconex.gui.combos import CombinationsDialog
-
-        CombinationsDialog(self.state, self).exec()
-
-    def selected(self) -> list[str]:
-        return [self.combos.item(r, 0).text() for r in range(self.combos.rowCount())
-                if self.combos.item(r, 0).checkState() == Qt.CheckState.Checked]
+    def __init__(self, state: ProjectState) -> None:
+        super().__init__(BasePlateLoads(state))
+        self.state = state
+        state.loaded.connect(self.load_cases)
+        state.changed.connect(self.load_combos)
+        self.refresh()
 
 
 class AnalysisPanel(QWidget):
@@ -467,11 +352,17 @@ class AnalysisPanel(QWidget):
         form.addRow(tr("Capas en el espesor de la placa"), self.layers)
         form.addRow(tr("Hilos de CalculiX"), self.threads)
         form.addRow(tr("Tuercas de nivelación"), self.nuts)
+        self._form = form
         form.addRow(tr("Límite de deformación plástica"), self.strain)
         self.info = QLabel()
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
         layout.addStretch(1)
+
+    def set_base_plate(self, on: bool) -> None:
+        """Options of the base plate only (leveling nuts) shown or not."""
+        self._form.setRowVisible(self.nuts, on)
+        self.info.setVisible(on)  # the mesh of the base plate
 
     def _size_units(self) -> None:
         """The fine size in the project length unit (mm or in)."""

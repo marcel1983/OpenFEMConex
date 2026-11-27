@@ -56,6 +56,17 @@ perfiles y los materiales.
   | Pedestal | Refuerzo de anclaje (§17.5.2.1), flexocompresión y cuantía mínima |
   | Cortante | Fricción o llave de cortante (§17.11) |
 
+- **Pernos pasantes en concreto (en desarrollo).** Viga con placa frontal unida a
+  un muro o columna nuevo con pernos pasantes sin adherencia y placa posterior
+  corrida: verificaciones analíticas de la placa (Guías de Diseño 16 y 4), del
+  concreto (aplastamiento §22.8, punzonamiento §22.6, hendimiento, puntal y tensor
+  Cap. 23, flexocompresión del muro o columna) y del cortante por fricción o con
+  grout; una viga o dos vigas opuestas con los mismos pernos. Por ahora en el
+  interfaz con cálculo analítico, modelo CalculiX (placa posterior flexible, o las
+  dos vigas opuestas cargadas a la vez en un mismo modelo) y reporte.
+- **Varias conexiones por proyecto.** **Proyecto › Agregar conexión** abre un
+  selector con la vista isométrica de cada tipo; cada conexión tiene sus datos,
+  cargas, verificaciones y reporte, y el ribbon cambia según el tipo.
 - **Ediciones.** Normas vigentes (AISC 360-22, ACI 318-19) o las de la DG1 2.ª ed.
   (AISC 360-05, ACI 318-08) para reproducir sus ejemplos.
 - **Reporte** en HTML o PDF con gráficos de geometría, esfuerzos, deformación

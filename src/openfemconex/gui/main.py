@@ -41,7 +41,8 @@ from PySide6.QtWidgets import (
 
 from openfemconex import __version__
 from openfemconex.checks import EDITIONS
-from openfemconex.gui.help import HelpDialog, about
+from openfemconex.gui.connection_picker import ConnectionPicker, type_icon, type_title
+from openfemconex.gui.help import HelpDialog, about, topics
 from openfemconex.gui.icons import app_icon, icon
 from openfemconex.gui.library import ColumnPanel, MaterialsDialog, SectionsDialog
 from openfemconex.gui.panels import (
@@ -62,11 +63,14 @@ from openfemconex.gui.ribbon import STYLE as RIBBON_STYLE
 from openfemconex.gui.ribbon import Ribbon
 from openfemconex.gui.state import ProjectState
 from openfemconex.gui.theme import apply_theme, settings
+from openfemconex.gui.through_bolt_panel import ThroughBoltEditor
 from openfemconex.gui.viewer import FIELDS, Viewer
 from openfemconex.gui.worker import SolveWorker
 from openfemconex.i18n import LANGUAGES, language, set_language, tr
 from openfemconex.report import check_title
 from openfemconex.runner import CcxError, find_ccx
+from openfemconex.through_bolt_project import combinations as tb_combinations
+from openfemconex.through_bolt_project import summary as tb_summary
 from openfemconex.units import display_units
 
 EDITION_LABELS = {"current": "AISC 360-22 / ACI 318-19", "dg1-2ed": "DG1 2nd ed. (360-05 / 318-08)"}
@@ -93,6 +97,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.dark = settings().value("dark", False, type=bool)
         self.state = ProjectState()
+        self.tb = ThroughBoltEditor(self.state)
+        self.mode = "base_plate"
+        """Type of the connection being edited: ``base_plate`` or ``through_bolt``."""
         self.worker: SolveWorker | None = None
         self._view = "model"
         self._edges = False
@@ -106,11 +113,13 @@ class MainWindow(QMainWindow):
         self.central = QStackedWidget()
         self.central.addWidget(self.viewer)
         self.central.addWidget(self.loads)
+        self.central.addWidget(self.tb.combinations)
         self.setCentralWidget(self.central)
 
         self._build_status()  # first: the other parts may report through it
         self._build_docks()
         self._build_ribbon()
+        self._build_tb_ribbon()
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -125,12 +134,16 @@ class MainWindow(QMainWindow):
         self.state.changed.connect(self._on_changed)
         self.state.results_changed.connect(self._on_results)
         self.state.loaded.connect(self._on_loaded)
+        self.state.connections_changed.connect(self._fill_tree)
+        self.tb.changed.connect(self._show_tb_view)
+        self.tb.results_changed.connect(self._on_tb_results)
         self._on_loaded()
         self._on_changed()
         self._on_results()
         apply_theme(self.dark)
         self.viewer.set_dark(self.dark)
         self.ribbon.setStyleSheet(RIBBON_STYLE)
+        self.tb_ribbon.setStyleSheet(RIBBON_STYLE)
 
     # ------------------------------------------------------------------ construction
     def _build_docks(self) -> None:
@@ -229,6 +242,9 @@ class MainWindow(QMainWindow):
         self.detail = QTextBrowser()
         self.detail.setOpenExternalLinks(True)
         self.properties.addWidget(self.detail)
+        for page in self.tb.pages.values():
+            self.properties.addWidget(page)
+        self.properties.addWidget(self.tb.trace)
         right = QDockWidget(tr("Propiedades"), self)
         right.setObjectName("dockProperties")
         right.setWidget(self.properties)
@@ -258,6 +274,7 @@ class MainWindow(QMainWindow):
         self.anchor_forces.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.anchor_forces.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.bottom.addTab(self.anchor_forces, tr("Fuerzas en anclajes"))
+        self.bottom.addTab(self.tb.checks, tr("Verificaciones"))
         bottom = QDockWidget(tr("Resultados"), self)
         bottom.setObjectName("dockBottom")
         bottom.setWidget(self.bottom)
@@ -267,7 +284,10 @@ class MainWindow(QMainWindow):
 
     def _build_ribbon(self) -> None:
         self.ribbon = Ribbon()
-        self.setMenuWidget(self.ribbon)
+        self.ribbons = QStackedWidget()
+        self.ribbons.addWidget(self.ribbon)
+        self.ribbons.setSizePolicy(self.ribbon.sizePolicy())
+        self.setMenuWidget(self.ribbons)
 
         tab = self.ribbon.add_tab("Proyecto")
         g = tab("Archivo")
@@ -275,6 +295,7 @@ class MainWindow(QMainWindow):
         g.add_button("Abrir", icon("open"), self.open_project)
         g.add_button("Guardar", icon("save"), self.save_project)
         g.add_button("Guardar como", icon("save"), self.save_project_as)
+        self._connections_group(tab)
         g = tab("Unidades y normas")
         self.units_box = QComboBox()
         self.units_box.addItems(unit_presets())
@@ -378,6 +399,454 @@ class MainWindow(QMainWindow):
         self.ribbon.tab_changed.connect(self._ribbon_tab)
         self.ribbon.select("Geometría")
 
+    def _connections_group(self, tab) -> None:
+        g = tab("Conexiones")
+        g.add_button("Agregar conexión", icon("new"), self.add_connection,
+                     "Agrega al proyecto una conexión de otro tipo, elegido con su imagen")
+        g.add_button("Quitar conexión", icon("stop"), self.remove_connection,
+                     "Quita del proyecto la conexión seleccionada")
+
+    def _build_tb_ribbon(self) -> None:
+        """Ribbon of a through-bolt connection: the same stages, its own panels."""
+        self.tb_ribbon = Ribbon()
+        self.ribbons.addWidget(self.tb_ribbon)
+        tab = self.tb_ribbon.add_tab("Proyecto")
+        g = tab("Archivo")
+        g.add_button("Nuevo", icon("new"), self.new_project)
+        g.add_button("Abrir", icon("open"), self.open_project)
+        g.add_button("Guardar", icon("save"), self.save_project)
+        g.add_button("Guardar como", icon("save"), self.save_project_as)
+        self._connections_group(tab)
+        g = tab("Unidades y normas")
+        self.tb_units_box = QComboBox()
+        self.tb_units_box.addItems(unit_presets())
+        self.tb_units_box.textActivated.connect(self.state.set_units)
+        g.add_widget("Unidades de presentación", self.tb_units_box)
+        self.tb_edition_box = QComboBox()
+        for key in EDITIONS:
+            self.tb_edition_box.addItem(EDITION_LABELS[key], key)
+        self.tb_edition_box.activated.connect(
+            lambda i: self.state.set_setting("edition", self.tb_edition_box.itemData(i)))
+        g.add_widget("Normas", self.tb_edition_box)
+
+        tab = self.tb_ribbon.add_tab("Geometría")
+        g = tab("Componentes")
+        for name, pic in (("Viga", "column"), ("Placa de extremo", "plate"),
+                          ("Placa posterior", "plate"), ("Muro o columna", "concrete"),
+                          ("Viga opuesta", "column"), ("Cortante", "lug")):
+            g.add_button(name, icon(pic), lambda n=name: self.show_tb_page(n))
+        g = tab("Vista")
+        g.add_button("Modelo", icon("view"), self._show_tb_view)
+
+        tab = self.tb_ribbon.add_tab("Cargas")
+        g = tab("Cargas")
+        g.add_button("Casos", icon("load"), lambda: (
+            self.central.setCurrentWidget(self.tb.combinations),
+            self.tb.combinations.cases.setFocus()))
+        g.add_button("Combinaciones", icon("combo"), lambda: (
+            self.central.setCurrentWidget(self.tb.combinations),
+            self.tb.combinations.combos.setFocus()))
+        g.add_button("Editar combinaciones", icon("table"),
+                     lambda: self.tb.combinations.open_editor(),
+                     "Combinaciones propias con sus factores, o copia editable de las de "
+                     "ASCE 7")
+
+        tab = self.tb_ribbon.add_tab("Análisis")
+        g = tab("Malla")
+        g.add_button("Ajustes", icon("table"), self.show_analysis_settings,
+                     "Tamaño de malla, malla rápida, capas, hilos de CalculiX y límite de "
+                     "deformación plástica (los mismos de la placa base)")
+        g = tab("CalculiX")
+        self.tb_solve_button = g.add_button(
+            "Resolver", icon("play"), self.solve_tb,
+            "Calcula las verificaciones analíticas y resuelve con CalculiX las combinaciones "
+            "marcadas en Cargas: placas sobre el concreto, pernos sin adherencia y soldaduras")
+        self.tb_stop_button = g.add_button("Detener", icon("stop"), self.stop_tb)
+        self.tb_stop_button.setEnabled(False)
+        g.add_button("Avance", icon("table"), self.show_progress,
+                     "Muestra el avance detallado de CalculiX")
+        g = tab("Resultados")
+        self.tb_fem_box = QComboBox()
+        self.tb_fem_box.setMinimumWidth(170)
+        self.tb_fem_box.textActivated.connect(self.show_tb_fem)
+        g.add_widget("Combinación", self.tb_fem_box)
+        self.tb_field_box = QComboBox()
+        for name in FIELDS:
+            self.tb_field_box.addItem(tr(name), name)
+        # the plate on the far face: back plate or end plate of the opposite beam
+        self.tb_field_box.addItem(tr("Presión de contacto en la cara opuesta"),
+                                  "Presión de contacto|far")
+        self.tb_field_box.activated.connect(lambda _: self.show_tb_fem())
+        g.add_widget("Resultado", self.tb_field_box)
+
+        tab = self.tb_ribbon.add_tab("Verificación")
+        g = tab("Verificaciones")
+        g.add_button("Resumen", icon("check"), self.show_tb_checks)
+
+        tab = self.tb_ribbon.add_tab("Reporte")
+        g = tab("Memoria de cálculo")
+        g.add_button("Generar", icon("report"), self.generate_tb_report)
+        g.add_button("Abrir", icon("browser"), self.open_tb_report,
+                     "Abre el reporte completo en el navegador")
+        g.add_button("Exportar PDF", icon("pdf"), self.export_tb_pdf)
+        g = tab("Identificación")
+        g.add_button("Ficha", icon("info"), lambda: self.show_tb_page("Identificación"),
+                     "Nombre de la conexión; el proyecto, cliente e ingeniero son los del "
+                     "proyecto")
+        tab = self.tb_ribbon.add_tab("Ayuda")
+        g = tab("Ayuda")
+        g.add_button("Pernos pasantes", icon("help"), lambda: self.show_help(self._tb_topic()),
+                     "Camino de cargas, esquemas de cortante y verificaciones de esta "
+                     "conexión")
+        g.add_button("Manual", icon("help"), self.show_help)
+        g.add_button("Acerca de", icon("info"), lambda: about(self))
+        self.tb_ribbon.tab_changed.connect(self._tb_ribbon_tab)
+
+    # ------------------------------------------------------------------ connections
+    def set_mode(self, mode: str, index: int = -1) -> None:
+        """Edit the base plate (``base_plate``) or connection ``index`` of the list."""
+        self.mode = mode
+        through = mode == "through_bolt"
+        self.ribbons.setCurrentWidget(self.tb_ribbon if through else self.ribbon)
+        self.viewer.dims.setVisible(not through)
+        self.viewer.numbers.setVisible(not through)
+        self.analysis_panel.set_base_plate(not through)
+        for w, on in ((self.log, True), (self.checks, not through),
+                      (self.anchor_forces, not through), (self.tb.checks, through)):
+            self.bottom.setTabVisible(self.bottom.indexOf(w), on)
+        if through:
+            self.tb.set_index(index)
+            self._view = "tb"
+            self.central.setCurrentWidget(self.viewer)
+            current = self.tb_ribbon.current()
+            self._tb_ribbon_tab(current)
+            self._show_tb_view(reset=True)
+        else:
+            self._view = "model"
+            self._ribbon_tab(self.ribbon.current())
+        self._update_status()
+        QTimer.singleShot(0, self._fill_tree)  # not inside the click on the tree
+
+    def add_connection(self) -> None:
+        disabled = {"base_plate": "El proyecto ya tiene una placa base (una por proyecto en "
+                                  "esta versión)"} if self.state.has_base_plate else {}
+        picker = ConnectionPicker(self, disabled=disabled)
+        if not picker.exec() or not picker.selected:
+            return
+        index = self.state.add_connection(picker.selected)
+        if picker.selected == "base_plate":
+            self.set_mode("base_plate")
+        else:
+            self.set_mode("through_bolt", index)
+            self.tb_ribbon.select("Geometría")
+
+    def remove_connection(self) -> None:
+        index = self.tb.index if self.mode == "through_bolt" else -1
+        name = (self.tb.data.get("name", "") if index >= 0 else tr("Placa base"))
+        answer = QMessageBox.question(self, tr("Quitar conexión"),
+                                      tr("¿Quitar la conexión {name} del proyecto?", name=name))
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.state.remove_connection(index)
+        except ValueError as exc:
+            QMessageBox.information(self, tr("Quitar conexión"), str(exc))
+            return
+        self._select_first()
+
+    def _select_first(self) -> None:
+        if self.state.has_base_plate:
+            self.set_mode("base_plate")
+        elif self.state.connections():
+            self.set_mode("through_bolt", 0)
+
+    def show_tb_page(self, name: str) -> None:
+        self.properties.setCurrentWidget(self.tb.pages[name])
+        if self.central.currentWidget() is not self.viewer:
+            self.central.setCurrentWidget(self.viewer)
+
+    def _tb_ribbon_tab(self, name: str) -> None:
+        if self.mode != "through_bolt":
+            return
+        if name == "Cargas":
+            self.central.setCurrentWidget(self.tb.combinations)
+        else:
+            self.central.setCurrentWidget(self.viewer)
+        if name in ("Geometría", "Proyecto"):
+            if self.properties.currentWidget() not in self.tb.pages.values():
+                self.properties.setCurrentWidget(self.tb.pages["Viga"])
+        elif name == "Análisis":
+            self.properties.setCurrentWidget(self.analysis_panel)
+            self.bottom.setCurrentWidget(self.log)
+        elif name in ("Verificación", "Reporte"):
+            self.show_tb_checks()
+
+    def _show_tb_view(self, reset: bool = False) -> None:
+        if self.mode != "through_bolt" or self.tb.index < 0:
+            return
+        self._view = "tb"
+        self._update_status()
+        try:
+            conn = self.tb.connection()
+        except Exception:
+            return
+        self.viewer.show_through_bolt(conn, reset=reset)
+
+    def calculate_tb(self) -> None:
+        if self.tb.calculate():
+            self.tb_ribbon.select("Verificación")
+            self.show_tb_checks()
+        else:
+            QMessageBox.warning(self, tr("Calcular"), tr("No se pudo calcular: {error}",
+                                                          error=self.tb.error))
+
+    def show_tb_checks(self) -> None:
+        self.bottom.setCurrentWidget(self.tb.checks)
+        self.properties.setCurrentWidget(self.tb.trace)
+        if self.tb.checks.rowCount() and not self.tb.checks.selectedItems():
+            self.tb.checks.selectRow(0)
+
+    def _on_tb_results(self) -> None:
+        current = self.tb_fem_box.currentText()
+        labels = [label for label, _ in self.tb.fem_sides()]
+        self.tb_fem_box.clear()
+        self.tb_fem_box.addItems(labels)
+        if current in labels:
+            self.tb_fem_box.setCurrentText(current)
+        self._update_status()
+        self._fill_tree()
+
+    def solve_tb(self) -> None:
+        """Analytic checks of every combination, then CalculiX for the checked ones."""
+        from openfemconex.checks import EDITIONS as EDS
+        from openfemconex.gui.through_bolt_panel import FemWorker
+        from openfemconex.model import MeshSettings
+        from openfemconex.through_bolt_project import combinations
+
+        if getattr(self, "tb_worker", None) is not None:
+            return
+        if not self.tb.calculate():
+            QMessageBox.warning(self, tr("Resolver"), tr("No se pudo calcular: {error}",
+                                                          error=self.tb.error))
+            return
+        self.show_tb_checks()
+        try:
+            find_ccx(self.state.settings.ccx)
+        except CcxError as exc:
+            QMessageBox.warning(self, "CalculiX", tr(
+                "Verificaciones analíticas listas; el modelo CalculiX no se resolvió: "
+                "{error}", error=exc))
+            return
+        chosen = set(self.tb.combinations.selected())
+        combos = [c for c in combinations(self.tb.data, self.state.units) if c.name in chosen]
+        if not combos:
+            QMessageBox.information(self, tr("Resolver"), tr(
+                "Verificaciones analíticas listas. Marque en Cargas las combinaciones que "
+                "se resuelven con CalculiX."))
+            return
+        st = self.state.settings
+        mesh = MeshSettings(size_fine=st.size, plate_layers=st.layers, fast=st.fast)
+        worker = FemWorker(self.tb.connection(), combos, self.tb.fem_dir(),
+                           EDS.get(st.edition, EDS["current"]), st.ccx, st.fast, st.threads,
+                           settings=mesh, strain_limit=st.strain_limit)
+        worker.stage.connect(self._tb_stage)
+        worker.started_combo.connect(self._tb_combo_started)
+        worker.combo_done.connect(self._tb_combo_done)
+        worker.combo_failed.connect(self._tb_combo_failed)
+        worker.cancelled.connect(self._cancelled)
+        worker.finished.connect(self._tb_solve_finished)
+        self.tb_worker = worker
+        self._cancelled_run = False
+        self.tb_solve_button.setEnabled(False)
+        self.tb_stop_button.setEnabled(True)
+        self.bottom.setCurrentWidget(self.log)
+        self.log.appendPlainText(tr("{n} combinaciones con CalculiX ({mesh}, {t} hilos). "
+                                    "Salida: {out}", n=len(combos), t=st.threads,
+                                    out=self.tb.fem_dir(),
+                                    mesh=tr("malla rápida") if st.fast else tr("malla normal")))
+        axial = any(c.P > 0 or c.P2 > 0 for c in combos)  # then two load steps
+        self.solve_progress.start(len(combos), 0, 0, st.threads, steps=2 if axial else 1)
+        self.progress.setValue(0)
+        self.progress.show()
+        self._progress_timer.start()
+        worker.start()
+
+    def _tb_stage(self, text: str) -> None:
+        self.status_label.setText(text)
+        self.status_label.setStyleSheet("")
+        self.solve_progress.stage(text)
+
+    def _tb_combo_started(self, name: str, sta: str) -> None:
+        self.log.appendPlainText(tr("{name}: resolviendo con CalculiX…", name=name))
+        self.solve_progress.combo_started(name, Path(sta))
+
+    def _tb_combo_done(self, name: str, sides: list) -> None:
+        units = self.state.units
+        self.tb.attach_fem(name, sides)
+        res = sides[0].results if sides else None
+        checks = [c for s in sides for c in s.checks if c.applicable]
+        worst = max(checks, key=lambda r: r.ratio, default=None)
+        if res is None:
+            summary = f"{name}: " + tr("sin carga")
+        else:
+            summary = (
+                f"{name}: " + (tr("convergió") if res.converged else
+                               tr("NO convergió ({pct} % de la carga)",
+                                  pct=f"{100 * res.load_fraction:.0f}"))
+                + tr(" en {s} s. Tracción total en pernos {t}, compresión {c}.",
+                     s=f"{sum(s.results.solver.get('seconds', 0) for s in sides):.0f}",
+                     t=fmt(res.anchor_tension_total, Kind.FORCE, units),
+                     c=fmt(res.bearing_force, Kind.FORCE, units))
+                + (tr(" Gobierna {check}: {ratio}.", check=check_title(worst),
+                      ratio=f"{worst.ratio:.2f}") if worst else ""))
+        self.log.appendPlainText(summary)
+        self.solve_progress.combo_finished(summary)
+
+    def _tb_combo_failed(self, name: str, msg: str) -> None:
+        text = tr("{name}: no se pudo resolver: {error}", name=name, error=msg)
+        self.log.appendPlainText(text)
+        self.solve_progress.combo_finished(text)
+
+    def stop_tb(self) -> None:
+        if getattr(self, "tb_worker", None) is not None:
+            self.tb_worker.cancel.set()
+            self.log.appendPlainText(tr("Deteniendo CalculiX…"))
+
+    def _tb_solve_finished(self) -> None:
+        self.tb_worker = None
+        self.solve_progress.finished(self._cancelled_run)
+        self._progress_timer.stop()
+        self.tb_solve_button.setEnabled(True)
+        self.tb_stop_button.setEnabled(False)
+        self.progress.hide()
+        self._update_status()
+        if self.tb.fem_sides():
+            self.tb_ribbon.select("Análisis")
+            self.show_tb_fem(self.tb.fem_sides()[0][0])
+            self.show_tb_checks()
+
+    def show_tb_fem(self, label: str | None = None) -> None:
+        sides = dict(self.tb.fem_sides())
+        label = label or self.tb_fem_box.currentText()
+        side = sides.get(label)
+        if side is None or side.vtu is None or not side.vtu.exists():
+            return
+        self.tb_fem_box.setCurrentText(label)
+        self.central.setCurrentWidget(self.viewer)
+        self._view = "tb_fem"
+        units = self.state.units
+        sample = fmt(1000.0, Kind.FORCE, units, 6).split()
+        field, _sep, face = str(self.tb_field_box.currentData()).partition("|")
+        if face == "far" and side.model.far is None and side.model.opposite is None:
+            face = ""  # rigid far face: nothing to show there
+        self.viewer.show_results(side.vtu, side.model, side.results, field, 20.0,
+                                 unit_force=float(sample[0]) / 1000.0, force_label=sample[-1],
+                                 reset=True, face=face or "front")
+
+    def _tb_topic(self) -> int:
+        for i, (_, text) in enumerate(topics()):
+            if "openfemconex.through_bolt" in text:
+                return i
+        return 0
+
+    def _tb_report_ready(self) -> bool:
+        if not self.tb.results or self.tb.stale:
+            if not self.tb.calculate():
+                QMessageBox.warning(self, tr("Reporte"), tr("No se pudo calcular: {error}",
+                                                             error=self.tb.error))
+                return False
+        return True
+
+    def _tb_report_dir(self) -> Path:
+        name = re.sub(r"[^A-Za-z0-9_-]+", "_", str(self.tb.data.get("name", "conexion")))
+        folder = self.state.output_dir() / name
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def _tb_picture(self, folder: Path) -> str:
+        """3D picture of the connection for the report; its base URL, or "" without one."""
+        if self.viewer.plotter is None:
+            return ""
+        self._show_tb_view(reset=True)
+        try:
+            self.viewer.screenshot(folder / "conexion.png")
+        except Exception:  # no OpenGL context: the report goes without the picture
+            return ""
+        return QUrl.fromLocalFile(str(folder)).toString() + "/"
+
+    def _tb_fem_figures(self, folder: Path) -> dict:
+        """Figures of the CalculiX models (model, mesh, stresses, strains, displacements
+        and contact pressure on both plates) rendered into ``folder``."""
+        from openfemconex.scenes import render_through_bolt_figures
+
+        sides = [s for _, s in self.tb.fem_sides()]
+        if not sides:
+            return {}
+        if self.viewer.plotter is None:
+            self.log.appendPlainText(tr("Reporte sin gráficos: el visor 3D (OpenGL) no está "
+                                        "disponible."))
+            return {}
+        self.status_label.setText(tr("Generando los gráficos del reporte…"))
+        QApplication.processEvents()
+        sample = fmt(1000.0, Kind.FORCE, self.state.units, 6).split()
+        conn = self.tb.connection()
+        far = (tr("placa de extremo de la viga 2") if conn.opposite is not None
+               else tr("placa posterior"))
+        errors: list[str] = []
+        figures = render_through_bolt_figures(
+            folder, sides, far_caption=far, unit_force=float(sample[0]) / 1000.0,
+            force_label=sample[-1], errors=errors)
+        for error in errors:
+            self.log.appendPlainText(tr("No se pudieron generar los gráficos del reporte: "
+                                        "{error}", error=error))
+        return figures
+
+    def _tb_report(self, folder: Path) -> str:
+        base = self._tb_picture(folder)
+        picture = bool(base)
+        figures = self._tb_fem_figures(folder)
+        if figures and not base:
+            base = QUrl.fromLocalFile(str(folder)).toString() + "/"
+        return self.tb.report_html(figure_base=base, fem_figures=figures, picture=picture)
+
+    def generate_tb_report(self) -> Path | None:
+        if not self._tb_report_ready():
+            return None
+        folder = self._tb_report_dir()
+        html = self._tb_report(folder)
+        path = folder / "reporte.html"
+        path.write_text(html, encoding="utf-8")
+        self.status_label.setText(tr("Reporte escrito en {path}", path=path))
+        return path
+
+    def open_tb_report(self) -> None:
+        path = self.generate_tb_report()
+        if path is not None:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
+    def export_tb_pdf(self, path: str | None = None) -> Path | None:
+        if not self._tb_report_ready():
+            return None
+        folder = self._tb_report_dir()
+        if not path:
+            default = str(folder / "reporte.pdf")
+            path, _ = QFileDialog.getSaveFileName(self, tr("Exportar PDF"), default, "PDF (*.pdf)")
+        if not path:
+            return None
+        html = self._tb_report(folder)
+        html = html.replace("<details>", "<details open>")
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(path)
+        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        printer.setPageOrientation(QPageLayout.Orientation.Portrait)
+        document = QTextDocument()
+        document.setHtml(html.replace('width="470"', 'width="330"')
+                         .replace('width="940"', 'width="660"'))
+        document.print_(printer)
+        self.status_label.setText(tr("PDF escrito en {path}", path=path))
+        return Path(path)
+
     # ------------------------------------------------------------------ appearance and help
     def set_dark(self, dark: bool) -> None:
         self.dark = bool(dark)
@@ -387,7 +856,9 @@ class MainWindow(QMainWindow):
         settings().setValue("dark", self.dark)
         self._update_status()
         self._fill_tree()
-        if self._view == "results":
+        if self.mode == "through_bolt":
+            self._show_tb_view()
+        elif self._view == "results":
             self.show_results()
         else:
             self._refresh_view()
@@ -423,12 +894,19 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ state updates
     def _on_loaded(self) -> None:
-        self.units_box.setCurrentText(str(self.state.get("info", "units", "SI_kN_m")))
-        self.edition_box.setCurrentIndex(max(0, self.edition_box.findData(
-            self.state.settings.edition)))
+        units = str(self.state.get("info", "units", "SI_kN_m"))
+        edition = self.state.settings.edition
+        for units_box, edition_box in ((self.units_box, self.edition_box),
+                                       (self.tb_units_box, self.tb_edition_box)):
+            units_box.setCurrentText(units)
+            edition_box.setCurrentIndex(max(0, edition_box.findData(edition)))
         self.log.clear()
         self._current_combo = None
         self._view = "model"
+        if self.mode == "through_bolt" and 0 <= self.tb.index < len(self.state.connections()):
+            self.set_mode("through_bolt", self.tb.index)  # same project, new units
+        elif self.mode == "through_bolt" or not self.state.has_base_plate:
+            self._select_first()
 
     def _on_changed(self) -> None:
         self.setWindowTitle(self.state.title())
@@ -451,6 +929,12 @@ class MainWindow(QMainWindow):
 
     def _update_status(self) -> None:
         st = self.state
+        if self.mode == "through_bolt":
+            text, color = self.tb.status()
+            self.status_label.setText(text)
+            self.status_label.setStyleSheet(f"color: {color};" if color else "")
+            self.solve_button.setEnabled(False)
+            return
         if not st.valid:
             text, color = tr("Datos no válidos: {error}", error=st.error), "#d03040"
         elif st.stale:
@@ -474,8 +958,64 @@ class MainWindow(QMainWindow):
     def _fill_tree(self) -> None:
         st = self.state
         self.tree.clear()
-        root = QTreeWidgetItem([str(st.get("info", "name", "Proyecto"))])
-        self.tree.addTopLevelItem(root)
+        top = QTreeWidgetItem([f"{tr('Proyecto')}: {st.get('info', 'name', '')}"])
+        top.setData(0, Qt.ItemDataRole.UserRole, ("info", ""))
+        self.tree.addTopLevelItem(top)
+        if st.has_base_plate:
+            root = QTreeWidgetItem(top, [tr("Placa base")])
+            root.setIcon(0, type_icon("base_plate"))
+            root.setData(0, Qt.ItemDataRole.UserRole, ("connection", -1))
+            self._fill_base_plate(root)
+            root.setExpanded(self.mode == "base_plate")
+            if self.mode == "base_plate":
+                self._bold(root)
+        for i, conn in enumerate(st.connections()):
+            self._fill_tb(top, i, conn)
+        top.setExpanded(True)
+
+    @staticmethod
+    def _bold(item: QTreeWidgetItem) -> None:
+        font = item.font(0)
+        font.setBold(True)
+        item.setFont(0, font)
+
+    def _fill_tb(self, top: QTreeWidgetItem, index: int, conn: dict) -> None:
+        current = self.mode == "through_bolt" and self.tb.index == index
+        item = QTreeWidgetItem(top, [f"{conn.get('name', '?')} · {type_title(conn['type'])}"])
+        item.setIcon(0, type_icon(conn["type"]))
+        item.setToolTip(0, tb_summary(conn))
+        item.setData(0, Qt.ItemDataRole.UserRole, ("connection", index))
+        if current:
+            self._bold(item)
+        geometry = QTreeWidgetItem(item, [tr("Geometría") + ": " + tb_summary(conn)])
+        pages = ["Viga", "Placa de extremo",
+                 "Viga opuesta" if conn.get("opposite") else "Placa posterior",
+                 "Muro o columna", "Cortante"]
+        for name in pages:
+            child = QTreeWidgetItem(geometry, [tr(name)])
+            child.setData(0, Qt.ItemDataRole.UserRole, ("tb_page", (index, name)))
+        loads = QTreeWidgetItem(item, [tr("Combinaciones")])
+        loads.setData(0, Qt.ItemDataRole.UserRole, ("tb_loads", index))
+        results = self.tb.results if current else []
+        try:
+            names = [c.name for c in tb_combinations(conn, self.state.units)]
+        except Exception:  # the cases are being edited
+            names = []
+        for name in names:
+            res = next((r for r in results if r.combo.name == name), None)
+            if res is None or res.worst is None:
+                text, color = tr("sin calcular"), "#888888"
+            else:
+                text = tr("ratio máx. {ratio}", ratio=f"{res.worst.ratio:.2f}") + (
+                    tr(" (desactualizado)") if self.tb.stale else "")
+                color = "#2e9e4f" if res.ok else "#d03040"
+            child = QTreeWidgetItem(loads, [f"{name}: {text}"])
+            child.setForeground(0, QColor(color))
+            child.setData(0, Qt.ItemDataRole.UserRole, ("tb_checks", index))
+        item.setExpanded(current)
+
+    def _fill_base_plate(self, root: QTreeWidgetItem) -> None:
+        st = self.state
         geometry = QTreeWidgetItem(root, [tr("Geometría")])
         bp = st.data.get("base_plate", {})
         summary = {
@@ -525,7 +1065,8 @@ class MainWindow(QMainWindow):
                 item = QTreeWidgetItem(analysis, [f"{combo.name}: {text}"])
                 item.setForeground(0, QColor(color))
                 item.setData(0, Qt.ItemDataRole.UserRole, ("combo", combo.name))
-        self.tree.expandAll()
+        for i in range(root.childCount()):
+            root.child(i).setExpanded(True)
 
     def _fill_checks(self) -> None:
         self.checks.setRowCount(0)
@@ -594,6 +1135,33 @@ class MainWindow(QMainWindow):
         if not data:
             return
         kind, name = data
+        if kind == "connection":
+            if name < 0:
+                if self.mode != "base_plate":
+                    self.set_mode("base_plate")
+            elif self.mode != "through_bolt" or self.tb.index != name:
+                self.set_mode("through_bolt", name)
+            return
+        if kind.startswith("tb_"):
+            index = name[0] if kind == "tb_page" else name
+            if self.mode != "through_bolt" or self.tb.index != index:
+                self.set_mode("through_bolt", index)
+            if kind == "tb_page":
+                self.tb_ribbon.select("Geometría")
+                self.show_tb_page(name[1])
+            elif kind == "tb_loads":
+                self.tb_ribbon.select("Cargas")
+            else:
+                self.tb_ribbon.select("Verificación")
+            return
+        if kind == "info":
+            if self.mode == "through_bolt":
+                self.show_tb_page("Identificación")
+            else:
+                self.show_section("Ficha")
+            return
+        if self.mode != "base_plate":
+            self.set_mode("base_plate")
         if kind == "section":
             self.ribbon.select("Geometría")
             self.show_section(name)
@@ -730,6 +1298,8 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def stop(self) -> None:
+        if getattr(self, "tb_worker", None) is not None:
+            self.stop_tb()
         if self.worker is not None:
             self.worker.cancel.set()
             self.log.appendPlainText(tr("Deteniendo CalculiX…"))
@@ -749,7 +1319,7 @@ class MainWindow(QMainWindow):
         self.solve_progress.combo_started(name, sta)
 
     def _poll_progress(self) -> None:
-        if self.worker is None:
+        if self.worker is None and getattr(self, "tb_worker", None) is None:
             return
         if not self.solve_progress.isVisible():
             self.solve_progress.poll()
@@ -924,8 +1494,14 @@ class MainWindow(QMainWindow):
         return answer == QMessageBox.StandardButton.Discard
 
     def new_project(self) -> None:
-        if self._confirm_discard():
-            self.state.new()
+        if not self._confirm_discard():
+            return
+        picker = ConnectionPicker(self, title="Nuevo proyecto")
+        if not picker.exec() or not picker.selected:
+            return
+        self.tb.index = -1
+        self.state.new(picker.selected)
+        self._select_first()
 
     def open_project(self, path: str | None = None) -> None:
         if not path:
@@ -941,7 +1517,9 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, tr("Abrir proyecto"),
                                  tr("No se pudo abrir {path}:\n{error}", path=path, error=exc))
             return
-        self.ribbon.select("Geometría")
+        self.tb.index = -1
+        self._select_first()
+        (self.tb_ribbon if self.mode == "through_bolt" else self.ribbon).select("Geometría")
 
     def save_project(self) -> None:
         if self.state.path is None:
@@ -959,6 +1537,9 @@ class MainWindow(QMainWindow):
         if self.worker is not None:
             self.worker.cancel.set()
             self.worker.wait(5000)
+        if getattr(self, "tb_worker", None) is not None:
+            self.tb_worker.cancel.set()
+            self.tb_worker.wait(5000)
         if not self._confirm_discard():
             event.ignore()
             return
