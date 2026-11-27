@@ -473,6 +473,9 @@ class MainWindow(QMainWindow):
         self.tb_field_box = QComboBox()
         for name in FIELDS:
             self.tb_field_box.addItem(tr(name), name)
+        # the plate on the far face: back plate or end plate of the opposite beam
+        self.tb_field_box.addItem(tr("Presión de contacto en la cara opuesta"),
+                                  "Presión de contacto|far")
         self.tb_field_box.activated.connect(lambda _: self.show_tb_fem())
         g.add_widget("Resultado", self.tb_field_box)
 
@@ -733,10 +736,12 @@ class MainWindow(QMainWindow):
         self._view = "tb_fem"
         units = self.state.units
         sample = fmt(1000.0, Kind.FORCE, units, 6).split()
-        self.viewer.show_results(side.vtu, side.model, side.results,
-                                 self.tb_field_box.currentData(), 20.0,
+        field, _sep, face = str(self.tb_field_box.currentData()).partition("|")
+        if face == "far" and side.model.far is None and side.model.opposite is None:
+            face = ""  # rigid far face: nothing to show there
+        self.viewer.show_results(side.vtu, side.model, side.results, field, 20.0,
                                  unit_force=float(sample[0]) / 1000.0, force_label=sample[-1],
-                                 reset=True)
+                                 reset=True, face=face or "front")
 
     def _tb_topic(self) -> int:
         for i, (_, text) in enumerate(topics()):
@@ -769,11 +774,46 @@ class MainWindow(QMainWindow):
             return ""
         return QUrl.fromLocalFile(str(folder)).toString() + "/"
 
+    def _tb_fem_figures(self, folder: Path) -> dict:
+        """Figures of the CalculiX models (model, mesh, stresses, strains, displacements
+        and contact pressure on both plates) rendered into ``folder``."""
+        from openfemconex.scenes import render_through_bolt_figures
+
+        sides = [s for _, s in self.tb.fem_sides()]
+        if not sides:
+            return {}
+        if self.viewer.plotter is None:
+            self.log.appendPlainText(tr("Reporte sin gráficos: el visor 3D (OpenGL) no está "
+                                        "disponible."))
+            return {}
+        self.status_label.setText(tr("Generando los gráficos del reporte…"))
+        QApplication.processEvents()
+        sample = fmt(1000.0, Kind.FORCE, self.state.units, 6).split()
+        conn = self.tb.connection()
+        far = (tr("placa de extremo de la viga 2") if conn.opposite is not None
+               else tr("placa posterior"))
+        errors: list[str] = []
+        figures = render_through_bolt_figures(
+            folder, sides, far_caption=far, unit_force=float(sample[0]) / 1000.0,
+            force_label=sample[-1], errors=errors)
+        for error in errors:
+            self.log.appendPlainText(tr("No se pudieron generar los gráficos del reporte: "
+                                        "{error}", error=error))
+        return figures
+
+    def _tb_report(self, folder: Path) -> str:
+        base = self._tb_picture(folder)
+        picture = bool(base)
+        figures = self._tb_fem_figures(folder)
+        if figures and not base:
+            base = QUrl.fromLocalFile(str(folder)).toString() + "/"
+        return self.tb.report_html(figure_base=base, fem_figures=figures, picture=picture)
+
     def generate_tb_report(self) -> Path | None:
         if not self._tb_report_ready():
             return None
         folder = self._tb_report_dir()
-        html = self.tb.report_html(figure_base=self._tb_picture(folder))
+        html = self._tb_report(folder)
         path = folder / "reporte.html"
         path.write_text(html, encoding="utf-8")
         self.status_label.setText(tr("Reporte escrito en {path}", path=path))
@@ -793,7 +833,7 @@ class MainWindow(QMainWindow):
             path, _ = QFileDialog.getSaveFileName(self, tr("Exportar PDF"), default, "PDF (*.pdf)")
         if not path:
             return None
-        html = self.tb.report_html(figure_base=self._tb_picture(folder))
+        html = self._tb_report(folder)
         html = html.replace("<details>", "<details open>")
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)

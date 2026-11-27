@@ -582,7 +582,8 @@ class ThroughBoltEditor(QObject):
             return text, "#2e9e4f" if ok else "#d03040"
         return tr("Listo. Sin resultados: use Análisis › Resolver."), ""
 
-    def report_html(self, figure_base: str = "", help_figures: bool = True) -> str:
+    def report_html(self, figure_base: str = "", help_figures: bool = True,
+                    fem_figures: dict | None = None, picture: bool = True) -> str:
         from importlib import resources
 
         folder = ""
@@ -591,7 +592,8 @@ class ThroughBoltEditor(QObject):
             folder = str(img)
         return tbp.report_html(self.data, self.results, self.state.units,
                                self.state.data.get("info", {}), self.state.settings.edition,
-                               figures=folder, figure_base=figure_base)
+                               figures=folder, figure_base=figure_base,
+                               fem_figures=fem_figures, picture=picture)
 
 
 class FemWorker(QThread):

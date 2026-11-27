@@ -137,7 +137,21 @@ conexión con los datos del primer ejemplo. Al seleccionarla en el árbol:
   de todas las combinaciones y el modelo CalculiX de las marcadas, con la
   ventana de avance (incrementos, iteraciones y tiempo) y el registro del solver.
   **Verificación** muestra la tabla y la traza de la fila elegida.
-- **Reporte**: HTML (con la vista 3D y los esquemas de esta ayuda) o PDF.
+- **Resultados** (pestaña Análisis): combinación, viga y campo (von Mises,
+  deformación plástica, desplazamiento, presión de contacto de la placa de
+  extremo y **presión de contacto en la cara opuesta**: placa posterior o placa
+  de la viga 2).
+- **Reporte**: HTML o PDF, en el mismo orden que el de la placa base: datos,
+  vista 3D, esquemas de esta ayuda, isométricos del modelo CalculiX y de su
+  malla, cargas; por combinación, los resultados del FEM (tabla comparada con
+  el modelo analítico, fuerzas en los pernos, gráficos de esfuerzos de von
+  Mises, deformación plástica, desplazamientos y presión de contacto en las dos
+  placas, verificaciones con las fuerzas del FEM) y después las verificaciones
+  analíticas y la traza; al final el resumen, las recomendaciones para lo que no
+  cumple y los requisitos de instalación de los pernos pasantes que hacen
+  válidas las hipótesis del análisis (camisas selladas sin adherencia, placas
+  asentadas, tuercas al contacto sin pretensión, grout solo donde se cuenta con
+  él).
 
 ## Modelo CalculiX
 

@@ -134,7 +134,19 @@ the data of the first example. When it is selected in the tree:
   all: the analytic checks of every combination and the CalculiX model of the
   checked ones, with the progress window (increments, iterations and time) and
   the solver log. **Checks** shows the table and the trace of the selected row.
-- **Report**: HTML (with the 3D view and the diagrams of this topic) or PDF.
+- **Results** (Analysis tab): combination, beam and field (von Mises, plastic
+  strain, displacement, contact pressure of the end plate and **contact pressure
+  on the far face**: back plate or end plate of beam 2).
+- **Report**: HTML or PDF, in the same order as the base plate report: data, 3D
+  view, the diagrams of this topic, isometric views of the CalculiX model and
+  its mesh, loads; for each combination the FEM results (table compared with the
+  analytic model, bolt forces, plots of von Mises stress, plastic strain,
+  displacements and contact pressure on both plates, checks with the FEM forces)
+  and then the analytic checks and the trace; at the end the summary, the
+  recommendations for what does not pass and the installation requirements of
+  the through-bolts that make the assumptions of the analysis valid (sealed
+  unbonded sleeves, seated plates, snug nuts without pretension, grout only
+  where it is relied on).
 
 ## CalculiX model
 

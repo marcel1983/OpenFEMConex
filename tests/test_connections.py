@@ -26,6 +26,22 @@ def test_template_builds_and_checks():
     assert any(c.id.startswith("through_bolt.") for c in results[0].checks)
     html = tbp.report_html(data, results, SI, {"name": "Edificio"}, figures="img")
     assert "Resumen" in html and "Edificio" in html and "img/corte_friccion.png" in html
+    # same order as the base plate report: summary, recommendations and installation
+    # requirements at the end; without CalculiX it says so
+    assert "sin modelo de elementos finitos" in html
+    assert html.index("Verificaciones analíticas") < html.index("Resumen de resultados")
+    assert html.index("Resumen de resultados") < html.index("Requisitos de instalación")
+    assert "Camisas sin adherencia" in html and "no hay recomendaciones" in html
+
+
+def test_recommendations_for_failing_checks():
+    data = tbp.new_connection("PP-1")
+    data["end_plate"]["bolt_diameter"] = "5/8 in"
+    data["member"]["fc"] = "14 MPa"
+    results = tbp.run(data, SI)
+    assert not all(r.ok for r in results)
+    html = tbp.report_html(data, results, SI, {})
+    assert "Recomendaciones" in html and "Cambios sugeridos" in html
 
 
 def test_opposite_beam_and_grout_from_the_file():

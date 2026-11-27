@@ -705,6 +705,17 @@ EN: dict[str, str] = {
     "Deformación plástica equivalente": "Equivalent plastic strain",
     "Desplazamiento total (deformada × {s})": "Total displacement (deformation × {s})",
     "Presión de contacto bajo la placa": "Contact pressure under the plate",
+    "Presión de contacto en la cara opuesta": "Contact pressure on the far face",
+    "Modelo de elementos finitos (vista isométrica)": "Finite element model (isometric view)",
+    "Malla de elementos finitos (vista isométrica)": "Finite element mesh (isometric view)",
+    "Esfuerzo de von Mises (deformada × {s}): máx. {v} MPa":
+        "von Mises stress (deformation × {s}): max. {v} MPa",
+    "Deformación plástica equivalente: máx. {p} %": "Equivalent plastic strain: max. {p} %",
+    "Presión de contacto de la {plate} sobre el concreto: máx. {p} MPa":
+        "Contact pressure of the {plate} on the concrete: max. {p} MPa",
+    "placa de extremo": "end plate", " de la viga 1": " of beam 1",
+    "placa de extremo de la viga 2": "end plate of beam 2", "placa posterior": "back plate",
+    "placa opuesta": "far plate",
     "máx. placa {p}, columna {c}": "max. plate {p}, column {c}",
     "cabeza de la columna {d} mm": "column top {d} mm", "máx. {m}, media {a}": "max. {m}, mean {a}",
     # check titles

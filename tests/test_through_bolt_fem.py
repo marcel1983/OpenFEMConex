@@ -87,6 +87,26 @@ def test_fem_bolt_tension_and_bearing_match_the_couple(tmp_path):
             "through_bolt.fem_friction", "through_bolt.fem_plate_strain",
             "through_bolt.fem_back_plate_strain", "through_bolt.fem_back_bearing"} <= ids
     assert all(c.status.value != "ng" for c in side.checks)
+    # the report: FEM first with its figures (contact pressure on both plates)
+    results = tbp.run(data, SI)
+    results[1].fem = [side]
+    figures = {}
+    try:
+        from openfemconex.scenes import render_through_bolt_figures
+
+        figures = render_through_bolt_figures(tmp_path / "rep", [side], size=(400, 300))
+    except Exception:  # no OpenGL context here: the report without figures
+        pass
+    html = tbp.report_html(data, results, SI, {}, fem_figures=figures)
+    assert "modelo de elementos finitos (CalculiX)" in html
+    combo2 = html.index(f"Combinación {combo.name}")
+    assert combo2 < html.index("Modelo CalculiX", combo2) < html.index(
+        "Verificaciones analíticas", combo2)
+    if figures:
+        names = [f for _, f in figures[side.vtu.name]]
+        assert any(n.endswith("CPRESS.png") for n in names)
+        assert any(n.endswith("CPRESS_far.png") for n in names)
+        assert "fem_malla.png" in html and "CPRESS_far.png" in html
 
 
 @pytest.mark.ccx
