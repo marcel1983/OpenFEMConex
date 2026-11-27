@@ -68,6 +68,27 @@ levantamiento de cada uno.
 
 ![Interfaz en inglés con el tema oscuro](img/gui_en_oscuro.png)
 
+## Varias conexiones en un proyecto
+
+Un proyecto puede tener varias conexiones. **Proyecto › Agregar conexión** (y
+**Proyecto › Nuevo**) abre un selector con la vista isométrica de cada tipo:
+placa base, pernos pasantes en concreto y, por ahora deshabilitados, corte
+simple, momento con placa de extremo y empalme. El árbol del proyecto lista
+las conexiones con su icono; al seleccionar una, el ribbon, las propiedades,
+la vista 3D y la tabla de verificaciones pasan a ese tipo, con las mismas
+etapas (Geometría, Cargas, Análisis, Verificación, Reporte). **Quitar
+conexión** quita la seleccionada; el proyecto conserva al menos una.
+
+![Selector de tipo de conexión](img/selector_conexiones.png)
+
+![Conexión de pernos pasantes con viga opuesta y grout](img/pernos_pasantes_interfaz.png)
+
+La placa base sigue en el bloque `base_plate` de OpenConex (una por proyecto
+en esta versión); las demás conexiones van en `"openfemconex": {"connections":
+[...]}`, cada una con su `type`, su `name`, sus datos con unidades y sus
+combinaciones mayoradas. Los iconos se generan con
+`tools/render_connection_icons.py`.
+
 ## Datos que agrega OpenFEMConex
 
 Además de los datos de OpenConex, el `.ocnx` puede llevar un bloque

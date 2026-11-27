@@ -1,0 +1,187 @@
+{
+  "format_version": 14,
+  "info": {
+    "name": "Ejemplo pernos pasantes",
+    "number": "",
+    "client": "",
+    "engineer": "",
+    "revision": "0",
+    "language": "es",
+    "units": "SI_kN_m"
+  },
+  "openfemconex": {
+    "connections": [
+      {
+        "type": "through_bolt",
+        "name": "PP-1 muro, una viga",
+        "beam": "W18X50",
+        "beam_grade": "ASTM A992",
+        "end_plate": {
+          "layout": "extended_4",
+          "bolt_diameter": "1 in",
+          "bolt_grade": "ASTM F3125 Gr. A325",
+          "width": "8 in",
+          "thickness": "1 in",
+          "gage": "5.5 in",
+          "pf": "1.75 in",
+          "pb": "3.5 in",
+          "pf_o": "1.75 in",
+          "pext": "3.5 in",
+          "grade": "ASTM A36",
+          "web_weld": "5/16 in"
+        },
+        "back_plate": {
+          "width": "10 in",
+          "height": "",
+          "thickness": "1 in",
+          "grade": "ASTM A36",
+          "washer": ""
+        },
+        "member": {
+          "kind": "wall",
+          "thickness": "500 mm",
+          "fc": "28 MPa",
+          "cover": "40 mm",
+          "vertical_diameter": "19 mm",
+          "vertical_spacing": "150 mm",
+          "horizontal_diameter": "12 mm",
+          "horizontal_spacing": "200 mm",
+          "fy": "420 MPa",
+          "width": "",
+          "top": "",
+          "bottom": "",
+          "axial": "",
+          "cross_ties": true
+        },
+        "shear": {
+          "type": "friction",
+          "mu": 0.55,
+          "grout_length": "150 mm",
+          "grout_fc": "",
+          "gap": "6 mm"
+        },
+        "opposite": null,
+        "combinations": {
+          "methods": [
+            "LRFD"
+          ]
+        },
+        "cases": [
+          {
+            "name": "D",
+            "type": "D",
+            "V": "40 kN",
+            "M": "70 kN*m"
+          },
+          {
+            "name": "L",
+            "type": "L",
+            "V": "32.5 kN",
+            "M": "60 kN*m"
+          }
+        ]
+      },
+      {
+        "type": "through_bolt",
+        "name": "PP-2 dos vigas opuestas",
+        "beam": "W18X50",
+        "beam_grade": "ASTM A992",
+        "end_plate": {
+          "layout": "extended_4",
+          "bolt_diameter": "1 in",
+          "bolt_grade": "ASTM F3125 Gr. A325",
+          "width": "8 in",
+          "thickness": "1 in",
+          "gage": "5.5 in",
+          "pf": "1.75 in",
+          "pb": "3.5 in",
+          "pf_o": "1.75 in",
+          "pext": "3.5 in",
+          "grade": "ASTM A36",
+          "web_weld": "5/16 in"
+        },
+        "back_plate": {
+          "width": "10 in",
+          "height": "",
+          "thickness": "1 in",
+          "grade": "ASTM A36",
+          "washer": ""
+        },
+        "member": {
+          "kind": "wall",
+          "thickness": "500 mm",
+          "fc": "28 MPa",
+          "cover": "40 mm",
+          "vertical_diameter": "19 mm",
+          "vertical_spacing": "150 mm",
+          "horizontal_diameter": "12 mm",
+          "horizontal_spacing": "200 mm",
+          "fy": "420 MPa",
+          "width": "",
+          "top": "",
+          "bottom": "",
+          "axial": "",
+          "cross_ties": true
+        },
+        "shear": {
+          "type": "grout",
+          "mu": 0.55,
+          "grout_length": "150 mm",
+          "grout_fc": "",
+          "gap": "6 mm"
+        },
+        "opposite": {
+          "beam": "W18X50",
+          "beam_grade": "ASTM A992"
+        },
+        "combinations": {
+          "methods": [
+            "LRFD"
+          ],
+          "custom": [
+            {
+              "name": "Patrón: viva solo en la viga 1",
+              "method": "LRFD",
+              "factors": {
+                "D": 1.2,
+                "L1": 1.6
+              },
+              "source": "alternancia de la viva"
+            }
+          ],
+          "SDS": 0.6
+        },
+        "cases": [
+          {
+            "name": "D",
+            "type": "D",
+            "V": "70 kN",
+            "M": "60 kN*m",
+            "V2": "55 kN",
+            "M2": "45 kN*m"
+          },
+          {
+            "name": "L1",
+            "type": "L",
+            "V": "40 kN",
+            "M": "35 kN*m"
+          },
+          {
+            "name": "L2",
+            "type": "L",
+            "V2": "25 kN",
+            "M2": "20 kN*m"
+          },
+          {
+            "name": "E",
+            "type": "E",
+            "V": "8 kN",
+            "M": "60 kN*m",
+            "V2": "-8 kN",
+            "M2": "-70 kN*m"
+          }
+        ]
+      }
+    ]
+  }
+}
