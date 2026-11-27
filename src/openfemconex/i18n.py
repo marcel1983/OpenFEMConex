@@ -976,12 +976,12 @@ _CONNECTIONS: dict[str, str] = {
     "Camino de cargas, esquemas de cortante y verificaciones de esta conexión":
         "Load path, shear diagrams and checks of this connection",
     "No se pudo calcular: {error}": "Could not calculate: {error}",
-    "<p>Sin verificaciones todavía: use Análisis › Calcular.</p>":
-        "<p>No checks yet: use Analysis › Calculate.</p>",
+    "<p>Sin verificaciones todavía: use Análisis › Resolver.</p>":
+        "<p>No checks yet: use Analysis › Solve.</p>",
     "Los resultados están desactualizados: vuelva a calcular.":
         "The results are out of date: calculate again.",
-    "Listo. Sin resultados: use Análisis › Calcular.":
-        "Ready. No results: use Analysis › Calculate.",
+    "Listo. Sin resultados: use Análisis › Resolver.":
+        "Ready. No results: use Analysis › Solve.",
     "Al ras, 2 pernos (2F)": "Flush, 2 bolts (2F)", "Al ras, 4 pernos (4F)": "Flush, 4 bolts (4F)",
     "Extendida, 4 pernos (4E)": "Extended, 4 bolts (4E)",
     "Extendida rigidizada (4ES)": "Extended stiffened (4ES)",
@@ -1007,5 +1007,46 @@ _CONNECTIONS: dict[str, str] = {
         "bolts and welds",
     "{name}: no se pudo resolver: {error}": "{name}: could not be solved: {error}",
     "sin calcular": "not calculated", "Pernos pasantes: {n} pernos": "Through-bolts: {n} bolts",
+    # shared Loads and Analysis tabs
+    "Casos de carga de servicio en la cara del muro o columna, como en la placa base: las "
+    "combinaciones ASCE 7 (LRFD) se generan de sus tipos y se pueden editar o agregar "
+    "propias. V positivo hacia abajo, M positivo con tracción arriba, P positiva en "
+    "compresión; V2, M2 y P2 son de la viga opuesta. Un número sin unidad se toma en las "
+    "unidades del proyecto.":
+        "Service load cases at the face of the wall or column, as for the base plate: the "
+        "ASCE 7 (LRFD) combinations come from their types and can be edited, or your own "
+        "added. V positive downwards, M positive with tension at the top, P positive in "
+        "compression; V2, M2 and P2 belong to the opposite beam. A number without a unit "
+        "takes the project units.",
+    "V (+ hacia abajo)": "V (+ downwards)",
+    "Aceleración espectral de diseño de periodo corto: con casos E genera las combinaciones "
+    "sísmicas de ASCE 7 (vacío: sin ellas)":
+        "Short-period design spectral acceleration: with E cases it generates the ASCE 7 "
+        "seismic combinations (empty: none)",
+    "Factor de redundancia (1.0 por omisión)": "Redundancy factor (1.0 by default)",
+    "Sobrerresistencia: agrega las combinaciones con Ω0 (vacío: sin ellas)":
+        "Overstrength: adds the combinations with Ω0 (empty: none)",
+    "valor no válido: {text}": "invalid value: {text}",
+    "Verificaciones analíticas listas; el modelo CalculiX no se resolvió: {error}":
+        "Analytic checks done; the CalculiX model was not solved: {error}",
+    "Verificaciones analíticas listas. Marque en Cargas las combinaciones que se resuelven "
+    "con CalculiX.":
+        "Analytic checks done. Check in Loads the combinations to solve with CalculiX.",
+    "{n} combinaciones con CalculiX ({mesh}, {t} hilos). Salida: {out}":
+        "{n} combinations with CalculiX ({mesh}, {t} threads). Output: {out}",
+    "malla rápida": "fast mesh", "malla normal": "normal mesh",
+    "{n} combinaciones; CalculiX con {t} hilos.": "{n} combinations; CalculiX with {t} threads.",
+    " en {s} s. Tracción total en pernos {t}, compresión {c}.":
+        " in {s} s. Total bolt tension {t}, compression {c}.",
+    "sin carga": "no load",
+    "Calcula las verificaciones analíticas y resuelve con CalculiX las combinaciones marcadas "
+    "en Cargas: placas sobre el concreto, pernos sin adherencia y soldaduras":
+        "Runs the analytic checks and solves with CalculiX the combinations checked in "
+        "Loads: plates on the concrete, unbonded bolts and welds",
+    "Tamaño de malla, malla rápida, capas, hilos de CalculiX y límite de deformación "
+    "plástica (los mismos de la placa base)":
+        "Mesh size, fast mesh, layers, CalculiX threads and plastic strain limit (the same "
+        "as the base plate)",
+    "Casos": "Cases", "todas las cargas": "all loads",
 }
 EN.update({k: v for k, v in _CONNECTIONS.items() if k not in EN})

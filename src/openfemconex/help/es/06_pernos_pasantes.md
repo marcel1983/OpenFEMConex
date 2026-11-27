@@ -120,13 +120,23 @@ la compresión de su cara. En sismo no conviene confiar en la fricción: use gro
 conexión con los datos del primer ejemplo. Al seleccionarla en el árbol:
 
 - **Geometría**: viga, placa de extremo, placa posterior, muro o columna, viga
-  opuesta y cortante; la vista 3D muestra el muro, las placas, los pernos y el
-  grout de las camisas.
-- **Cargas**: combinaciones mayoradas (LRFD) en la cara del muro: V, M y P de la
-  viga 1 y, con viga opuesta, V2, M2 y P2.
-- **Análisis › Calcular**: corre las verificaciones analíticas; **Análisis ›
-  Resolver** agrega las del modelo CalculiX. **Verificación** muestra la tabla
-  y la traza de la fila elegida.
+  opuesta y cortante; la vista 3D muestra el muro con su refuerzo vertical y
+  horizontal (estribos en una columna), las placas, los pernos y el grout de las
+  camisas.
+- **Cargas**: igual que en la placa base. Casos de servicio con su tipo (D, L,
+  W, E…) y sus fuerzas en la cara del muro: V, M y P de la viga 1 y, con viga
+  opuesta, V2, M2 y P2. De sus tipos salen las combinaciones LRFD de ASCE 7 (las
+  sísmicas cuando se da S<sub>DS</sub>; ρ y Ω0 opcionales). **Editar
+  combinaciones** agrega combinaciones propias o copia las generadas para cambiar
+  sus factores; en la lista se marcan las que se resuelven con CalculiX. Un
+  proyecto anterior, con combinaciones ya mayoradas, se convierte solo: cada
+  combinación queda como un caso con una combinación propia de factor 1.
+- **Análisis**: **Ajustes** tiene las mismas opciones que la placa base
+  (tamaño de malla, malla rápida, capas, hilos de CalculiX, límite de
+  deformación plástica). **Resolver** hace todo: las verificaciones analíticas
+  de todas las combinaciones y el modelo CalculiX de las marcadas, con la
+  ventana de avance (incrementos, iteraciones y tiempo) y el registro del solver.
+  **Verificación** muestra la tabla y la traza de la fila elegida.
 - **Reporte**: HTML (con la vista 3D y los esquemas de esta ayuda) o PDF.
 
 ## Modelo CalculiX

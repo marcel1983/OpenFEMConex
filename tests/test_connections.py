@@ -19,7 +19,9 @@ def test_template_builds_and_checks():
     assert conn.bolts == 8
     assert conn.back_plate.height == pytest.approx(conn.beam.d + 2 * 3.5 * 25.4 + 50)
     results = tbp.run(data, SI)
-    assert [r.combo.name for r in results] == ["1.2D + 1.6L", "1.2D + 1.0L"]
+    # service load cases D and L: the ASCE 7 combinations 1.4D and 1.2D + 1.6L
+    assert [r.combo.name for r in results] == ["LRFD-1", "LRFD-2"]
+    assert results[1].combo.V == pytest.approx(100e3) and results[1].combo.M == pytest.approx(180e6)
     assert all(r.ok for r in results)
     assert any(c.id.startswith("through_bolt.") for c in results[0].checks)
     html = tbp.report_html(data, results, SI, {"name": "Edificio"}, figures="img")
@@ -38,6 +40,32 @@ def test_opposite_beam_and_grout_from_the_file():
     (res,) = tbp.run(data, SI)
     assert any("viga 2" in c.combo for c in res.checks)
     assert any(c.id.startswith("through_bolt.grout_bearing") for c in res.checks)
+
+
+def test_old_factored_combinations_become_load_cases():
+    data = tbp.new_connection()
+    data.pop("cases")
+    data["combinations"] = [{"name": "C1", "V": "100 kN", "M": "180 kN*m"}]
+    (combo,) = tbp.combinations(data, SI)
+    assert combo.name == "C1" and combo.M == pytest.approx(180e6)
+    tbp.migrate(data)
+    assert data["cases"][0]["name"] == "C1"
+    assert data["combinations"]["include_code"] is False
+
+
+def test_custom_and_seismic_combinations():
+    data = tbp.new_connection()
+    data["cases"].append({"name": "E", "type": "E", "M": "50 kN*m"})
+    assert not any("E" in c.factors for c in tbp.combinations(data, SI))  # no S_DS
+    data["combinations"]["SDS"] = 0.5
+    seismic = [c for c in tbp.combinations(data, SI) if "E" in c.factors]
+    assert {c.factors["E"] for c in seismic} == {1.0, -1.0}
+    data["combinations"]["custom"] = [{"name": "Mía", "factors": {"D": 1.0, "L": 0.5}}]
+    mine = tbp.combinations(data, SI)[-1]
+    assert mine.name == "Mía" and mine.M == pytest.approx(100e6)
+    data["combinations"]["custom"][0]["method"] = "ASD"
+    with pytest.raises(ValueError, match="LRFD"):
+        tbp.combinations(data, SI)
 
 
 def test_bare_numbers_take_the_project_units():
@@ -181,6 +209,25 @@ def test_example_project_opens_on_its_first_connection(window):
         assert all(r.ok for r in window.tb.results)
 
 
+def test_through_bolt_loads_tab_works_like_the_base_plate(window):
+    index = window.state.add_connection("through_bolt")
+    window.set_mode("through_bolt", index)
+    loads = window.tb.combinations
+    assert loads.cases.rowCount() == 2 and loads.combos.rowCount() == 2
+    assert loads.cases.isColumnHidden(7)  # P2: no opposite beam
+    assert not loads.asd.isVisible() or not loads.asd.isEnabled()
+    loads._add_case()  # W
+    st_conn = window.state.connections()[index]
+    assert [c["name"] for c in st_conn["cases"]] == ["D", "L", "W"]
+    assert loads.combos.rowCount() > 2  # the wind combinations
+    first = loads.combos.item(0, 0)
+    first.setCheckState(first.checkState().Unchecked)
+    assert first.text() not in loads.selected()
+    loads.seismic["SDS"].setText("0.6")
+    loads.seismic["SDS"].editingFinished.emit()
+    assert window.state.connections()[index]["combinations"]["SDS"] == 0.6
+
+
 def test_fem_results_join_the_checks_table(window):
     from types import SimpleNamespace
 
@@ -196,3 +243,15 @@ def test_fem_results_join_the_checks_table(window):
     assert window.tb_fem_box.count() == 1
     assert window.tb.calculate(keep_fem=True)
     assert window.tb.results[0].fem  # kept while the data does not change
+
+
+def test_the_picture_draws_the_reinforcement():
+    pytest.importorskip("pyvista")
+    from openfemconex import tb_scene
+
+    data = tbp.new_connection()
+    names = {p.name for p in tb_scene.parts(tbp.build(data, SI))}
+    assert "refuerzo" in names
+    data["member"].update(kind="column", width="600 mm")
+    bars = next(p for p in tb_scene.parts(tbp.build(data, SI)) if p.name == "refuerzo")
+    assert bars.mesh.n_points > 0

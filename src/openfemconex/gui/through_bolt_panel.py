@@ -26,11 +26,9 @@ from PySide6.QtWidgets import (
     QCompleter,
     QDoubleSpinBox,
     QFormLayout,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
-    QPushButton,
     QScrollArea,
     QTableWidget,
     QTableWidgetItem,
@@ -40,6 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from openfemconex import through_bolt_project as tbp
+from openfemconex.gui.loads import CaseColumn, LoadsEditor, LoadsSource
 from openfemconex.gui.state import ProjectState
 from openfemconex.i18n import tr
 from openfemconex.report import check_title
@@ -301,85 +300,91 @@ class TBForm(QWidget):
                 w.setEnabled(not data.get("opposite"))
 
 
-COMBO_COLUMNS = (("name", "Combinación"), ("V", "V"), ("M", "M (+ tracción arriba)"),
-                 ("P", "P (compresión +)"), ("V2", "V2"), ("M2", "M2"), ("P2", "P2"))
+class ThroughBoltLoads(LoadsSource):
+    """Cases and combinations of the through-bolt connection being edited (LRFD)."""
 
-
-class CombinationsPanel(QWidget):
-    """Factored load combinations (LRFD) typed by the user, for beam 1 and beam 2."""
+    columns = (CaseColumn("V", "V"), CaseColumn("M", "M", Kind.MOMENT),
+               CaseColumn("P", "P"), CaseColumn("V2", "V2"),
+               CaseColumn("M2", "M2", Kind.MOMENT), CaseColumn("P2", "P2"))
+    methods = tbp.METHODS
+    result_heads = ("V", "M", "P", "V2", "M2", "P2")
 
     def __init__(self, editor: ThroughBoltEditor) -> None:
-        super().__init__()
         self.editor = editor
-        self._loading = False
-        layout = QVBoxLayout(self)
-        intro = QLabel(tr(
-            "Combinaciones mayoradas (LRFD) en la cara del muro o columna. V positivo hacia "
-            "abajo, M positivo con tracción arriba, P positiva en compresión. V2, M2 y P2 son "
-            "de la viga opuesta. Un número sin unidad se toma en las unidades del proyecto."))
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-        self.table = QTableWidget(0, len(COMBO_COLUMNS))
-        self.table.setHorizontalHeaderLabels([tr(h) for _, h in COMBO_COLUMNS])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.table.itemChanged.connect(self._edited)
-        layout.addWidget(self.table, 1)
-        row = QHBoxLayout()
-        add = QPushButton(tr("Agregar combinación"))
-        add.clicked.connect(self._add)
-        remove = QPushButton(tr("Quitar"))
-        remove.clicked.connect(self._remove)
-        row.addWidget(add)
-        row.addWidget(remove)
-        row.addStretch(1)
-        layout.addLayout(row)
 
-    def refresh(self, data: dict[str, Any]) -> None:
-        self._loading = True
-        try:
-            combos = data.get("combinations") or []
-            self.table.setRowCount(len(combos))
-            for r, c in enumerate(combos):
-                for col, (key, _) in enumerate(COMBO_COLUMNS):
-                    self.table.setItem(r, col, QTableWidgetItem(str(c.get(key, "") or "")))
-            opposite = bool(data.get("opposite"))
-            for col in (4, 5, 6):
-                self.table.setColumnHidden(col, not opposite)
-        finally:
-            self._loading = False
+    @property
+    def units(self):
+        return self.editor.state.units
 
-    def rows(self) -> list[dict[str, str]]:
-        units = self.editor.state.units
+    def cases(self) -> list[dict[str, Any]]:
+        return list(self.editor.data.get("cases") or [])
+
+    def options(self) -> dict[str, Any]:
+        opts = self.editor.data.get("combinations")
+        return dict(opts) if isinstance(opts, dict) else {}
+
+    def set_cases(self, cases: list[dict[str, Any]]) -> None:
+        self.editor.update(("cases",), cases)
+
+    def set_combinations(self, include_code: bool, custom: list[dict[str, Any]]) -> None:
+        opts = self.options()
+        opts["include_code"] = include_code
+        if custom:
+            opts["custom"] = custom
+        else:
+            opts.pop("custom", None)
+        self.editor.update(("combinations",), opts)
+
+    def set_methods(self, methods: list[str]) -> None:
+        opts = self.options()
+        opts["methods"] = methods
+        self.editor.update(("combinations",), opts)
+
+    def set_option(self, key: str, value: Any) -> None:
+        opts = self.options()
+        if value is None:
+            opts.pop(key, None)
+        else:
+            opts[key] = value
+        self.editor.update(("combinations",), opts)
+
+    def combinations(self):
+        from openfemconex.load_cases import load_combinations
+
+        data = self.editor.data
+        combos = {c.name: c for c in load_combinations(data.get("cases") or [],
+                                                       self.options(), self.methods)}
         out = []
-        for r in range(self.table.rowCount()):
-            row = {}
-            for col, (key, _) in enumerate(COMBO_COLUMNS):
-                item = self.table.item(r, col)
-                text = item.text().strip() if item else ""
-                if key != "name" and text:
-                    text = with_unit(text, Kind.MOMENT if key.startswith("M") else Kind.FORCE,
-                                     units)
-                row[key] = text
-            out.append(row)
+        for c in tbp.combinations(data, self.units):
+            values = [(getattr(c, k), Kind.MOMENT if k.startswith("M") else Kind.FORCE)
+                      for k in self.result_heads]
+            out.append((combos[c.name], values))
         return out
 
-    def _edited(self, *_: object) -> None:
-        if not self._loading:
-            self.editor.update(("combinations",), self.rows())
+    def hidden(self) -> set[str]:
+        return set() if self.editor.data.get("opposite") else {"V2", "M2", "P2"}
 
-    def _add(self) -> None:
-        rows = self.rows()
-        rows.append({"name": f"C{len(rows) + 1}", "V": "", "M": "", "P": "", "V2": "",
-                     "M2": "", "P2": ""})
-        self.editor.update(("combinations",), rows)
 
-    def _remove(self) -> None:
-        rows = self.rows()
-        r = self.table.currentRow()
-        if 0 <= r < len(rows):
-            del rows[r]
-            self.editor.update(("combinations",), rows)
+class TBLoadsPanel(LoadsEditor):
+    """The Loads tab of a through-bolt connection."""
+
+    def __init__(self, editor: ThroughBoltEditor) -> None:
+        super().__init__(ThroughBoltLoads(editor), intro=(
+            "Casos de carga de servicio en la cara del muro o columna, como en la placa base: "
+            "las combinaciones ASCE 7 (LRFD) se generan de sus tipos y se pueden editar o "
+            "agregar propias. V positivo hacia abajo, M positivo con tracción arriba, P "
+            "positiva en compresión; V2, M2 y P2 son de la viga opuesta. Un número sin unidad "
+            "se toma en las unidades del proyecto."))
+        self.result_heads_hidden()
+
+    def result_heads_hidden(self) -> None:
+        opposite = bool(self.source.editor.data.get("opposite"))
+        for col in (6, 7, 8):
+            self.combos.setColumnHidden(col, not opposite)
+
+    def refresh(self) -> None:
+        super().refresh()
+        self.result_heads_hidden()
 
 
 class ThroughBoltEditor(QObject):
@@ -405,7 +410,7 @@ class ThroughBoltEditor(QObject):
             scroll.setWidgetResizable(True)
             scroll.setWidget(form)
             self.pages[name] = scroll
-        self.combinations = CombinationsPanel(self)
+        self.combinations = TBLoadsPanel(self)
         self.checks = QTableWidget(0, 7)
         self.checks.setHorizontalHeaderLabels([tr(h, "column") for h in (
             "Combinación", "Verificación", "Demanda", "Capacidad", "Ratio", "Estado",
@@ -428,13 +433,13 @@ class ThroughBoltEditor(QObject):
         if index != self.index:
             self.results, self.stale = [], False
         self.index = index
-        self.data = copy.deepcopy(conns[index])
+        self.data = tbp.migrate(copy.deepcopy(conns[index]))
         self.refresh()
 
     def refresh(self) -> None:
         for form in self.forms.values():
             form.refresh(self.data)
-        self.combinations.refresh(self.data)
+        self.combinations.refresh()
         self._validate()
         self._fill_checks()
 
@@ -514,7 +519,7 @@ class ThroughBoltEditor(QObject):
                     table.setItem(row, c, item)
                 self._rows.append(r)
         if not self._rows:
-            self.trace.setHtml(tr("<p>Sin verificaciones todavía: use Análisis › Calcular.</p>"))
+            self.trace.setHtml(tr("<p>Sin verificaciones todavía: use Análisis › Resolver.</p>"))
 
     def _check_selected(self) -> None:
         rows = self.checks.selectionModel().selectedRows()
@@ -575,7 +580,7 @@ class ThroughBoltEditor(QObject):
                                   check=check_title(worst), ratio=f"{worst.ratio:.2f}",
                                   combo=worst.combo)
             return text, "#2e9e4f" if ok else "#d03040"
-        return tr("Listo. Sin resultados: use Análisis › Calcular."), ""
+        return tr("Listo. Sin resultados: use Análisis › Resolver."), ""
 
     def report_html(self, figure_base: str = "", help_figures: bool = True) -> str:
         from importlib import resources
@@ -595,13 +600,17 @@ class FemWorker(QThread):
     combo_done = Signal(str, object)
     combo_failed = Signal(str, str)
     stage = Signal(str)
+    started_combo = Signal(str, str)
+    """Name of a CalculiX run and its .sta file."""
     cancelled = Signal()
 
     def __init__(self, conn, combos: list, out, edition, ccx: str | None = None,
-                 fast: bool = False, threads: int | None = None) -> None:
+                 fast: bool = False, threads: int | None = None, settings=None,
+                 strain_limit: float = 0.05) -> None:
         super().__init__()
         self.conn, self.combos, self.out, self.edition = conn, combos, out, edition
         self.ccx, self.fast, self.threads = ccx, fast, threads
+        self.settings, self.strain_limit = settings, strain_limit
         self.cancel = threading.Event()
 
     def run(self) -> None:
@@ -616,6 +625,8 @@ class FemWorker(QThread):
                 sides = solve_combination(
                     self.conn, combo, self.out, ed=self.edition, ccx=self.ccx,
                     threads=self.threads, cancel=self.cancel, fast=self.fast,
+                    settings=self.settings, strain_limit=self.strain_limit,
+                    started=lambda name, sta: self.started_combo.emit(name, str(sta)),
                     progress=lambda text, n=combo.name: self.stage.emit(f"{n}: {text}"))
             except CcxCancelled:
                 self.cancelled.emit()

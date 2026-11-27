@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from openfemconex.through_bolt import ThroughBoltConnection, _plate_extension, bolt_rows
 
 STEEL, PLATE, BOLT, CONCRETE, GROUT = "#8fa7c4", "#5b7ba6", "#d98c3f", "#c8c8c8", "#9c8f7a"
+REBAR = "#9b2d20"
 
 
 @dataclass
@@ -55,6 +56,7 @@ def parts(conn: ThroughBoltConnection) -> list[Part]:
     height = max(3.0 * beam.d, 2 * hp + 2 * h)
     out.append(Part(_box(-h, 0, -width / 2, width / 2, -height / 2, height / 2), CONCRETE,
                     0.35, "concreto"))
+    out += _rebar(conn, width, height)
     tp = ep.thickness
     out.append(Part(_box(0, tp, -ep.width / 2, ep.width / 2, -hp, hp), PLATE, 1.0,
                     "placa de extremo"))
@@ -90,6 +92,51 @@ def parts(conn: ThroughBoltConnection) -> list[Part]:
                                 radius=0.8 * db, height=conn.grout_length, resolution=24)
                 out.append(Part(g, GROUT, 0.8, "grout"))
     return out
+
+
+def _positions(length: float, edge: float, spacing: float) -> list[float]:
+    """Bars centred on the member, ``spacing`` apart, at least ``edge`` from its sides."""
+    if spacing <= 0 or length <= 2 * edge:
+        return []
+    n = int(math.floor((length - 2 * edge) / spacing + 1e-9))
+    return [(i - n / 2) * spacing for i in range(n + 1)]
+
+
+def _rebar(conn: ThroughBoltConnection, width: float, height: float) -> list[Part]:
+    """The bars of the wall or column at both faces: horizontal bars (ties in a
+    column) outside, vertical bars inside them."""
+    import pyvista as pv
+
+    m = conn.member
+    h, c = m.thickness, m.cover
+    dv, dh = m.vertical.diameter, m.horizontal.diameter
+    if dv <= 0 or dh <= 0:
+        return []
+    column = m.kind.value == "column" and math.isfinite(m.width)
+    xh = [-(c + dh / 2), -(h - c - dh / 2)]
+    xv = [-(c + dh + dv / 2), -(h - c - dh - dv / 2)]
+    side = c + dh + dv / 2  # bar axis from the side face of a column
+    bars = []
+    ys = (_positions(width, side, m.vertical.spacing) if column
+          else _positions(width, m.vertical.spacing / 2, m.vertical.spacing))
+    for x in xv:
+        for y in ys:
+            bars.append(pv.Cylinder(center=(x, y, 0.0), direction=(0, 0, 1), radius=dv / 2,
+                                    height=height, resolution=12))
+    zs = _positions(height, m.horizontal.spacing / 2, m.horizontal.spacing)
+    span = width - 2 * (c + dh / 2) if column else width
+    for z in zs:
+        for x in xh:
+            bars.append(pv.Cylinder(center=(x, 0.0, z), direction=(0, 1, 0), radius=dh / 2,
+                                    height=span, resolution=12))
+        if column:  # the legs of the tie through the thickness
+            for y in (-span / 2, span / 2):
+                bars.append(pv.Cylinder(center=(-h / 2, y, z), direction=(1, 0, 0),
+                                        radius=dh / 2, height=h - 2 * (c + dh / 2),
+                                        resolution=12))
+    if not bars:
+        return []
+    return [Part(pv.merge(bars), REBAR, 1.0, "refuerzo")]
 
 
 def draw(plotter, conn: ThroughBoltConnection) -> None:

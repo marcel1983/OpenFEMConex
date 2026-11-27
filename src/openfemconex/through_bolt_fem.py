@@ -200,7 +200,8 @@ def bolt_tension(T: float, conn: ThroughBoltConnection, ed: Edition = CURRENT,
 
 
 def fem_checks(conn: ThroughBoltConnection, res: Results, model: BasePlateModel, V: float,
-               far: bool = False, ed: Edition = CURRENT, combo: str = "") -> list[CheckResult]:
+               far: bool = False, ed: Edition = CURRENT, combo: str = "",
+               strain_limit: float = STRAIN_LIMIT) -> list[CheckResult]:
     """Checks with the forces of the FEM of one beam (LRFD).
 
     With ``far`` and a model of both faces (``model.opposite``) the checks of the
@@ -224,7 +225,7 @@ def fem_checks(conn: ThroughBoltConnection, res: Results, model: BasePlateModel,
                                    res.bearing_centroid, res.weld)
         m = model
         ratio2 = (front_area(conn) if not far else _area(conn, FAR, BOTTOM, True)).ratio ** 2
-    out.append(_relabel(plate_plastic_strain(peeq, STRAIN_LIMIT, label),
+    out.append(_relabel(plate_plastic_strain(peeq, strain_limit, label),
                         "through_bolt.fem_plate_strain", label))
     if C > 0:
         out.append(_relabel(concrete_bearing(C, centroid, m.N, m.B, conn.member.fc, ratio2,
@@ -248,15 +249,16 @@ def fem_checks(conn: ThroughBoltConnection, res: Results, model: BasePlateModel,
                               combo=label)
         out.append(_relabel(r, f"through_bolt.fem_weld_{wall}", label))
     if model.far is not None and not far:
-        out += back_plate_checks(conn, res, model, ed, combo)
+        out += back_plate_checks(conn, res, model, ed, combo, strain_limit)
     return out
 
 
 def back_plate_checks(conn: ThroughBoltConnection, res: Results, model: BasePlateModel,
-                      ed: Edition = CURRENT, combo: str = "") -> list[CheckResult]:
+                      ed: Edition = CURRENT, combo: str = "",
+                      strain_limit: float = STRAIN_LIMIT) -> list[CheckResult]:
     """The flexible back plate: its plastic strain and its bearing on the far face."""
     label = f"{combo} · FEM · placa posterior"
-    out = [_relabel(plate_plastic_strain(res.far_peeq_element, STRAIN_LIMIT, label),
+    out = [_relabel(plate_plastic_strain(res.far_peeq_element, strain_limit, label),
                     "through_bolt.fem_back_plate_strain", label)]
     if res.far_bearing_force > 0:
         fp = model.far
@@ -270,7 +272,8 @@ def back_plate_checks(conn: ThroughBoltConnection, res: Results, model: BasePlat
 def solve_combination(conn: ThroughBoltConnection, combo, workdir: str | Path, *,
                       ed: Edition = CURRENT, ccx: str | None = None, threads: int | None = None,
                       reuse: bool = True, cancel=None, progress=None, fast: bool = False,
-                      flexible: bool = True) -> list[FemSide]:
+                      flexible: bool = True, settings=None, strain_limit: float = STRAIN_LIMIT,
+                      started=None) -> list[FemSide]:
     """Solve one combination (``through_bolt_project.Combination``) with CalculiX.
 
     With ``flexible`` (default) the far face is modelled: the back plate, or the
@@ -280,19 +283,26 @@ def solve_combination(conn: ThroughBoltConnection, combo, workdir: str | Path, *
     from openfemconex.solve import file_stem, solve
 
     workdir = Path(workdir)
+    settings = settings or MeshSettings(fast=fast)
+
+    def begin(name: str) -> None:
+        # the .sta file of the run, for a progress display
+        if started is not None:
+            started(name, workdir / f"{file_stem(name)}.sta")
+
     if conn.opposite is not None and flexible:
         # both beams in one model, loaded together
         model = fem_model(conn)
         model.validate()
         loads = fem_loads(combo.name, combo.V, combo.M, combo.P,
                           opposite=(combo.V2, combo.M2, combo.P2))
-        res = solve(model, loads, workdir, settings=MeshSettings(fast=fast), ccx=ccx,
+        begin(combo.name)
+        res = solve(model, loads, workdir, settings=settings, ccx=ccx,
                     threads=threads, reuse=reuse, cancel=cancel, progress=progress)
         vtu = workdir / f"{file_stem(combo.name)}.vtu"
-        return [FemSide("viga 1", combo.name, res, model,
-                        fem_checks(conn, res, model, combo.V, False, ed, combo.name), vtu),
-                FemSide("viga 2", combo.name, res, model,
-                        fem_checks(conn, res, model, combo.V2, True, ed, combo.name), vtu)]
+        return [FemSide(side, combo.name, res, model,
+                        fem_checks(conn, res, model, V, far, ed, combo.name, strain_limit), vtu)
+                for side, V, far in (("viga 1", combo.V, False), ("viga 2", combo.V2, True))]
     sides = [(False, combo.V, combo.M, combo.P)]
     if conn.opposite is not None and (combo.V2 or combo.M2 or combo.P2):
         sides.append((True, combo.V2, combo.M2, combo.P2))
@@ -303,10 +313,11 @@ def solve_combination(conn: ThroughBoltConnection, combo, workdir: str | Path, *
         model = fem_model(conn, far, flexible=flexible)
         model.validate()
         name = combo.name + (" viga 2" if far else "")
-        res = solve(model, fem_loads(name, V, M, P), workdir, settings=MeshSettings(fast=fast),
+        begin(name)
+        res = solve(model, fem_loads(name, V, M, P), workdir, settings=settings,
                     ccx=ccx, threads=threads, reuse=reuse, cancel=cancel, progress=progress)
         side = FemSide("viga 2" if far else "viga 1", combo.name, res, model,
-                       fem_checks(conn, res, model, V, far, ed, combo.name),
+                       fem_checks(conn, res, model, V, far, ed, combo.name, strain_limit),
                        workdir / f"{file_stem(name)}.vtu")
         out.append(side)
     return out

@@ -70,14 +70,19 @@ TEMPLATE: dict[str, Any] = {
     "shear": {"type": "friction", "mu": 0.55, "grout_length": "150 mm", "grout_fc": "",
               "gap": "6 mm"},
     "opposite": None,
-    "combinations": [
-        {"name": "1.2D + 1.6L", "V": "100 kN", "M": "180 kN*m", "P": "", "V2": "", "M2": "",
-         "P2": ""},
-        {"name": "1.2D + 1.0L", "V": "70 kN", "M": "100 kN*m", "P": "", "V2": "", "M2": "",
-         "P2": ""},
+    "cases": [
+        {"name": "D", "type": "D", "V": "40 kN", "M": "70 kN*m"},
+        {"name": "L", "type": "L", "V": "32.5 kN", "M": "60 kN*m"},
     ],
+    "combinations": {"methods": ["LRFD"]},
 }
 """A new through-bolt connection: the first example of the help topic."""
+
+CASE_KEYS = ("V", "M", "P", "V2", "M2", "P2")
+"""Forces of a load case: near beam, then the opposite one."""
+
+METHODS = ("LRFD",)
+"""The checks of this connection are LRFD."""
 
 OPPOSITE: dict[str, Any] = {"beam": "W18X50", "beam_grade": "ASTM A992"}
 """Opposite beam when it is switched on: same end plate and bolts as the near beam."""
@@ -99,6 +104,9 @@ class Combination:
     V2: float = 0.0
     M2: float = 0.0
     P2: float = 0.0
+    factors: dict[str, float] = field(default_factory=dict)
+    """Factor of each load case (empty for a combination typed already factored)."""
+    source: str = ""
 
     def loads(self) -> dict[str, float]:
         return {k: getattr(self, k) for k in ("V", "M", "P", "V2", "M2", "P2")}
@@ -221,14 +229,46 @@ def build(data: dict[str, Any], units: UnitSystem) -> ThroughBoltConnection:
         gap=r.q(s.get("gap"), default=0.0) if grout else 0.0)
 
 
-def combinations(data: dict[str, Any], units: UnitSystem) -> list[Combination]:
-    r = _Reader(units)
-    out = []
-    for i, c in enumerate(data.get("combinations") or [], start=1):
+def _kind(key: str) -> Kind:
+    return Kind.MOMENT if key.startswith("M") else Kind.FORCE
+
+
+def migrate(data: dict[str, Any]) -> dict[str, Any]:
+    """A connection of the first format, with its combinations typed already factored,
+    in load cases: one case per combination, and a combination of that case alone."""
+    old = data.get("combinations")
+    if not isinstance(old, list):
+        return data
+    cases, custom = [], []
+    for i, c in enumerate(old, start=1):
         name = _text(c.get("name")) or f"C{i}"
-        values = {k: r.q(c.get(k), Kind.MOMENT if k.startswith("M") else Kind.FORCE, 0.0)
-                  for k in ("V", "M", "P", "V2", "M2", "P2")}
-        out.append(Combination(name, **values))
+        cases.append({"name": name, "type": "D",
+                      **{k: c[k] for k in CASE_KEYS if _text(c.get(k))}})
+        custom.append({"name": name, "method": "LRFD", "factors": {name: 1.0}})
+    data["cases"] = cases
+    data["combinations"] = {"methods": ["LRFD"], "include_code": False, "custom": custom}
+    return data
+
+
+def case_values(data: dict[str, Any], units: UnitSystem) -> dict[str, dict[str, float]]:
+    """Forces of each load case, in N and N·mm."""
+    r = _Reader(units)
+    return {_text(c.get("name")): {k: r.q(c.get(k), _kind(k), 0.0) for k in CASE_KEYS}
+            for c in data.get("cases") or []}
+
+
+def combinations(data: dict[str, Any], units: UnitSystem) -> list[Combination]:
+    """Factored forces of every combination of the load cases (LRFD)."""
+    from openfemconex.load_cases import factored, load_combinations
+
+    data = migrate(copy.deepcopy(data))
+    values = case_values(data, units)
+    out = []
+    for combo in load_combinations(data.get("cases") or [], data.get("combinations"),
+                                   METHODS):
+        f = factored(combo, values)
+        out.append(Combination(combo.name, **{k: f.get(k, 0.0) for k in CASE_KEYS},
+                               factors=dict(combo.factors), source=combo.source))
     return out
 
 
@@ -291,6 +331,32 @@ def _fem_blocks(side, units: UnitSystem) -> list:
               f"de la placa {100 * res.plate_peeq_element:.2f} %.{far}{state}", ""),
         ("table", ["Perno", "Altura x", "y", "Tracción"], rows, set()),
         _checks_block(side.checks, units),
+    ]
+
+
+def _loads_blocks(data: dict[str, Any], results: list[ComboResult], conn, units: UnitSystem
+                  ) -> list:
+    """Load cases (service) and the factored combinations."""
+    from openconex.report.builder import fmt
+
+    from openfemconex.load_cases import combination_text
+
+    data = migrate(copy.deepcopy(data))
+    keys = [k for k in CASE_KEYS if conn.opposite is not None or not k.endswith("2")]
+    heads = {"V": "V", "M": "M", "P": "P", "V2": "V2", "M2": "M2", "P2": "P2"}
+    values = case_values(data, units)
+    rows = [[name, str(c.get("type", "")), *[fmt(values[name][k], _kind(k), units)
+                                              for k in keys]]
+            for c in data.get("cases") or [] for name in [_text(c.get("name"))]]
+    combos = [[r.combo.name, combination_text(r.combo.factors) if r.combo.factors else "—",
+               *[fmt(getattr(r.combo, k), _kind(k), units) for k in keys]] for r in results]
+    return [
+        ("h2", "Cargas"),
+        ("p", "Casos de carga de servicio en la cara del muro o columna: V positivo hacia "
+              "abajo, M positivo con tracción arriba, P positiva en compresión; V2, M2 y P2 "
+              "son de la viga opuesta.", ""),
+        ("table", ["Caso", "Tipo", *[heads[k] for k in keys]], rows, set()),
+        ("table", ["Combinación", "Factores", *[heads[k] for k in keys]], combos, set()),
     ]
 
 
@@ -370,6 +436,7 @@ def report_html(data: dict[str, Any], results: list[ComboResult], units: UnitSys
         if conn.opposite is not None:
             figs.append(("Casos de la conexión opuesta", f"{figures}/conexion_opuesta.png"))
         blocks.append(("figs", "Esquemas", figs, True))
+    blocks += _loads_blocks(data, results, conn, units)
     ok_all = all(r.ok for r in results)
     blocks.append(("h2", "Resumen"))
     blocks.append(("verdict", ok_all, ""))

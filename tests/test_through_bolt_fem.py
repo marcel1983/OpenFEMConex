@@ -65,11 +65,11 @@ def test_opposite_beam_is_mirrored_below_the_wall():
 def test_fem_bolt_tension_and_bearing_match_the_couple(tmp_path):
     data = _data()
     conn = tbp.build(data, SI)
-    combo = tbp.combinations(data, SI)[0]
+    combo = tbp.combinations(data, SI)[1]  # 1.2D + 1.6L
     (side,) = solve_combination(conn, combo, tmp_path, fast=True)
     res = side.results
     assert res.converged
-    T = tbp.run(data, SI)[0].T
+    T = tbp.run(data, SI)[1].T
     top = [a.tension for a in res.anchors if a.x > 0]
     bottom = [a.tension for a in res.anchors if a.x < 0]
     # the tension flange pulls the top bolts with T = M/z (prying adds a little)

@@ -119,13 +119,21 @@ on its face. Under seismic loads friction should not be relied on: use grout.
 the data of the first example. When it is selected in the tree:
 
 - **Geometry**: beam, end plate, back plate, wall or column, opposite beam and
-  shear; the 3D view shows the wall, the plates, the bolts and the grout in the
-  sleeves.
-- **Loads**: factored (LRFD) combinations at the wall face: V, M and P of beam 1
-  and, with an opposite beam, V2, M2 and P2.
-- **Analysis › Calculate**: runs the analytic checks; **Analysis › Solve** adds
-  those of the CalculiX model. **Checks** shows the table and the trace of the
-  selected row.
+  shear; the 3D view shows the wall with its vertical and horizontal bars (ties
+  in a column), the plates, the bolts and the grout in the sleeves.
+- **Loads**: as for the base plate. Service load cases with their type (D, L,
+  W, E…) and their forces at the wall face: V, M and P of beam 1 and, with an
+  opposite beam, V2, M2 and P2. Their types give the ASCE 7 LRFD combinations
+  (the seismic ones when S<sub>DS</sub> is given; ρ and Ω0 optional). **Edit
+  combinations** adds your own combinations or copies the generated ones to
+  change their factors; the list marks the ones solved with CalculiX. An older
+  project, with factored combinations, is converted: each combination becomes a
+  case with its own combination of factor 1.
+- **Analysis**: **Settings** has the same options as the base plate (mesh size,
+  fast mesh, layers, CalculiX threads, plastic strain limit). **Solve** does it
+  all: the analytic checks of every combination and the CalculiX model of the
+  checked ones, with the progress window (increments, iterations and time) and
+  the solver log. **Checks** shows the table and the trace of the selected row.
 - **Report**: HTML (with the 3D view and the diagrams of this topic) or PDF.
 
 ## CalculiX model
