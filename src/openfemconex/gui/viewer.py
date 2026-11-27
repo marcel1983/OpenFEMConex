@@ -145,11 +145,11 @@ class Viewer(QWidget):
 
     def show_results(self, vtu: str | Path, model: BasePlateModel, results: Results,
                      field: str = "von Mises", scale: float = 20.0, unit_force: float = 1e-3,
-                     force_label: str = "kN", reset: bool = False) -> None:
+                     force_label: str = "kN", reset: bool = False, face: str = "front") -> None:
         if not self._begin(tr("Resultados {combo}: {field}", combo=results.load, field=tr(field))):
             return
         draw_results(self.plotter, vtu, model, results, field, scale, unit_force, force_label,
-                     reset)
+                     reset, face=face)
         self.plotter.render()
 
     def show_through_bolt(self, conn, reset: bool = True) -> None:

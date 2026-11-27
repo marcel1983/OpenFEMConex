@@ -15,7 +15,10 @@ Components (CBFEM-style):
   only with welded plate washers; otherwise shear goes through friction);
 * loads: a *RIGID BODY at the column top; the forces given at the plate base are
   transferred to the top (moments corrected for the shear lever arm). The axial
-  compression is applied in a first step and moments and shears in a second one.
+  compression is applied in a first step and moments and shears in a second one;
+* with a far plate or an opposite column (through-bolts) the rods end at nuts on that
+  plate, which bears on the far face of the block (node-to-surface contact), and the
+  block is held at its ends instead of its base.
 """
 
 from __future__ import annotations
@@ -72,9 +75,14 @@ class InpNumbering:
     lug_nodes: tuple[int, ...] = ()
     """Plate-side and concrete-side reference nodes of the shear lug."""
     lug_stiffness: float = 0.0
+    far_springs: tuple[int, ...] = ()
+    """Lateral springs (x then y) of the far plate nuts, with a far plate."""
     lug_offset: float = 0.0
     """Height of the plate-side lug nodes above the concrete-side ones [mm]: the lug
     transfers its shear across this offset, as the real lug does over its depth."""
+    load_ref2: int = 0
+    """Load nodes of the opposite column (0 without one)."""
+    load_rot2: int = 0
 
 
 def _write_rows(f: TextIO, rows, per_line: int = 8) -> None:
@@ -160,6 +168,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         k_lug = model.concrete.E * lug.width
     c = model.concrete
     top_z = model.tp + model.Lc
+    opp = model.opposite
+    load_ref2, load_rot2 = (nn + 5 + 3 * na, nn + 6 + 3 * na) if opp is not None else (0, 0)
+    loads2 = (loads.opposite or Loads()) if opp is not None else None
 
     with path.open("w") as f:
         f.write("*HEADING\n")
@@ -173,6 +184,11 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         f.write("*NODE, NSET=LOADNODES\n")
         f.write(f"{load_ref}, {model.ex:.6f}, {model.ey:.6f}, {top_z:.6f}\n")
         f.write(f"{load_rot}, {model.ex:.6f}, {model.ey:.6f}, {top_z:.6f}\n")
+        if opp is not None:
+            z2 = -c.H - opp.tp - opp.Lc
+            f.write("*NODE, NSET=LOADNODES2\n")
+            f.write(f"{load_ref2}, {opp.ex:.6f}, {opp.ey:.6f}, {z2:.6f}\n")
+            f.write(f"{load_rot2}, {opp.ex:.6f}, {opp.ey:.6f}, {z2:.6f}\n")
         f.write("*NODE, NSET=ANCHORREF\n")
         for nid, a in zip(anchor_ref, model.anchors):
             f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {model.tp:.6f}\n")
@@ -180,10 +196,14 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         for nid, a in zip(anchor_base, model.anchors):
             f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, 0.\n")
         f.write("*NODE, NSET=ANCHORGND\n")
+        far = model.far
         for nid, a in zip(anchor_ground, model.anchors):
             # Coincident with the washer node: springs between separated nodes that act
-            # on one translation would add a spurious couple to the model.
-            f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {model.tp:.6f}\n")
+            # on one translation would add a spurious couple to the model. With a far
+            # plate the node is its nut, on the same line along z.
+            z = (-c.H - far.thickness if far is not None else -c.H - opp.tp if opp is not None
+                 else model.tp)
+            f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {z:.6f}\n")
 
         # ---- solid elements ----
         for part, conn in mesh.parts.items():
@@ -194,6 +214,10 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         # ---- sets ----
         _nset(f, "COLTOP", mesh.column_top_nodes)
         _nset(f, "CONCBOT", mesh.concrete_bottom_nodes)
+        if model.two_faces:
+            _nset(f, "CONCENDS", mesh.concrete_end_nodes)
+        if opp is not None:
+            _nset(f, "COLTOP2", mesh.opposite.column_top_nodes)
         _nset(f, "FOOTPRINT", mesh.footprint_nodes)
         _nset(f, "ANCHORCONC", sorted(set(anchor_concrete)))
 
@@ -205,10 +229,19 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         f.write("*SOLID SECTION, ELSET=COLUMN, MATERIAL=COLSTEEL\n")
         f.write("*SOLID SECTION, ELSET=PLATE, MATERIAL=PLATESTEEL\n")
         f.write("*SOLID SECTION, ELSET=CONCRETE, MATERIAL=CONCRETE\n")
+        if far is not None:
+            _material(f, "FARSTEEL", far.steel.E, far.steel.nu, far.steel.plastic_curve())
+            f.write("*SOLID SECTION, ELSET=FARPLATE, MATERIAL=FARSTEEL\n")
         if "STIFFENER" in mesh.parts:
             ss = model.stiffener_steel or ps
             _material(f, "STIFFSTEEL", ss.E, ss.nu, ss.plastic_curve())
             f.write("*SOLID SECTION, ELSET=STIFFENER, MATERIAL=STIFFSTEEL\n")
+        if opp is not None:
+            for part, st in (("PLATE2", opp.plate_steel), ("COLUMN2", opp.column_steel),
+                             ("STIFFENER2", opp.stiffener_steel or opp.plate_steel)):
+                if part in mesh.parts:
+                    _material(f, part + "STEEL", st.E, st.nu, st.plastic_curve())
+                    f.write(f"*SOLID SECTION, ELSET={part}, MATERIAL={part}STEEL\n")
 
         # ---- contact plate / concrete ----
         f.write("*SURFACE, NAME=SPLATE, TYPE=ELEMENT\n")
@@ -230,6 +263,24 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         # the lug is checked for the whole shear anyway.
         if model.contact.mu > 0 and (loads.Vx or loads.Vy) and not model.anchor.welded_washers:
             f.write(f"*FRICTION\n{model.contact.mu:.4e}, {K / 10:.6e}\n")
+        if model.two_faces:
+            # the far plate bears on the far face of the block, frictionless. Node to
+            # surface: with surface to surface the contact status of the plate, which
+            # starts touching with no pressure, chatters and Newton stalls.
+            f.write("*SURFACE, NAME=SFAR, TYPE=ELEMENT\n")
+            for e in mesh.far_top_elements:
+                f.write(f"{int(e)}, {FACE_TOP}\n")
+            f.write("*SURFACE, NAME=SCONCB, TYPE=ELEMENT\n")
+            for e in mesh.concrete_bottom_elements:
+                f.write(f"{int(e)}, {FACE_BOTTOM}\n")
+            f.write("*CONTACT PAIR, INTERACTION=SI2, TYPE=NODE TO SURFACE\nSFAR, SCONCB\n")
+            f.write("*SURFACE INTERACTION, NAME=SI2\n")
+            f.write("*SURFACE BEHAVIOR, PRESSURE-OVERCLOSURE=LINEAR\n")
+            f.write(f"{K:.6e}, {model.contact.tension:.6e}\n")
+            # an opposite column carries its own shear through friction like the first
+            if (opp is not None and opp.contact.mu > 0 and (loads2.Vx or loads2.Vy)
+                    and not model.anchor.welded_washers):
+                f.write(f"*FRICTION\n{opp.contact.mu:.4e}, {K / 10:.6e}\n")
 
         # ---- anchors ----
         # The washer reference node follows the area-weighted mean translation of the
@@ -242,6 +293,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         tied = list(zip(anchor_ref, mesh.washer_nodes, mesh.washer_weights)) + [
             (base, wn - down, ww)
             for base, wn, ww in zip(anchor_base, mesh.washer_nodes, mesh.washer_weights)]
+        if model.two_faces:
+            # the nut on the far plate: its node follows the plate face under it
+            tied += list(zip(anchor_ground, mesh.far_washer_nodes, mesh.far_washer_weights))
         for ref, wn, ww in tied:
             for dof in (1, 2, 3):
                 terms = [(ref, dof, -1.0)] + [(int(n), dof, float(w)) for n, w in zip(wn, ww)]
@@ -274,6 +328,24 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             f.write(f"{-kc * X:.6e}, {-X:.6e}\n0., 0.\n{kt * X:.6e}, {X:.6e}\n")
         f.write(f"*SPRING, ELSET=RODX\n1, 1\n{k_lat:.6e}\n")
         f.write(f"*SPRING, ELSET=RODY\n2, 2\n{k_lat:.6e}\n")
+        far_springs: tuple[int, ...] = ()
+        if model.two_faces:
+            # weak lateral restraint of the far plate (it has no friction): each nut to
+            # the nearest node of the far face of the block. The rods bearing on the
+            # grout carry the shear of an opposite column: then they are not weak.
+            cb = conc[np.abs(mesh.nodes[conc - 1, 2] + c.H) < 1e-6]
+            cxy = mesh.nodes[cb - 1, :2]
+            near = [int(cb[np.argmin(np.hypot(cxy[:, 0] - a.x, cxy[:, 1] - a.y))])
+                    for a in model.anchors]
+            start = ne + 1 + 3 * na + 2
+            far_springs = tuple(start + i for i in range(2 * na))
+            k_weak = (ks.lateral if opp is not None and model.anchor.welded_washers
+                      else 1e-3 * ks.lateral)
+            for k, (dof, name) in enumerate(((1, "FARX"), (2, "FARY"))):
+                f.write(f"*ELEMENT, TYPE=SPRING2, ELSET={name}\n")
+                for i, (g, cn) in enumerate(zip(anchor_ground, near)):
+                    f.write(f"{far_springs[k * na + i]}, {g}, {cn}\n")
+                f.write(f"*SPRING, ELSET={name}\n{dof}, {dof}\n{k_weak:.6e}\n")
 
         # ---- shear lug ----
         if lug_nodes:
@@ -296,9 +368,14 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
 
         # ---- load introduction ----
         f.write(f"*RIGID BODY, NSET=COLTOP, REF NODE={load_ref}, ROT NODE={load_rot}\n")
+        if opp is not None:
+            f.write(f"*RIGID BODY, NSET=COLTOP2, REF NODE={load_ref2}, ROT NODE={load_rot2}\n")
 
         # ---- boundary conditions ----
-        f.write("*BOUNDARY\nCONCBOT, 1, 3\nANCHORGND, 1, 3\n")
+        if not model.two_faces:
+            f.write("*BOUNDARY\nCONCBOT, 1, 3\nANCHORGND, 1, 3\n")
+        else:
+            f.write("*BOUNDARY\nCONCENDS, 1, 3\n")
 
         # ---- steps ----
         # The axial compression is applied first (the whole plate bears on the concrete)
@@ -310,8 +387,17 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         axial = [(load_ref, 3, -loads.P)] if loads.P else []
         rest = [(load_ref, 1, loads.Vx), (load_ref, 2, loads.Vy), (load_rot, 1, Mx_top),
                 (load_rot, 2, My_top)]
+        if opp is not None:
+            # the opposite column in its own axes, mirrored about the block: forces keep
+            # x and y and flip z, moments flip x and y
+            h2 = opp.tp + opp.Lc
+            axial += [(load_ref2, 3, loads2.P)] if loads2.P else []
+            rest += [(load_ref2, 1, loads2.Vx), (load_ref2, 2, loads2.Vy),
+                     (load_rot2, 1, -(loads2.Mx + loads2.Vy * h2)),
+                     (load_rot2, 2, -(loads2.My - loads2.Vx * h2))]
         rest = [r for r in rest if r[2]]
-        steps = [axial, rest] if loads.P > 0 and rest else [axial + rest]
+        steps = ([axial, rest] if (loads.P > 0 or (loads2 is not None and loads2.P > 0))
+                 and rest else [axial + rest])
         for k, cloads in enumerate(steps):
             last = k == len(steps) - 1
             first, largest = (initial_increment, 0.2) if last else (1.0, 1.0)
@@ -326,6 +412,10 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                       ("ANCHORCONC", "U"), ("CONCBOT", "RF"), ("LOADNODES", "U")]
             if lug_nodes:
                 prints.append(("LUGNODES", "U"))
+            if model.two_faces:
+                prints += [("ANCHORGND", "U"), ("CONCENDS", "RF")]
+            if opp is not None:
+                prints.append(("LOADNODES2", "U"))
             for nset, key in prints:
                 # every increment: if the step stops early the last converged state is
                 # still in the .dat file
@@ -335,7 +425,8 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
     return InpNumbering(load_ref, load_rot, anchor_ref, anchor_ground, spring_axial,
                         steps=len(steps), anchor_base=anchor_base,
                         anchor_concrete=anchor_concrete, lateral_stiffness=k_lat,
-                        lug_nodes=lug_nodes, lug_stiffness=k_lug,
+                        lug_nodes=lug_nodes, lug_stiffness=k_lug, far_springs=far_springs,
                         lug_offset=(float(mesh.nodes[np.array(lug_plate) - 1, 2].mean()
                                           - mesh.nodes[np.array(lug_conc) - 1, 2].mean())
-                                    if lug_nodes else 0.0))
+                                    if lug_nodes else 0.0),
+                        load_ref2=load_ref2, load_rot2=load_rot2)
