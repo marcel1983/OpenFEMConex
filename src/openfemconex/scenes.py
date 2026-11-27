@@ -415,6 +415,21 @@ def _rods(plotter, model: BasePlateModel, color: str = "#b5651d") -> None:
     a = model.anchor
     top = model.tp + 1.6 * a.diameter
     bottom = -min(a.hef, 0.6 * model.concrete.H)
+    # through-bolts: across the block to the nut on the far plate
+    far_t = (model.far.thickness if model.far is not None
+             else model.opposite.tp if model.opposite is not None else None)
+    if far_t is not None:
+        H = model.concrete.H
+        bottom = -H - far_t - 1.6 * a.diameter
+        for rod in model.anchors:
+            plotter.add_mesh(pv.Cylinder(center=(rod.x, rod.y, -H - far_t - 4),
+                                         direction=(0, 0, 1), radius=a.washer / 2, height=8,
+                                         resolution=28), color="#6f7f8f")
+            plotter.add_mesh(pv.Cylinder(center=(rod.x, rod.y,
+                                                 -H - far_t - 8 - 0.45 * a.diameter),
+                                         direction=(0, 0, 1), radius=0.85 * a.diameter,
+                                         height=0.9 * a.diameter, resolution=6),
+                             color="#4a5560")
     for rod in model.anchors:
         body = pv.Cylinder(center=(rod.x, rod.y, (top + bottom) / 2), direction=(0, 0, 1),
                            radius=a.diameter / 2, height=top - bottom, resolution=20)
