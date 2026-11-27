@@ -137,17 +137,25 @@ on its concrete block, so that model is used:
 - the beam and its end plate are elastic-plastic steel solids; the plate bears
   on the concrete through contact (no tension) and, with shear by friction,
   with friction μ;
-- the concrete is an elastic block as deep as the wall thickness h, with the
-  far face fixed: the back plate (or the other beam) is taken as rigid;
+- the concrete is an elastic block as deep as the wall thickness h, held above
+  and below (the wall or column goes on past the connection);
+- the back plate is a flexible steel solid bearing on the far face through
+  contact (no tension, no friction): with a thin plate the compression gathers
+  behind the bolts in tension;
+- with an opposite beam, the other beam and its end plate replace the back
+  plate, as a mirror image across the wall, and both beams are loaded **at the
+  same time** in one model: the unbalanced case (gravity with different spans)
+  and the seismic one (both beams rotate the same way, so one plate bears at the
+  top while the other bears at the bottom) come from one solution;
 - each bolt is a tension-only spring E·A/L, with L = h plus both plate
-  thicknesses, since it is unbonded in the sleeve; with grout the bolts also
-  take the shear;
-- with an opposite beam each side is solved with its own loads, as in the zone
-  model.
+  thicknesses, since it is unbonded in the sleeve; it joins the nuts on both
+  plates; with grout the bolts also take the shear.
 
 Its forces check the most loaded bolt (with prying, J3.6), the plastic strain
 of the plate (5 %), bearing with the contact resultant, friction and the flange
-and web welds. The concrete checks (punching, bursting, strut-and-tie, wall
+and web welds; with a back plate, also its plastic strain and the bearing under
+it; with an opposite beam, the same for beam 2 with the results of its face. The
+concrete checks (punching, bursting, strut-and-tie, wall
 flexure) stay analytic. The 3D view shows the model with the beam vertical (the
 base plate axes). **Fast mesh** is on by default: each combination takes a few
 minutes.

@@ -255,19 +255,40 @@ def _fem_blocks(side, units: UnitSystem) -> list:
     from openfemconex.report import _checks_block
 
     res = side.results
+    model = getattr(side, "model", None)
     F = Kind.FORCE
     rows = [[str(i), fmt(a.x, Kind.LENGTH, units), fmt(a.y, Kind.LENGTH, units),
              fmt(a.tension, F, units)] for i, a in enumerate(res.anchors, start=1)]
     state = ("" if res.converged else
              f" El análisis no convergió: llegó al {100 * res.load_fraction:.0f} % de la "
              "carga.")
+    both = model is not None and model.opposite is not None
+    if both and side.side == "viga 2":
+        # the same solution as beam 1: its far face results
+        return [
+            ("h3", f"Modelo CalculiX, {side.side}"),
+            ("p", f"Mismo modelo que la viga 1 (las dos vigas cargadas a la vez). Compresión "
+                  f"de su placa sobre el concreto {fmt(res.far_bearing_force, F, units)}, "
+                  f"deformación plástica de la placa {100 * res.far_peeq_element:.2f} %."
+                  f"{state}", ""),
+            _checks_block(side.checks, units),
+        ]
+    far = ""
+    if model is not None and model.far is not None:
+        far = (f" La placa posterior es flexible y se apoya en la cara opuesta: compresión "
+               f"{fmt(res.far_bearing_force, F, units)}, presión máxima "
+               f"{fmt(res.far_pressure_max, Kind.STRESS, units)}, deformación plástica "
+               f"{100 * res.far_peeq_element:.2f} %. El muro se apoya arriba y abajo.")
+    elif both:
+        far = (" La viga opuesta está en el mismo modelo, con su placa de extremo en la cara "
+               "opuesta y sus cargas aplicadas a la vez; el muro se apoya arriba y abajo.")
     return [
         ("h3", f"Modelo CalculiX, {side.side}"),
         ("p", f"Placa de extremo sobre la cara del concreto con contacto y pernos sin "
               f"adherencia como resortes de tracción. Compresión sobre el concreto "
               f"{fmt(res.bearing_force, F, units)}, presión máxima "
               f"{fmt(res.bearing_pressure_max, Kind.STRESS, units)}, deformación plástica "
-              f"de la placa {100 * res.plate_peeq_element:.2f} %.{state}", ""),
+              f"de la placa {100 * res.plate_peeq_element:.2f} %.{far}{state}", ""),
         ("table", ["Perno", "Altura x", "y", "Tracción"], rows, set()),
         _checks_block(side.checks, units),
     ]

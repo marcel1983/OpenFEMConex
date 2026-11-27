@@ -138,17 +138,25 @@ placa base sobre su bloque de concreto, así que se usa ese modelo:
 - la viga y su placa de extremo son sólidos de acero elastoplástico; la placa
   apoya en el concreto con contacto (sin tracción) y, con cortante por
   fricción, con fricción μ;
-- el concreto es un bloque elástico del espesor h del muro, con la cara opuesta
-  fija: la placa posterior (o la otra viga) se toma como rígida;
+- el concreto es un bloque elástico del espesor h del muro, apoyado arriba y
+  abajo (el muro o la columna sigue más allá de la conexión);
+- la placa posterior es un sólido de acero flexible que se apoya por contacto en
+  la cara opuesta (sin tracción, sin fricción): con una placa delgada la
+  compresión se concentra detrás de los pernos traccionados;
+- con viga opuesta, en vez de la placa posterior está la otra viga con su placa
+  de extremo, como imagen espejo al otro lado del muro, y las dos vigas se cargan
+  **a la vez** en un mismo modelo: el caso desbalanceado (gravedad con luces
+  distintas) y el sísmico (las dos vigas giran en el mismo sentido y una placa
+  aprieta arriba mientras la otra aprieta abajo) salen de una sola solución;
 - cada perno es un resorte solo a tracción de rigidez E·A/L, con L = h más los
-  espesores de las dos placas, porque va sin adherencia en la camisa; con grout,
-  los pernos también toman el cortante;
-- con viga opuesta se resuelve cada lado con sus cargas, como en el modelo de
-  zonas.
+  espesores de las dos placas, porque va sin adherencia en la camisa; une las
+  tuercas de las dos placas; con grout, los pernos también toman el cortante.
 
 Con sus fuerzas se revisan el perno más cargado (con efecto palanca, J3.6), la
 deformación plástica de la placa (5 %), el aplastamiento con la resultante del
-contacto, la fricción y las soldaduras de patines y alma. Las verificaciones
+contacto, la fricción y las soldaduras de patines y alma; con placa posterior,
+también su deformación plástica y el aplastamiento bajo ella; con viga opuesta,
+lo mismo para la viga 2 con los resultados de su cara. Las verificaciones
 del concreto (punzonamiento, hendimiento, puntal y tensor, flexión del muro)
 siguen siendo las analíticas. La vista 3D muestra el modelo con la viga
 vertical (ejes de la placa base). **Malla rápida** viene marcada: cada

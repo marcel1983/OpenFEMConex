@@ -989,6 +989,9 @@ _CONNECTIONS: dict[str, str] = {
     "FEM: tracción del perno más cargado (con efecto palanca)":
         "FEM: tension of the most loaded bolt (with prying)",
     "FEM: deformación plástica de la placa de extremo": "FEM: plastic strain of the end plate",
+    "FEM: deformación plástica de la placa posterior": "FEM: plastic strain of the back plate",
+    "FEM: aplastamiento del concreto bajo la placa posterior":
+        "FEM: concrete bearing under the back plate",
     "FEM: aplastamiento del concreto bajo la placa de extremo":
         "FEM: concrete bearing under the end plate",
     "FEM: cortante por fricción con la compresión del modelo":

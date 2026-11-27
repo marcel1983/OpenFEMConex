@@ -62,7 +62,8 @@ perfiles y los materiales.
   concreto (aplastamiento §22.8, punzonamiento §22.6, hendimiento, puntal y tensor
   Cap. 23, flexocompresión del muro o columna) y del cortante por fricción o con
   grout; una viga o dos vigas opuestas con los mismos pernos. Por ahora en el
-  interfaz con cálculo analítico, modelo CalculiX de la placa de extremo y reporte.
+  interfaz con cálculo analítico, modelo CalculiX (placa posterior flexible, o las
+  dos vigas opuestas cargadas a la vez en un mismo modelo) y reporte.
 - **Varias conexiones por proyecto.** **Proyecto › Agregar conexión** abre un
   selector con la vista isométrica de cada tipo; cada conexión tiene sus datos,
   cargas, verificaciones y reporte, y el ribbon cambia según el tipo.
