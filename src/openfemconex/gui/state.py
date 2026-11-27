@@ -16,6 +16,7 @@ from openconex.units import UnitSystem
 from PySide6.QtCore import QObject, Signal
 
 from openfemconex import __version__
+from openfemconex import through_bolt_project as tb_project
 from openfemconex.extras import KEY, Extras, parse_extras, split_data
 from openfemconex.i18n import tr
 from openfemconex.mesh import Mesh
@@ -50,6 +51,8 @@ class ProjectState(QObject):
     results_changed = Signal()
     loaded = Signal()
     """Another project replaced the current one."""
+    connections_changed = Signal()
+    """A connection other than the base plate was added, removed or edited."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -69,13 +72,25 @@ class ProjectState(QObject):
         self.new()
 
     # ---------------------------------------------------------------- files
-    def new(self) -> None:
-        self._replace(copy.deepcopy(TEMPLATE), None)
+    def new(self, kind: str = "base_plate") -> None:
+        """A new project whose first connection is of type ``kind``."""
+        if kind == "base_plate":
+            self._replace(copy.deepcopy(TEMPLATE), None)
+            return
+        data = {k: copy.deepcopy(TEMPLATE[k]) for k in ("format_version", "info")}
+        data["info"]["name"] = tr("Proyecto")
+        data[KEY] = {"connections": [self._new_connection(kind, [])]}
+        self._replace(data, None)
 
     def open(self, path: str | Path) -> None:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-        if "base_plate" not in data:
-            raise ValueError("el archivo no contiene una placa base")
+        if "base_plate" not in data and not (data.get(KEY) or {}).get("connections"):
+            raise ValueError("el archivo no contiene ninguna conexión")
+        from openfemconex import through_bolt_project as tbp
+
+        for conn in (data.get(KEY) or {}).get("connections") or []:
+            if conn.get("type") == tbp.TYPE:
+                tbp.migrate(conn)  # combinations typed factored -> load cases
         self._replace(data, Path(path))
 
     def save(self, path: str | Path | None = None) -> Path:
@@ -131,6 +146,71 @@ class ProjectState(QObject):
         if not ext:
             del self.data[KEY]
         self._touch()
+
+    # ---------------------------------------------------------------- connections
+    @property
+    def has_base_plate(self) -> bool:
+        return "base_plate" in self.data
+
+    def connections(self) -> list[dict[str, Any]]:
+        """The connections of the project other than the base plate (``base_plate``)."""
+        return list((self.data.get(KEY) or {}).get("connections") or [])
+
+    @staticmethod
+    def _new_connection(kind: str, existing: list[dict[str, Any]]) -> dict[str, Any]:
+        if kind != tb_project.TYPE:
+            raise ValueError(f"tipo de conexión desconocido: {kind}")
+        names = {c.get("name") for c in existing}
+        n = len(existing) + 1
+        while f"PP-{n}" in names:
+            n += 1
+        return tb_project.new_connection(f"PP-{n}")
+
+    def add_connection(self, kind: str) -> int:
+        """Add a connection; returns its index in :meth:`connections` (-1: the base plate)."""
+        if kind == "base_plate":
+            if self.has_base_plate:
+                raise ValueError(tr("el proyecto ya tiene una placa base"))
+            for key in ("base_plate", "cases", "combinations"):
+                self.data[key] = copy.deepcopy(TEMPLATE[key])
+            self._touch()
+            return -1
+        conns = self.connections()
+        conns.append(self._new_connection(kind, conns))
+        self._set_connections(conns)
+        return len(conns) - 1
+
+    def set_connection(self, index: int, data: dict[str, Any]) -> None:
+        conns = self.connections()
+        if conns[index] == data:
+            return
+        conns[index] = copy.deepcopy(data)
+        self._set_connections(conns)
+
+    def remove_connection(self, index: int) -> None:
+        """Remove a connection (-1: the base plate); the last one stays."""
+        conns = self.connections()
+        if len(conns) + int(self.has_base_plate) <= 1:
+            raise ValueError(tr("el proyecto necesita al menos una conexión"))
+        if index < 0:
+            for key in ("base_plate", "cases", "combinations"):
+                self.data.pop(key, None)
+            self._touch()
+            return
+        del conns[index]
+        self._set_connections(conns)
+
+    def _set_connections(self, conns: list[dict[str, Any]]) -> None:
+        ext = self.data.setdefault(KEY, {})
+        if conns:
+            ext["connections"] = copy.deepcopy(conns)
+        else:
+            ext.pop("connections", None)
+        if not ext:
+            del self.data[KEY]
+        self.dirty = True
+        self.connections_changed.emit()
+        self.changed.emit()
 
     # ---------------------------------------------------------------- libraries
     def steel_names(self) -> list[str]:
@@ -267,6 +347,17 @@ class ProjectState(QObject):
         if combos != before:
             self._touch()
 
+    def set_combination_option(self, key: str, value: Any) -> None:
+        """``SDS``, ``rho``, ``omega0`` of the generated combinations; None removes it."""
+        combos = self.data.setdefault("combinations", {})
+        if combos.get(key) == value:
+            return
+        if value is None:
+            combos.pop(key, None)
+        else:
+            combos[key] = value
+        self._touch()
+
     def set_methods(self, methods: list[str]) -> None:
         combos = self.data.setdefault("combinations", {})
         if combos.get("methods") != methods:
@@ -293,6 +384,10 @@ class ProjectState(QObject):
             self.results_changed.emit()
 
     def _validate(self) -> None:
+        if not self.has_base_plate:
+            self.project = self.model = None
+            self.error = tr("el proyecto no tiene placa base")
+            return
         try:
             base, ext = split_data(self.data)
             self.project = Project.model_validate(base)

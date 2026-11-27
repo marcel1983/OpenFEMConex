@@ -62,7 +62,11 @@ perfiles y los materiales.
   concreto (aplastamiento §22.8, punzonamiento §22.6, hendimiento, puntal y tensor
   Cap. 23, flexocompresión del muro o columna) y del cortante por fricción o con
   grout; una viga o dos vigas opuestas con los mismos pernos. Por ahora en el
-  módulo `through_bolt` y en la ayuda; sin interfaz ni FEM todavía.
+  interfaz con cálculo analítico, modelo CalculiX (placa posterior flexible, o las
+  dos vigas opuestas cargadas a la vez en un mismo modelo) y reporte.
+- **Varias conexiones por proyecto.** **Proyecto › Agregar conexión** abre un
+  selector con la vista isométrica de cada tipo; cada conexión tiene sus datos,
+  cargas, verificaciones y reporte, y el ribbon cambia según el tipo.
 - **Ediciones.** Normas vigentes (AISC 360-22, ACI 318-19) o las de la DG1 2.ª ed.
   (AISC 360-05, ACI 318-08) para reproducir sus ejemplos.
 - **Reporte** en HTML o PDF con gráficos de geometría, esfuerzos, deformación

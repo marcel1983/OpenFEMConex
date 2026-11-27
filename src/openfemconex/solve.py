@@ -66,7 +66,12 @@ def solve(model: BasePlateModel, loads: Loads, workdir: str | Path, *,
                           min_increment=inc_min)
     if only_write:
         return inp
-    solved = all(inp.with_suffix(e).exists() for e in (".frd", ".dat", ".sta"))
+    # a run counts as solved only when its results were read to the end (the .json is
+    # written last): a run that was stopped or crashed leaves .frd/.dat/.sta files of
+    # its first increments, which must not be taken as the solution
+    done = workdir / f"{stem}.json"
+    solved = all(inp.with_suffix(e).exists() for e in (".frd", ".dat", ".sta")) and \
+        done.exists() and done.stat().st_mtime >= inp.with_suffix(".frd").stat().st_mtime
     if reuse and solved and previous == inp.read_text():
         stage(tr("Los datos no cambiaron: se reutiliza la solución anterior"))
         run = read_run(inp, numbering.steps)

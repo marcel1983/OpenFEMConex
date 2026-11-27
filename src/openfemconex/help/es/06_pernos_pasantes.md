@@ -6,7 +6,7 @@ que lo atraviesan dentro de una camisa (sin adherencia) y se anclan en una
 lado, con los mismos pernos.
 
 Las verificaciones de este tema están en el módulo `openfemconex.through_bolt`
-(cálculo analítico; la interfaz y el modelo CalculiX vienen después). Cubre una
+(cálculo analítico y modelo CalculiX). Cubre una
 viga o dos vigas opuestas, con el cortante por fricción o con grout.
 
 ## Camino de las fuerzas
@@ -113,6 +113,78 @@ gramil y diámetro de pernos; los ejes de las vigas, a la misma altura.
 Cada viga tiene sus revisiones de placa de extremo (las de la viga 2 llevan
 «viga 2» en la combinación) y, con fricción, su propio cortante por fricción con
 la compresión de su cara. En sismo no conviene confiar en la fricción: use grout.
+
+## En la interfaz
+
+**Proyecto › Agregar conexión › Pernos pasantes en concreto** agrega una
+conexión con los datos del primer ejemplo. Al seleccionarla en el árbol:
+
+- **Geometría**: viga, placa de extremo, placa posterior, muro o columna, viga
+  opuesta y cortante; la vista 3D muestra el muro con su refuerzo vertical y
+  horizontal (estribos en una columna), las placas, los pernos y el grout de las
+  camisas.
+- **Cargas**: igual que en la placa base. Casos de servicio con su tipo (D, L,
+  W, E…) y sus fuerzas en la cara del muro: V, M y P de la viga 1 y, con viga
+  opuesta, V2, M2 y P2. De sus tipos salen las combinaciones LRFD de ASCE 7 (las
+  sísmicas cuando se da S<sub>DS</sub>; ρ y Ω0 opcionales). **Editar
+  combinaciones** agrega combinaciones propias o copia las generadas para cambiar
+  sus factores; en la lista se marcan las que se resuelven con CalculiX. Un
+  proyecto anterior, con combinaciones ya mayoradas, se convierte solo: cada
+  combinación queda como un caso con una combinación propia de factor 1.
+- **Análisis**: **Ajustes** tiene las mismas opciones que la placa base
+  (tamaño de malla, malla rápida, capas, hilos de CalculiX, límite de
+  deformación plástica). **Resolver** hace todo: las verificaciones analíticas
+  de todas las combinaciones y el modelo CalculiX de las marcadas, con la
+  ventana de avance (incrementos, iteraciones y tiempo) y el registro del solver.
+  **Verificación** muestra la tabla y la traza de la fila elegida.
+- **Resultados** (pestaña Análisis): combinación, viga y campo (von Mises,
+  deformación plástica, desplazamiento, presión de contacto de la placa de
+  extremo y **presión de contacto en la cara opuesta**: placa posterior o placa
+  de la viga 2).
+- **Reporte**: HTML o PDF, en el mismo orden que el de la placa base: datos,
+  vista 3D, esquemas de esta ayuda, isométricos del modelo CalculiX y de su
+  malla, cargas; por combinación, los resultados del FEM (tabla comparada con
+  el modelo analítico, fuerzas en los pernos, gráficos de esfuerzos de von
+  Mises, deformación plástica, desplazamientos y presión de contacto en las dos
+  placas, verificaciones con las fuerzas del FEM) y después las verificaciones
+  analíticas y la traza; al final el resumen, las recomendaciones para lo que no
+  cumple y los requisitos de instalación de los pernos pasantes que hacen
+  válidas las hipótesis del análisis (camisas selladas sin adherencia, placas
+  asentadas, tuercas al contacto sin pretensión, grout solo donde se cuenta con
+  él).
+
+## Modelo CalculiX
+
+**Análisis › Resolver** resuelve cada combinación con CalculiX. La placa de
+extremo apoyada en la cara del muro o columna es el mismo problema que una
+placa base sobre su bloque de concreto, así que se usa ese modelo:
+
+- la viga y su placa de extremo son sólidos de acero elastoplástico; la placa
+  apoya en el concreto con contacto (sin tracción) y, con cortante por
+  fricción, con fricción μ;
+- el concreto es un bloque elástico del espesor h del muro, apoyado arriba y
+  abajo (el muro o la columna sigue más allá de la conexión);
+- la placa posterior es un sólido de acero flexible que se apoya por contacto en
+  la cara opuesta (sin tracción, sin fricción): con una placa delgada la
+  compresión se concentra detrás de los pernos traccionados;
+- con viga opuesta, en vez de la placa posterior está la otra viga con su placa
+  de extremo, como imagen espejo al otro lado del muro, y las dos vigas se cargan
+  **a la vez** en un mismo modelo: el caso desbalanceado (gravedad con luces
+  distintas) y el sísmico (las dos vigas giran en el mismo sentido y una placa
+  aprieta arriba mientras la otra aprieta abajo) salen de una sola solución;
+- cada perno es un resorte solo a tracción de rigidez E·A/L, con L = h más los
+  espesores de las dos placas, porque va sin adherencia en la camisa; une las
+  tuercas de las dos placas; con grout, los pernos también toman el cortante.
+
+Con sus fuerzas se revisan el perno más cargado (con efecto palanca, J3.6), la
+deformación plástica de la placa (5 %), el aplastamiento con la resultante del
+contacto, la fricción y las soldaduras de patines y alma; con placa posterior,
+también su deformación plástica y el aplastamiento bajo ella; con viga opuesta,
+lo mismo para la viga 2 con los resultados de su cara. Las verificaciones
+del concreto (punzonamiento, hendimiento, puntal y tensor, flexión del muro)
+siguen siendo las analíticas. La vista 3D muestra el modelo con la viga
+vertical (ejes de la placa base). **Malla rápida** viene marcada: cada
+combinación toma unos minutos.
 
 ## Datos
 

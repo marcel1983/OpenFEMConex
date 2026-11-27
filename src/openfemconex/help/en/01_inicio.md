@@ -33,6 +33,14 @@ that model gives.
    callouts for every element and its material and arrows to the welds (fillet
    or CJP).
 
+## Several connections
+
+A project can hold several connections: **Project › Add connection** opens a
+picker with an isometric view of each type (base plate or through-bolts in
+concrete; the others will follow). Each connection appears in the tree with its
+icon; selecting it switches the ribbon and the panels to its type. **Project ›
+New** asks for the type of the first connection.
+
 ## Units
 
 The units are chosen in **Project › Display units** and apply everywhere:

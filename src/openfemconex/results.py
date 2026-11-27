@@ -263,6 +263,16 @@ class Results:
     stiffener_peeq_element: float = 0.0
     mesh: dict[str, int] = field(default_factory=dict)
     solver: dict[str, float] = field(default_factory=dict)
+    far_bearing_force: float = 0.0
+    """Compression of the far plate on the far face of the block [N] (with a far plate)."""
+    far_bearing_centroid: tuple[float, float] = (0.0, 0.0)
+    far_pressure_max: float = 0.0
+    far_von_mises_max: float = 0.0
+    far_peeq_element: float = 0.0
+    far_weld: list[WeldPoint] = field(default_factory=list)
+    """Weld of the opposite column (with one)."""
+    far_column_top_displacement: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Of the opposite column, in global axes."""
 
     def to_json(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(asdict(self), indent=2))
@@ -282,10 +292,20 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     uc = dat.get("displacements/ANCHORCONC", {})
     k_lat = numbering.lateral_stiffness
     anchors = []
+    if model.two_faces:
+        # the rod ends are free: its force from the law and the elongation
+        from openfemconex.inp import anchor_stiffness
+
+        ks = anchor_stiffness(model)
+        ug = dat["displacements/ANCHORGND"]
     for i, (a, g, r) in enumerate(zip(model.anchors, numbering.anchor_ground,
                                       numbering.anchor_ref)):
-        # The reaction at the fixed end is opposite to the force the rod applies to it.
-        tension = -rf[g][2]
+        if model.two_faces:
+            d = float(u[r][2] - ug[g][2])
+            tension = ks.axial * d if d > 0 else ks.compression * d
+        else:
+            # The reaction at the fixed end is opposite to the force the rod applies to it.
+            tension = -rf[g][2]
         vx = vy = 0.0
         if numbering.anchor_base:
             # shear on the plate: the lateral spring resists its slip over the concrete
@@ -319,12 +339,29 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
 
     # Contact pressure on the plate bottom (slave surface of the pair).
     ids, cv = frd["CONTACT"]
-    press = np.zeros(int(ids.max()) + 1)
+    press = np.zeros(max(int(ids.max()), len(mesh.nodes)) + 1)
     press[ids] = cv[:, 3]
     pb = mesh.plate_bottom_nodes
     p = press[pb]
     area = mesh.plate_bottom_area
     xy = mesh.nodes[pb - 1, :2]
+    far: dict = {}
+    if model.two_faces:
+        # the block is held at its ends: the compression comes from the contact pressure
+        forces = p * area
+        C = float(forces.sum())
+        M_base = float((xy[:, 0] * forces).sum())
+        centroid = ((float((xy[:, 0] * forces).sum() / C), float((xy[:, 1] * forces).sum() / C))
+                    if C > 0 else (0.0, 0.0))
+        brf = np.zeros((1, 3))
+        fp = press[mesh.far_top_nodes] * mesh.far_top_area
+        fxy = mesh.nodes[mesh.far_top_nodes - 1, :2]
+        Cf = float(fp.sum())
+        far = {"far_bearing_force": Cf,
+               "far_bearing_centroid": ((float((fxy[:, 0] * fp).sum() / Cf),
+                                         float((fxy[:, 1] * fp).sum() / Cf)) if Cf > 0
+                                        else (0.0, 0.0)),
+               "far_pressure_max": float(press[mesh.far_top_nodes].max(initial=0.0))}
     in_contact = p > max(1e-3, 0.01 * p.max(initial=0.0))
     A = float(area[in_contact].sum())
     if in_contact.any():
@@ -361,6 +398,18 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
         stiff = {"stiffener_weld": stiffener_weld_forces(model, mesh, sid, sv),
                  "stiffener_von_mises_max": float(vm_table[conn].max()),
                  "stiffener_peeq_element": float(peeq[conn].mean(axis=1).max())}
+    far_part = "FARPLATE" if "FARPLATE" in mesh.parts else "PLATE2"
+    if far_part in mesh.parts:
+        conn = mesh.parts[far_part]
+        vm_table = np.zeros(len(mesh.nodes) + 1)
+        vm_table[sid] = vm
+        far.update(far_von_mises_max=float(vm_table[conn].max()),
+                   far_peeq_element=float(peeq[conn].mean(axis=1).max()))
+    if model.opposite is not None:
+        # the stresses of the mirror image: the normal one keeps its sign
+        far["far_weld"] = weld_forces(model.opposite, mesh.opposite, sid, sv)
+        t2 = dat["displacements/LOADNODES2"][numbering.load_ref2]
+        far["far_column_top_displacement"] = (float(t2[0]), float(t2[1]), float(t2[2]))
 
     top = dat["displacements/LOADNODES"][numbering.load_ref]
     P = loads.P * fractions[0]
@@ -388,7 +437,7 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
         bearing_pressure_max=float(p.max(initial=0.0)),
         bearing_pressure_mean=C / A if A else 0.0, bearing_area=A, bearing_length_x=Y,
         plate_von_mises_max=float(vm[plate_s].max()), plate_peeq_max=float(pv[plate_p].max()),
-        plate_peeq_element=peeq_element, weld=weld, **stiff,
+        plate_peeq_element=peeq_element, weld=weld, **stiff, **far,
         column_von_mises_max=float(vm[col_s].max()), column_peeq_max=float(pv[col_p].max()),
         column_top_displacement=(float(top[0]), float(top[1]), float(top[2])),
         equilibrium_error=abs(C - T - P) / scale,

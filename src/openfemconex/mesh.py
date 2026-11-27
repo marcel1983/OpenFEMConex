@@ -77,6 +77,20 @@ class Mesh:
     """Heights above the plate of the stiffener levels at the column face [mm]."""
     """Nodes on the plate top shared with the column (welded footprint)."""
     settings: MeshSettings = field(default_factory=MeshSettings)
+    far_top_elements: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
+    """Far plate elements whose top face (z = -H) touches the block."""
+    concrete_bottom_elements: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
+    """Block elements whose bottom face is the far face (z = -H)."""
+    far_washer_nodes: list[np.ndarray] = field(default_factory=list)
+    """Far plate outer-face nodes under the nut of each rod."""
+    far_washer_weights: list[np.ndarray] = field(default_factory=list)
+    far_top_nodes: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
+    far_top_area: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    concrete_end_nodes: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
+    """Block nodes at its ends x = ±N/2, held when there is a far plate."""
+    opposite: Mesh | None = None
+    """With an opposite column: its plate and column, in this mesh's numbering (parts
+    PLATE, COLUMN, STIFFENER mean PLATE2, COLUMN2, STIFFENER2 here)."""
 
     @property
     def element_count(self) -> int:
@@ -253,6 +267,77 @@ def _graded(H: float, n: int, power: float = 1.6) -> np.ndarray:
     return -H * (1.0 - s) ** power
 
 
+def _graded_both(H: float, n: int) -> np.ndarray:
+    """Ascending z from -H to 0, finer near both faces (cosine spacing)."""
+    s = np.linspace(0.0, 1.0, n + 1)
+    return -H * (0.5 + 0.5 * np.cos(np.pi * s))
+
+
+def _lines(lo: float, hi: float, size: float, breaks: list[float]) -> np.ndarray:
+    """Grid lines from lo to hi about ``size`` apart that also pass through ``breaks``."""
+    pts = sorted({lo, hi, *[b for b in breaks if lo < b < hi]})
+    out = [pts[0]]
+    for a, b in zip(pts[:-1], pts[1:], strict=True):
+        n = max(1, math.ceil((b - a) / size - 1e-9))
+        out += list(np.linspace(a, b, n + 1)[1:])
+    out = np.array(out)
+    keep = np.concatenate([[True], np.diff(out) > 0.2 * size])
+    keep[-1] = True
+    return out[keep]
+
+
+def _far_plate(model: BasePlateModel, st: MeshSettings, first_node: int):
+    """Structured hexahedral grid of the far plate under the block, z from -H - t to -H.
+
+    Returns its nodes, elements (one-based ids from ``first_node``), the elements of its
+    top layer, the outer-face nodes and weights under each nut, and the top-face nodes
+    with their tributary areas.
+    """
+    f, H = model.far, model.concrete.H
+    r = model.anchor.washer / 2
+    size = min(st.size_coarse, max(model.anchor.washer / 2, 5.0))
+    gx = _lines(-f.height / 2, f.height / 2, size,
+                [v for a in model.anchors for v in (a.x - r, a.x + r)])
+    gy = _lines(-f.width / 2, f.width / 2, size,
+                [v for a in model.anchors for v in (a.y - r, a.y + r)])
+    layers = max(2, st.plate_layers - 1)
+    gz = np.linspace(-H - f.thickness, -H, layers + 1)
+    X, Y, Z = np.meshgrid(gx, gy, gz, indexing="ij")
+    nodes = np.column_stack([X.ravel(), Y.ravel(), Z.ravel()])
+    ny, nz = len(gy), len(gz)
+
+    def fid(i, j, k):
+        return first_node + (np.asarray(i) * ny + np.asarray(j)) * nz + np.asarray(k)
+
+    I, J, K = np.meshgrid(np.arange(len(gx) - 1), np.arange(ny - 1), np.arange(nz - 1),
+                          indexing="ij")
+    I, J, K = I.ravel(), J.ravel(), K.ravel()
+    elems = np.column_stack([
+        fid(I, J, K), fid(I + 1, J, K), fid(I + 1, J + 1, K), fid(I, J + 1, K),
+        fid(I, J, K + 1), fid(I + 1, J, K + 1), fid(I + 1, J + 1, K + 1),
+        fid(I, J + 1, K + 1)])
+    top = np.nonzero(K == nz - 2)[0]
+    # tributary areas of a face grid
+    wx = np.zeros(len(gx))
+    wx[:-1] += np.diff(gx) / 2
+    wx[1:] += np.diff(gx) / 2
+    wy = np.zeros(ny)
+    wy[:-1] += np.diff(gy) / 2
+    wy[1:] += np.diff(gy) / 2
+    gi, gj = np.meshgrid(np.arange(len(gx)), np.arange(ny), indexing="ij")
+    gi, gj = gi.ravel(), gj.ravel()
+    area = wx[gi] * wy[gj]
+    washer_nodes, washer_weights = [], []
+    for a in model.anchors:
+        sel = (np.abs(gx[gi] - a.x) <= r + 1e-6) & (np.abs(gy[gj] - a.y) <= r + 1e-6)
+        if sel.sum() < 4:
+            sel = np.argsort(np.hypot(gx[gi] - a.x, gy[gj] - a.y))[:4]
+        washer_nodes.append(fid(gi[sel], gj[sel], 0))
+        w = area[sel]
+        washer_weights.append(w / w.sum())
+    return (nodes, elems, top, washer_nodes, washer_weights, fid(gi, gj, nz - 1), area)
+
+
 def _column_levels(length: float, first: float, growth: float = 1.3,
                    max_ratio: float = 5.0, uniform: float = 0.0) -> np.ndarray:
     """Heights along the column: fine next to the plate, growing geometrically.
@@ -388,7 +473,8 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
     ny = max(4, math.ceil(c.B / st.concrete_size))
     gx = np.linspace(-c.N / 2, c.N / 2, nx + 1)
     gy = np.linspace(-c.B / 2, c.B / 2, ny + 1)
-    gz = _graded(c.H, st.concrete_layers)
+    gz = (_graded_both(c.H, st.concrete_layers + 4) if model.two_faces
+          else _graded(c.H, st.concrete_layers))
     X, Y, Z = np.meshgrid(gx, gy, gz, indexing="ij")
     nodes.append(np.column_stack([X.ravel(), Y.ravel(), Z.ravel()]))
 
@@ -403,12 +489,38 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
     conc_top = np.nonzero(K == len(gz) - 2)[0]
     gi, gj = np.meshgrid(np.arange(nx + 1), np.arange(ny + 1), indexing="ij")
     conc_bottom = kid(gi.ravel(), gj.ravel(), 0)
+    far = None
+    first_far = base_k + 1 + len(X.ravel())
+    if model.far is not None:
+        far = _far_plate(model, st, first_far)
+        nodes.append(far[0])
+    sub = sub_nodes = None
+    if model.opposite is not None:
+        # the opposite plate and column: meshed as a base plate of their own and
+        # mirrored about the far face (z -> -H - z)
+        sub = _build_mesh(replace(model.opposite, concrete=c, anchors=model.anchors),
+                          settings)
+        ns = int(sub.parts["CONCRETE"].min()) - 1
+        sub_nodes = sub.nodes[:ns].copy()
+        sub_nodes[:, 2] = -c.H - sub_nodes[:, 2]
+        nodes.append(sub_nodes)
+    if model.two_faces:
+        ei, ej, ek = np.meshgrid([0, nx], np.arange(ny + 1), np.arange(len(gz)), indexing="ij")
+        conc_ends = kid(ei.ravel(), ej.ravel(), ek.ravel())
 
     # --- numbering and sets ------------------------------------------------------
     parts = {"PLATE": plate, "COLUMN": column}
     if len(stiffener):
         parts["STIFFENER"] = stiffener
     parts["CONCRETE"] = concrete
+    if far is not None:
+        parts["FARPLATE"] = far[1]
+    off = first_far - 1  # node offset of the opposite column
+    if sub is not None:
+        # mirrored: the top and bottom faces of each hexahedron swap
+        for name in ("PLATE", "COLUMN", "STIFFENER"):
+            if name in sub.parts:
+                parts[name + "2"] = sub.parts[name][:, [4, 5, 6, 7, 0, 1, 2, 3]] + off
     first, count = {}, 1
     for name, conn in parts.items():
         first[name] = count
@@ -429,6 +541,28 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
         np.add.at(nodal_area, quads[:, j], area / 4)
 
     all_nodes = np.vstack(nodes)
+    opposite = None
+    if sub is not None:
+        def e_off(name):
+            return first[name + "2"] - sub.first_element[name]
+
+        opposite = replace(
+            sub, nodes=all_nodes,
+            parts={k: parts[k + "2"] for k in ("PLATE", "COLUMN", "STIFFENER")
+                   if k + "2" in parts},
+            first_element={k: first[k + "2"] for k in ("PLATE", "COLUMN", "STIFFENER")
+                           if k + "2" in parts},
+            plate_bottom_elements=sub.plate_bottom_elements + e_off("PLATE"),
+            concrete_top_elements=np.zeros(0, dtype=int),
+            washer_nodes=[w + off for w in sub.washer_nodes],
+            column_top_nodes=sub.column_top_nodes + off,
+            concrete_bottom_nodes=np.zeros(0, dtype=int),
+            plate_bottom_nodes=sub.plate_bottom_nodes + off,
+            footprint_nodes=sub.footprint_nodes + off,
+            weld_quads=sub.weld_quads + off,
+            stiffener_quads=sub.stiffener_quads + off if len(sub.stiffener_quads)
+            else sub.stiffener_quads,
+            stiffener_root_nodes=[r + off for r in sub.stiffener_root_nodes])
     for name, conn in parts.items():
         bad = distorted_elements(all_nodes, conn)
         if len(bad):
@@ -456,4 +590,18 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
         stiffener_quad_area=area[stiff_sel], stiffener_quad_index=sq_index,
         stiffener_root_nodes=roots, stiffener_levels=zc[:Ms + 1] - model.tp,
         settings=st,
+        **({} if far is None else dict(
+            far_top_elements=first["FARPLATE"] + far[2],
+            far_washer_nodes=far[3], far_washer_weights=far[4], far_top_nodes=far[5],
+            far_top_area=far[6])),
+        # the opposite plate: its face on the block is the top face of its first layer
+        # (mirrored) and its nuts are on its outer face, where its washers were
+        **({} if opposite is None else dict(
+            far_top_elements=opposite.plate_bottom_elements,
+            far_washer_nodes=opposite.washer_nodes, far_washer_weights=sub.washer_weights,
+            far_top_nodes=opposite.plate_bottom_nodes, far_top_area=sub.plate_bottom_area,
+            opposite=opposite)),
+        **({} if not model.two_faces else dict(
+            concrete_bottom_elements=first["CONCRETE"] + np.nonzero(K == 0)[0],
+            concrete_end_nodes=conc_ends)),
     )

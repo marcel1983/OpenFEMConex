@@ -33,6 +33,14 @@ ACI 318 con las fuerzas que salen de ese modelo.
    que indican cada elemento y su material, y flechas a las soldaduras (filete o
    CJP).
 
+## Varias conexiones
+
+Un proyecto puede tener varias conexiones: **Proyecto › Agregar conexión** abre
+un selector con la vista isométrica de cada tipo (placa base o pernos pasantes
+en concreto; los demás vendrán). Cada conexión aparece en el árbol con su icono;
+al seleccionarla, el ribbon y los paneles cambian a ese tipo. **Proyecto ›
+Nuevo** pregunta el tipo de la primera conexión.
+
 ## Unidades
 
 Las unidades se eligen en **Proyecto › Unidades de presentación** y rigen en todo

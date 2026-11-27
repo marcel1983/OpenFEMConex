@@ -18,6 +18,8 @@ from openfemconex.results import read_frd, von_mises
 __all__ = ["PARTS", "write_vtu"]
 
 PARTS = {"PLATE": 1, "COLUMN": 2, "CONCRETE": 3, "STIFFENER": 4}
+# the far plate and the opposite column are shown as plate, column and stiffener
+PARTS.update(FARPLATE=1, PLATE2=1, COLUMN2=2, STIFFENER2=4)
 
 
 def _array(f, name: str, data: np.ndarray, fmt: str, kind: str = "Float64",

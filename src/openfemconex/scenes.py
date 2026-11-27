@@ -19,7 +19,8 @@ from openfemconex.results import Results
 from openfemconex.vtk import PARTS
 
 __all__ = ["FIELDS", "draw_anchor_numbers", "draw_dimensions", "draw_model", "draw_results",
-           "grid_from_mesh", "render_figures"]
+           "draw_solved_model", "grid_from_mesh", "render_figures",
+           "render_through_bolt_figures"]
 
 # PyVista announces a future change of the default surface algorithm; not relevant here.
 warnings.filterwarnings("ignore", message=".*extract_surface.*")
@@ -415,6 +416,21 @@ def _rods(plotter, model: BasePlateModel, color: str = "#b5651d") -> None:
     a = model.anchor
     top = model.tp + 1.6 * a.diameter
     bottom = -min(a.hef, 0.6 * model.concrete.H)
+    # through-bolts: across the block to the nut on the far plate
+    far_t = (model.far.thickness if model.far is not None
+             else model.opposite.tp if model.opposite is not None else None)
+    if far_t is not None:
+        H = model.concrete.H
+        bottom = -H - far_t - 1.6 * a.diameter
+        for rod in model.anchors:
+            plotter.add_mesh(pv.Cylinder(center=(rod.x, rod.y, -H - far_t - 4),
+                                         direction=(0, 0, 1), radius=a.washer / 2, height=8,
+                                         resolution=28), color="#6f7f8f")
+            plotter.add_mesh(pv.Cylinder(center=(rod.x, rod.y,
+                                                 -H - far_t - 8 - 0.45 * a.diameter),
+                                         direction=(0, 0, 1), radius=0.85 * a.diameter,
+                                         height=0.9 * a.diameter, resolution=6),
+                             color="#4a5560")
     for rod in model.anchors:
         body = pv.Cylinder(center=(rod.x, rod.y, (top + bottom) / 2), direction=(0, 0, 1),
                            radius=a.diameter / 2, height=top - bottom, resolution=20)
@@ -580,7 +596,11 @@ def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
 
 def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Results,
                  field: str = "von Mises", scale: float = 20.0, unit_force: float = 1e-3,
-                 force_label: str = "kN", reset: bool = True) -> None:
+                 force_label: str = "kN", reset: bool = True, face: str = "front") -> None:
+    """One result field on the steel (deformed) or, for the contact pressure, on the
+    face of a plate that bears on the concrete: ``face`` "front" is the plate on the
+    top face (z = 0), "far" the plate on the opposite face of a through-bolt model
+    (back plate or end plate of the opposite beam)."""
     import pyvista as pv
 
     name, title, cmap = FIELDS[field]
@@ -592,12 +612,21 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
     steel = grid.extract_cells(np.nonzero(part != 3)[0])
     concrete = grid.threshold([2.5, 3.5], scalars="part")
     if name == "CPRESS":
-        plate = grid.threshold([0.5, 1.5], scalars="part").extract_surface()
-        bottom = plate.clip(normal="z", origin=(0, 0, 1e-3), invert=True)
+        # cells above or below the middle of the concrete block: each face on its own
+        z_mid = 0.5 * concrete.bounds[4] if concrete.n_cells else -1e9
+        zc = grid.cell_centers().points[:, 2]
+        side = zc > z_mid if face == "front" else zc < z_mid
+        plate = grid.extract_cells(np.nonzero((part == 1) & side)[0]).extract_surface()
+        if face == "front":
+            bottom = plate.clip(normal="z", origin=(0, 0, 1e-3), invert=True)
+        else:
+            bottom = plate.clip(normal="z", origin=(0, 0, concrete.bounds[4] - 1e-3),
+                                invert=False)
         plotter.add_mesh(bottom, scalars="CPRESS", cmap=cmap, scalar_bar_args=bar)
         plotter.add_mesh(plate.extract_feature_edges(feature_angle=40), color=STYLE["text"])
-        column = grid.extract_cells(np.nonzero((part == 2) | (part == 4))[0])
-        plotter.add_mesh(column.extract_surface(), color="#5b7ba6", opacity=0.15)
+        column = grid.extract_cells(np.nonzero(((part == 2) | (part == 4)) & side)[0])
+        if column.n_cells:
+            plotter.add_mesh(column.extract_surface(), color="#5b7ba6", opacity=0.15)
     else:
         warped = steel.warp_by_vector("U", factor=scale)
         plotter.add_mesh(warped, scalars=name, cmap=cmap, scalar_bar_args=bar,
@@ -607,11 +636,37 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
         _lug(plotter, model)
         _rebar(plotter, model)
         _hairpins(plotter, model)
-    _anchor_labels(plotter, model, results, unit_force, force_label)
+    if face == "front":
+        _anchor_labels(plotter, model, results, unit_force, force_label)
     _finish(plotter, reset)
     if name == "CPRESS":
         plotter.view_xy()
-        plotter.reset_camera()
+        # parallel projection: a tall column or beam does not hide the plate in perspective
+        plotter.enable_parallel_projection()
+        plotter.reset_camera(bounds=bottom.bounds if bottom.n_points else None)
+        plotter.camera.zoom(0.8)  # room for the colour bar
+
+
+def draw_solved_model(plotter, vtu: str | Path, model: BasePlateModel, edges: bool = False,
+                      reset: bool = True) -> None:
+    """The model as it was solved (the mesh of its .vtu file): parts in colour, or
+    the element mesh with ``edges``. Used by models whose mesh is not kept in memory
+    (the through-bolt connection)."""
+    import pyvista as pv
+
+    grid = pv.read(str(vtu))
+    present = set(np.unique(grid.cell_data["part"]))
+    for part, color in COLORS.items():
+        if part not in present:
+            continue
+        surface = grid.threshold([part - 0.5, part + 0.5], scalars="part").extract_surface()
+        plotter.add_mesh(surface, color=color, show_edges=edges, edge_color="#3a3a3a",
+                         line_width=0.4, opacity=0.45 if part == 3 else 1.0)
+        if not edges:
+            plotter.add_mesh(surface.extract_feature_edges(feature_angle=40), color="#2b2b2b",
+                             line_width=1.2)
+    _rods(plotter, model)
+    _finish(plotter, reset)
 
 
 def _save_trimmed(image: np.ndarray, path: Path, margin: int = 16) -> None:
@@ -701,6 +756,95 @@ def render_figures(out: str | Path, model: BasePlateModel, mesh: Mesh,
         if errors is not None:
             errors.append(f"{type(exc).__name__}: {exc}")
         return figures if figures.get("") else {}
+    finally:
+        STYLE.update(previous)
+    return figures
+
+
+def render_through_bolt_figures(out: str | Path, sides: list, *, far_caption: str = "",
+                                scale: float = 20.0, unit_force: float = 1e-3,
+                                force_label: str = "kN", size: tuple[int, int] = (1100, 800),
+                                errors: list[str] | None = None
+                                ) -> dict[str, list[tuple[str, str]]]:
+    """Report figures of the CalculiX models of a through-bolt connection.
+
+    ``sides`` are ``through_bolt_fem.FemSide`` with a solved .vtu file. Returns under
+    ``""`` the model and its mesh (isometric views) and, under each .vtu file name, the
+    stresses, plastic strain, displacements and the contact pressure on the plate of
+    the beam and, with a modelled far face, on the far plate (``far_caption`` names
+    it). Without PyVista or OpenGL it returns what it could draw.
+    """
+    try:
+        import pyvista as pv
+    except ImportError as exc:
+        if errors is not None:
+            errors.append(f"PyVista: {exc}")
+        return {}
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    figures: dict[str, list[tuple[str, str]]] = {}
+    previous = dict(STYLE)
+    STYLE.update(text="black", dims="#1f5fa8")
+
+    def shot(name: str, draw) -> str:
+        plotter = pv.Plotter(off_screen=True, window_size=list(size))
+        try:
+            plotter.set_background("white")
+            draw(plotter)
+            # without the white border: the tall wall leaves much of the frame empty
+            _save_trimmed(plotter.screenshot(None, return_img=True), out / name)
+        finally:
+            plotter.close()
+        return name
+
+    solved = [s for s in sides if s.vtu is not None and Path(s.vtu).exists()]
+    try:
+        if solved:
+            first = solved[0]
+            figures[""] = [
+                (tr("Modelo de elementos finitos (vista isométrica)"),
+                 shot("fem_modelo.png", lambda p: draw_solved_model(p, first.vtu, first.model))),
+                (tr("Malla de elementos finitos (vista isométrica)"),
+                 shot("fem_malla.png",
+                      lambda p: draw_solved_model(p, first.vtu, first.model, True))),
+            ]
+        done = set()
+        for side in solved:
+            vtu = Path(side.vtu)
+            if vtu.name in done:
+                continue
+            done.add(vtu.name)
+            r, m = side.results, side.model
+            stem = "fem_" + "".join(ch if ch.isalnum() else "_" for ch in vtu.stem)
+            two = m.far is not None or m.opposite is not None
+            plate = tr("placa de extremo") + (tr(" de la viga 1") if m.opposite else "")
+            vm = max(r.plate_von_mises_max, r.far_von_mises_max)
+            entries = [
+                ("von Mises", "", tr("Esfuerzo de von Mises (deformada × {s}): máx. {v} MPa",
+                                     s=f"{scale:g}", v=f"{vm:.0f}")),
+                ("Deformación plástica", "",
+                 tr("Deformación plástica equivalente: máx. {p} %",
+                    p=f"{100 * max(r.plate_peeq_max, r.far_peeq_element):.2f}")),
+                ("Desplazamiento", "", tr("Desplazamiento total (deformada × {s})",
+                                          s=f"{scale:g}")),
+                ("Presión de contacto", "front",
+                 tr("Presión de contacto de la {plate} sobre el concreto: máx. {p} MPa",
+                    plate=plate, p=f"{r.bearing_pressure_max:.1f}")),
+            ]
+            if two:
+                entries.append(("Presión de contacto", "far",
+                                tr("Presión de contacto de la {plate} sobre el concreto: "
+                                   "máx. {p} MPa", plate=far_caption or tr("placa opuesta"),
+                                   p=f"{r.far_pressure_max:.1f}")))
+            figures[vtu.name] = [
+                (caption, shot(f"{stem}_{FIELDS[field][0]}{'_far' if face == 'far' else ''}.png",
+                               lambda p, f=field, fc=face or "front": draw_results(
+                                   p, vtu, m, r, f, scale, unit_force, force_label,
+                                   face=fc)))
+                for field, face, caption in entries]
+    except Exception as exc:  # no OpenGL context: the report goes without (some) figures
+        if errors is not None:
+            errors.append(f"{type(exc).__name__}: {exc}")
     finally:
         STYLE.update(previous)
     return figures
