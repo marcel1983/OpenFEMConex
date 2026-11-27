@@ -6,7 +6,7 @@ plate** on the far face. There may be another beam on the far side, on the same
 bolts.
 
 The checks of this topic are in the `openfemconex.through_bolt` module
-(analytic; the CalculiX model comes later). It covers one beam
+(analytic checks and a CalculiX model). It covers one beam
 or two opposite beams, with the shear by friction or with grout.
 
 ## Load path
@@ -123,9 +123,34 @@ the data of the first example. When it is selected in the tree:
   sleeves.
 - **Loads**: factored (LRFD) combinations at the wall face: V, M and P of beam 1
   and, with an opposite beam, V2, M2 and P2.
-- **Analysis › Calculate**: runs every check (no CalculiX yet). **Checks** shows
-  the table and the trace of the selected row.
+- **Analysis › Calculate**: runs the analytic checks; **Analysis › Solve** adds
+  those of the CalculiX model. **Checks** shows the table and the trace of the
+  selected row.
 - **Report**: HTML (with the 3D view and the diagrams of this topic) or PDF.
+
+## CalculiX model
+
+**Analysis › Solve** solves each combination with CalculiX. The end plate
+bearing on the face of the wall or column is the same problem as a base plate
+on its concrete block, so that model is used:
+
+- the beam and its end plate are elastic-plastic steel solids; the plate bears
+  on the concrete through contact (no tension) and, with shear by friction,
+  with friction μ;
+- the concrete is an elastic block as deep as the wall thickness h, with the
+  far face fixed: the back plate (or the other beam) is taken as rigid;
+- each bolt is a tension-only spring E·A/L, with L = h plus both plate
+  thicknesses, since it is unbonded in the sleeve; with grout the bolts also
+  take the shear;
+- with an opposite beam each side is solved with its own loads, as in the zone
+  model.
+
+Its forces check the most loaded bolt (with prying, J3.6), the plastic strain
+of the plate (5 %), bearing with the contact resultant, friction and the flange
+and web welds. The concrete checks (punching, bursting, strut-and-tie, wall
+flexure) stay analytic. The 3D view shows the model with the beam vertical (the
+base plate axes). **Fast mesh** is on by default: each combination takes a few
+minutes.
 
 ## Data
 

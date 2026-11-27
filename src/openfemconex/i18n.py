@@ -885,11 +885,11 @@ _CONNECTIONS: dict[str, str] = {
         "Column on a base plate with anchors in a pedestal or footing. Finite element "
         "model with CalculiX and AISC 360, DG1 and ACI 318 checks.",
     "Viga con placa de extremo y pernos pasantes en un muro o columna nuevo de concreto, "
-    "con placa posterior corrida o viga opuesta. Cálculo analítico (el modelo CalculiX "
-    "vendrá después).":
+    "con placa posterior corrida o viga opuesta. Cálculo analítico y modelo CalculiX de la "
+    "placa de extremo.":
         "Beam end plate with through-bolts across a new concrete wall or column, with a "
-        "continuous back plate or an opposite beam. Analytic checks (the CalculiX model "
-        "will come later).",
+        "continuous back plate or an opposite beam. Analytic checks and a CalculiX model "
+        "of the end plate.",
     "Placa simple a la columna. Próximamente.": "Single plate to the column. Coming soon.",
     "Viga a columna de acero. Próximamente.": "Beam to steel column. Coming soon.",
     "Empalme con cubreplacas. Próximamente.": "Splice with cover plates. Coming soon.",
@@ -986,6 +986,23 @@ _CONNECTIONS: dict[str, str] = {
     "Extendida, 4 pernos (4E)": "Extended, 4 bolts (4E)",
     "Extendida rigidizada (4ES)": "Extended stiffened (4ES)",
     "Extendida rigidizada, 8 pernos (8ES)": "Extended stiffened, 8 bolts (8ES)",
+    "FEM: tracción del perno más cargado (con efecto palanca)":
+        "FEM: tension of the most loaded bolt (with prying)",
+    "FEM: deformación plástica de la placa de extremo": "FEM: plastic strain of the end plate",
+    "FEM: aplastamiento del concreto bajo la placa de extremo":
+        "FEM: concrete bearing under the end plate",
+    "FEM: cortante por fricción con la compresión del modelo":
+        "FEM: shear by friction with the compression of the model",
+    "FEM: soldadura de los patines a la placa de extremo": "FEM: flange-to-end-plate weld",
+    "FEM: soldadura del alma a la placa de extremo": "FEM: web-to-end-plate weld",
+    "Malla rápida": "Fast mesh",
+    "Elementos del doble de tamaño: resultados en segundos, para tantear":
+        "Elements twice as large: results in seconds, for trial runs",
+    "Resuelve cada combinación con CalculiX: placa de extremo sobre la cara del concreto, "
+    "pernos sin adherencia y soldaduras":
+        "Solves each combination with CalculiX: end plate on the concrete face, unbonded "
+        "bolts and welds",
+    "{name}: no se pudo resolver: {error}": "{name}: could not be solved: {error}",
     "sin calcular": "not calculated", "Pernos pasantes: {n} pernos": "Through-bolts: {n} bolts",
 }
 EN.update({k: v for k, v in _CONNECTIONS.items() if k not in EN})

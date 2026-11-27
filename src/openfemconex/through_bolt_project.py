@@ -110,14 +110,21 @@ class ComboResult:
     checks: list[CheckResult] = field(default_factory=list)
     T: float = 0.0
     C: float = 0.0
+    fem: list = field(default_factory=list)
+    """CalculiX results of each beam (``through_bolt_fem.FemSide``), when solved."""
+
+    @property
+    def all_checks(self) -> list[CheckResult]:
+        """Analytic checks followed by those with the forces of the FEM."""
+        return self.checks + [c for side in self.fem for c in side.checks]
 
     @property
     def ok(self) -> bool:
-        return all(r.status.value != "ng" for r in self.checks)
+        return all(r.status.value != "ng" for r in self.all_checks)
 
     @property
     def worst(self) -> CheckResult | None:
-        return max((r for r in self.checks if r.applicable), key=lambda r: r.ratio,
+        return max((r for r in self.all_checks if r.applicable), key=lambda r: r.ratio,
                    default=None)
 
 
@@ -241,6 +248,31 @@ def run(data: dict[str, Any], units: UnitSystem, edition: str = "current"
     return out
 
 
+def _fem_blocks(side, units: UnitSystem) -> list:
+    """Bolt forces and checks of the CalculiX model of one beam."""
+    from openconex.report.builder import fmt
+
+    from openfemconex.report import _checks_block
+
+    res = side.results
+    F = Kind.FORCE
+    rows = [[str(i), fmt(a.x, Kind.LENGTH, units), fmt(a.y, Kind.LENGTH, units),
+             fmt(a.tension, F, units)] for i, a in enumerate(res.anchors, start=1)]
+    state = ("" if res.converged else
+             f" El análisis no convergió: llegó al {100 * res.load_fraction:.0f} % de la "
+             "carga.")
+    return [
+        ("h3", f"Modelo CalculiX, {side.side}"),
+        ("p", f"Placa de extremo sobre la cara del concreto con contacto y pernos sin "
+              f"adherencia como resortes de tracción. Compresión sobre el concreto "
+              f"{fmt(res.bearing_force, F, units)}, presión máxima "
+              f"{fmt(res.bearing_pressure_max, Kind.STRESS, units)}, deformación plástica "
+              f"de la placa {100 * res.plate_peeq_element:.2f} %.{state}", ""),
+        ("table", ["Perno", "Altura x", "y", "Tracción"], rows, set()),
+        _checks_block(side.checks, units),
+    ]
+
+
 def summary(data: dict[str, Any]) -> str:
     """One line for the project tree."""
     m = data.get("member") or {}
@@ -336,8 +368,10 @@ def report_html(data: dict[str, Any], results: list[ComboResult], units: UnitSys
             blocks.append(("verdict", r.ok, f" · rige: {check_title(r.worst)} "
                                             f"(ratio {r.worst.ratio:.2f})"))
         blocks.append(_checks_block(r.checks, units))
+        for side in r.fem:
+            blocks += _fem_blocks(side, units)
         blocks.append(("h3", "Traza de cálculo"))
-        blocks.append(_traces_block(r.checks, units))
+        blocks.append(_traces_block(r.all_checks, units))
     blocks.append(("notes", "Notas", [
         "La fricción solo puede contar con compresión permanente (ACI 318 §22.9): el "
         "ingeniero juzga cada combinación. En sismo se recomienda grout.",

@@ -6,7 +6,7 @@ que lo atraviesan dentro de una camisa (sin adherencia) y se anclan en una
 lado, con los mismos pernos.
 
 Las verificaciones de este tema están en el módulo `openfemconex.through_bolt`
-(cálculo analítico; el modelo CalculiX viene después). Cubre una
+(cálculo analítico y modelo CalculiX). Cubre una
 viga o dos vigas opuestas, con el cortante por fricción o con grout.
 
 ## Camino de las fuerzas
@@ -124,9 +124,35 @@ conexión con los datos del primer ejemplo. Al seleccionarla en el árbol:
   grout de las camisas.
 - **Cargas**: combinaciones mayoradas (LRFD) en la cara del muro: V, M y P de la
   viga 1 y, con viga opuesta, V2, M2 y P2.
-- **Análisis › Calcular**: corre todas las verificaciones (sin CalculiX
-  todavía). **Verificación** muestra la tabla y la traza de la fila elegida.
+- **Análisis › Calcular**: corre las verificaciones analíticas; **Análisis ›
+  Resolver** agrega las del modelo CalculiX. **Verificación** muestra la tabla
+  y la traza de la fila elegida.
 - **Reporte**: HTML (con la vista 3D y los esquemas de esta ayuda) o PDF.
+
+## Modelo CalculiX
+
+**Análisis › Resolver** resuelve cada combinación con CalculiX. La placa de
+extremo apoyada en la cara del muro o columna es el mismo problema que una
+placa base sobre su bloque de concreto, así que se usa ese modelo:
+
+- la viga y su placa de extremo son sólidos de acero elastoplástico; la placa
+  apoya en el concreto con contacto (sin tracción) y, con cortante por
+  fricción, con fricción μ;
+- el concreto es un bloque elástico del espesor h del muro, con la cara opuesta
+  fija: la placa posterior (o la otra viga) se toma como rígida;
+- cada perno es un resorte solo a tracción de rigidez E·A/L, con L = h más los
+  espesores de las dos placas, porque va sin adherencia en la camisa; con grout,
+  los pernos también toman el cortante;
+- con viga opuesta se resuelve cada lado con sus cargas, como en el modelo de
+  zonas.
+
+Con sus fuerzas se revisan el perno más cargado (con efecto palanca, J3.6), la
+deformación plástica de la placa (5 %), el aplastamiento con la resultante del
+contacto, la fricción y las soldaduras de patines y alma. Las verificaciones
+del concreto (punzonamiento, hendimiento, puntal y tensor, flexión del muro)
+siguen siendo las analíticas. La vista 3D muestra el modelo con la viga
+vertical (ejes de la placa base). **Malla rápida** viene marcada: cada
+combinación toma unos minutos.
 
 ## Datos
 

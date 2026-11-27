@@ -61,7 +61,7 @@ from OpenConex.
   (bearing §22.8, punching §22.6, bursting, strut-and-tie Ch. 23, flexure and
   axial force of the wall or column) and of the shear by friction or with grout;
   one beam or two opposite beams on the same bolts. For now in the
-  interface with analytic checks and report; no FEM model yet.
+  interface with analytic checks, a CalculiX model of the end plate and report.
 - **Several connections per project.** **Project › Add connection** opens a
   picker with an isometric view of each type; each connection has its own data,
   loads, checks and report, and the ribbon follows its type.

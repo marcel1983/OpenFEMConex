@@ -9,6 +9,7 @@ connection is selected in the project tree; the 3D view is the shared viewer.
 from __future__ import annotations
 
 import copy
+import threading
 from dataclasses import dataclass
 from html import escape
 from typing import Any
@@ -17,7 +18,7 @@ from openconex.core.materials import BOLTS, STEELS
 from openconex.core.shapes import aisc_shapes
 from openconex.report.builder import fmt
 from openconex.units import Kind
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -468,9 +469,14 @@ class ThroughBoltEditor(QObject):
         return tbp.build(self.data, self.state.units)
 
     # ------------------------------------------------------------------ checks
-    def calculate(self) -> bool:
+    def calculate(self, keep_fem: bool = False) -> bool:
+        """Analytic checks; ``keep_fem`` keeps the CalculiX results of the same data."""
+        fem = {r.combo.name: r.fem for r in self.results} if keep_fem and not self.stale \
+            else {}
         try:
             self.results = tbp.run(self.data, self.state.units, self.state.settings.edition)
+            for r in self.results:
+                r.fem = fem.get(r.combo.name, [])
         except Exception as exc:
             self.error = str(exc)
             self.results = []
@@ -489,7 +495,7 @@ class ThroughBoltEditor(QObject):
         self._rows = []
         units = self.state.units
         for res in self.results:
-            for r in res.checks:
+            for r in res.all_checks:
                 row = table.rowCount()
                 table.insertRow(row)
                 ok = r.status.value != "ng"
@@ -536,6 +542,23 @@ class ThroughBoltEditor(QObject):
             f"<table cellspacing='0' cellpadding='4' border='1'><tr><th>{tr('Símbolo')}</th>"
             f"<th>{tr('Expresión')}</th><th>{tr('Valor')}</th></tr>{lines}</table>")
 
+    def attach_fem(self, combo: str, sides: list) -> None:
+        for r in self.results:
+            if r.combo.name == combo:
+                r.fem = sides
+        self._fill_checks()
+        self.results_changed.emit()
+
+    def fem_sides(self) -> list:
+        """(label, FemSide) of every solved beam."""
+        return [(f"{r.combo.name} · {s.side}", s) for r in self.results for s in r.fem]
+
+    def fem_dir(self):
+        import re
+
+        name = re.sub(r"[^A-Za-z0-9_-]+", "_", str(self.data.get("name", "conexion")))
+        return self.state.output_dir() / name / "fem"
+
     def status(self) -> tuple[str, str]:
         """Text and colour for the status bar."""
         if self.error:
@@ -564,3 +587,40 @@ class ThroughBoltEditor(QObject):
         return tbp.report_html(self.data, self.results, self.state.units,
                                self.state.data.get("info", {}), self.state.settings.edition,
                                figures=folder, figure_base=figure_base)
+
+
+class FemWorker(QThread):
+    """Solves the combinations of a through-bolt connection with CalculiX, one by one."""
+
+    combo_done = Signal(str, object)
+    combo_failed = Signal(str, str)
+    stage = Signal(str)
+    cancelled = Signal()
+
+    def __init__(self, conn, combos: list, out, edition, ccx: str | None = None,
+                 fast: bool = False, threads: int | None = None) -> None:
+        super().__init__()
+        self.conn, self.combos, self.out, self.edition = conn, combos, out, edition
+        self.ccx, self.fast, self.threads = ccx, fast, threads
+        self.cancel = threading.Event()
+
+    def run(self) -> None:
+        from openfemconex.runner import CcxCancelled
+        from openfemconex.through_bolt_fem import solve_combination
+
+        for combo in self.combos:
+            if self.cancel.is_set():
+                self.cancelled.emit()
+                return
+            try:
+                sides = solve_combination(
+                    self.conn, combo, self.out, ed=self.edition, ccx=self.ccx,
+                    threads=self.threads, cancel=self.cancel, fast=self.fast,
+                    progress=lambda text, n=combo.name: self.stage.emit(f"{n}: {text}"))
+            except CcxCancelled:
+                self.cancelled.emit()
+                return
+            except Exception as exc:
+                self.combo_failed.emit(combo.name, f"{type(exc).__name__}: {exc}")
+                continue
+            self.combo_done.emit(combo.name, sides)

@@ -447,10 +447,27 @@ class MainWindow(QMainWindow):
         g.add_button("Calcular", icon("play"), self.calculate_tb,
                      "Verifica todas las combinaciones (AISC 360, DG16/DG4 y ACI 318)")
         g = tab("CalculiX")
-        later = g.add_button("Modelo FEM", icon("mesh"), lambda: None,
-                             "El modelo de elementos finitos de esta conexión vendrá en una "
-                             "fase siguiente")
-        later.setEnabled(False)
+        self.tb_solve_button = g.add_button(
+            "Resolver", icon("play"), self.solve_tb,
+            "Resuelve cada combinación con CalculiX: placa de extremo sobre la cara del "
+            "concreto, pernos sin adherencia y soldaduras")
+        self.tb_stop_button = g.add_button("Detener", icon("stop"), self.stop_tb)
+        self.tb_stop_button.setEnabled(False)
+        self.tb_fast = QCheckBox(tr("Malla rápida"))
+        self.tb_fast.setChecked(True)
+        self.tb_fast.setToolTip(tr("Elementos del doble de tamaño: resultados en segundos, "
+                                   "para tantear"))
+        g.add_widget("Malla", self.tb_fast)
+        g = tab("Resultados")
+        self.tb_fem_box = QComboBox()
+        self.tb_fem_box.setMinimumWidth(170)
+        self.tb_fem_box.textActivated.connect(self.show_tb_fem)
+        g.add_widget("Combinación", self.tb_fem_box)
+        self.tb_field_box = QComboBox()
+        for name in FIELDS:
+            self.tb_field_box.addItem(tr(name), name)
+        self.tb_field_box.activated.connect(lambda _: self.show_tb_fem())
+        g.add_widget("Resultado", self.tb_field_box)
 
         tab = self.tb_ribbon.add_tab("Verificación")
         g = tab("Verificaciones")
@@ -483,7 +500,7 @@ class MainWindow(QMainWindow):
         self.ribbons.setCurrentWidget(self.tb_ribbon if through else self.ribbon)
         self.viewer.dims.setVisible(not through)
         self.viewer.numbers.setVisible(not through)
-        for w, on in ((self.log, not through), (self.checks, not through),
+        for w, on in ((self.log, True), (self.checks, not through),
                       (self.anchor_forces, not through), (self.tb.checks, through)):
             self.bottom.setTabVisible(self.bottom.indexOf(w), on)
         if through:
@@ -553,6 +570,7 @@ class MainWindow(QMainWindow):
     def _show_tb_view(self, reset: bool = False) -> None:
         if self.mode != "through_bolt" or self.tb.index < 0:
             return
+        self._view = "tb"
         self._update_status()
         try:
             conn = self.tb.connection()
@@ -575,8 +593,83 @@ class MainWindow(QMainWindow):
             self.tb.checks.selectRow(0)
 
     def _on_tb_results(self) -> None:
+        current = self.tb_fem_box.currentText()
+        labels = [label for label, _ in self.tb.fem_sides()]
+        self.tb_fem_box.clear()
+        self.tb_fem_box.addItems(labels)
+        if current in labels:
+            self.tb_fem_box.setCurrentText(current)
         self._update_status()
         self._fill_tree()
+
+    def solve_tb(self) -> None:
+        from openfemconex.checks import EDITIONS as EDS
+        from openfemconex.gui.through_bolt_panel import FemWorker
+        from openfemconex.through_bolt_project import combinations
+
+        if getattr(self, "tb_worker", None) is not None:
+            return
+        try:
+            find_ccx(self.state.settings.ccx)
+        except CcxError as exc:
+            QMessageBox.warning(self, "CalculiX", str(exc))
+            return
+        if not self.tb.calculate(keep_fem=True):
+            QMessageBox.warning(self, tr("Resolver"), tr("No se pudo calcular: {error}",
+                                                          error=self.tb.error))
+            return
+        combos = combinations(self.tb.data, self.state.units)
+        worker = FemWorker(self.tb.connection(), combos, self.tb.fem_dir(),
+                           EDS.get(self.state.settings.edition, EDS["current"]),
+                           self.state.settings.ccx, self.tb_fast.isChecked(),
+                           self.state.settings.threads)
+        worker.stage.connect(self._tb_stage)
+        worker.combo_done.connect(self.tb.attach_fem)
+        worker.combo_failed.connect(lambda name, msg: self.log.appendPlainText(
+            tr("{name}: no se pudo resolver: {error}", name=name, error=msg)))
+        worker.finished.connect(self._tb_solve_finished)
+        self.tb_worker = worker
+        self.tb_solve_button.setEnabled(False)
+        self.tb_stop_button.setEnabled(True)
+        self.progress.setRange(0, 0)
+        self.progress.show()
+        worker.start()
+
+    def _tb_stage(self, text: str) -> None:
+        self.status_label.setText(text)
+        self.status_label.setStyleSheet("")
+
+    def stop_tb(self) -> None:
+        if getattr(self, "tb_worker", None) is not None:
+            self.tb_worker.cancel.set()
+
+    def _tb_solve_finished(self) -> None:
+        self.tb_worker = None
+        self.tb_solve_button.setEnabled(True)
+        self.tb_stop_button.setEnabled(False)
+        self.progress.hide()
+        self.progress.setRange(0, 100)
+        self._update_status()
+        if self.tb.fem_sides():
+            self.tb_ribbon.select("Análisis")
+            self.show_tb_fem(self.tb.fem_sides()[0][0])
+            self.show_tb_checks()
+
+    def show_tb_fem(self, label: str | None = None) -> None:
+        sides = dict(self.tb.fem_sides())
+        label = label or self.tb_fem_box.currentText()
+        side = sides.get(label)
+        if side is None or side.vtu is None or not side.vtu.exists():
+            return
+        self.tb_fem_box.setCurrentText(label)
+        self.central.setCurrentWidget(self.viewer)
+        self._view = "tb_fem"
+        units = self.state.units
+        sample = fmt(1000.0, Kind.FORCE, units, 6).split()
+        self.viewer.show_results(side.vtu, side.model, side.results,
+                                 self.tb_field_box.currentData(), 20.0,
+                                 unit_force=float(sample[0]) / 1000.0, force_label=sample[-1],
+                                 reset=True)
 
     def _tb_topic(self) -> int:
         for i, (_, text) in enumerate(topics()):
@@ -1332,6 +1425,9 @@ class MainWindow(QMainWindow):
         if self.worker is not None:
             self.worker.cancel.set()
             self.worker.wait(5000)
+        if getattr(self, "tb_worker", None) is not None:
+            self.tb_worker.cancel.set()
+            self.tb_worker.wait(5000)
         if not self._confirm_discard():
             event.ignore()
             return

@@ -179,3 +179,20 @@ def test_example_project_opens_on_its_first_connection(window):
         window.set_mode("through_bolt", i)
         window.calculate_tb()
         assert all(r.ok for r in window.tb.results)
+
+
+def test_fem_results_join_the_checks_table(window):
+    from types import SimpleNamespace
+
+    index = window.state.add_connection("through_bolt")
+    window.set_mode("through_bolt", index)
+    window.calculate_tb()
+    rows = window.tb.checks.rowCount()
+    first = window.tb.results[0]
+    extra = first.checks[0].model_copy(update={"id": "through_bolt.fem_bolt_tension"})
+    window.tb.attach_fem(first.combo.name, [SimpleNamespace(side="viga 1", checks=[extra],
+                                                            vtu=None)])
+    assert window.tb.checks.rowCount() == rows + 1
+    assert window.tb_fem_box.count() == 1
+    assert window.tb.calculate(keep_fem=True)
+    assert window.tb.results[0].fem  # kept while the data does not change
