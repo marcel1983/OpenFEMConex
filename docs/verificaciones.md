@@ -112,6 +112,24 @@ que con el método de la guía sí. El concreto del modelo es elástico, lo que
 limita cuánto puede extenderse el apoyo; aun así es una diferencia que el
 ingeniero debe conocer al usar placas flexibles.
 
+## Pernos pasantes en concreto
+
+Módulo `openfemconex.through_bolt` (analítico, sin FEM todavía): viga con placa
+frontal unida a un muro o columna nuevo con pernos pasantes sin adherencia y una
+placa posterior corrida. La ayuda integrada (tema *Pernos pasantes en concreto*)
+explica el camino de las fuerzas con esquemas.
+
+| Componente | Verificación |
+|---|---|
+| Placa frontal, pernos, soldaduras | Las de placa de extremo de las Guías de Diseño 16 y 4 (OpenConex); la placa posterior hace de ala de la columna |
+| Concreto | Aplastamiento bajo cada placa (§22.8) con el área limitada por la flexión de la placa; punzonamiento por la placa posterior (§22.6), con b0 recortado por los bordes de una columna; hendimiento detrás de cada placa (§25.9 por analogía) |
+| Muro o columna | Puntal y tensor del par T·z (Cap. 23): ángulo, puntal, nodos C-C-T, refuerzo vertical como tensor y su desarrollo; flexocompresión de la franja de muro o de la columna (§22.4) |
+| Cortante | Fricción bajo la compresión de la placa frontal (DG1) o, con grout, cortante de los pernos de la zona comprimida |
+
+Las pruebas (`tests/test_through_bolt.py`) comparan cada verificación con un
+cálculo a mano independiente. Pendiente: conexión opuesta, esquema con grout
+completo (apoyo en el grout, J3.7 con flexión), interfaz y modelo CalculiX.
+
 ## Pendiente
 
 - Rotura del metal base en la soldadura (J4) y soldadura de penetración.

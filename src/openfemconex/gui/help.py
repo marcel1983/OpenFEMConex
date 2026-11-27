@@ -49,6 +49,8 @@ class HelpDialog(QDialog):
         self.index.setMaximumWidth(240)
         self.page = QTextBrowser()
         self.page.setOpenExternalLinks(True)
+        # the topics name their figures relative to the help package (img/<lang>/...)
+        self.page.setSearchPaths([str(resources.files("openfemconex.help"))])
         self._topics = topics()
         for title, _ in self._topics:
             self.index.addItem(QListWidgetItem(title))

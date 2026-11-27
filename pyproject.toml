@@ -31,7 +31,7 @@ openfemconex-gui = "openfemconex.gui.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"openfemconex.help" = ["es/*.md", "en/*.md"]
+"openfemconex.help" = ["es/*.md", "en/*.md", "img/*/*.png"]
 
 [tool.ruff]
 line-length = 100

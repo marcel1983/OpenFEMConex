@@ -51,6 +51,19 @@ TITLES = {
     "fem.stiffener_plastic_strain": "Rigidizadores: deformación plástica equivalente",
     "fem.stiffener_weld": "Rigidizadores: soldadura (punto más solicitado)",
     "fem.stiffener_slenderness": "Rigidizadores: esbeltez del borde libre",
+    "through_bolt.bearing_front": "Pernos pasantes: aplastamiento bajo la placa frontal",
+    "through_bolt.bearing_back": "Pernos pasantes: aplastamiento bajo la placa posterior",
+    "through_bolt.punching": "Pernos pasantes: punzonamiento por la placa posterior",
+    "through_bolt.friction": "Pernos pasantes: cortante por fricción en la placa frontal",
+    "through_bolt.bursting_front": "Pernos pasantes: hendimiento detrás de la placa frontal",
+    "through_bolt.bursting_back": "Pernos pasantes: hendimiento detrás de la placa posterior",
+    "through_bolt.stm_angle": "Puntal y tensor: ángulo entre puntal y tensor",
+    "through_bolt.stm_strut": "Puntal y tensor: puntal diagonal del concreto",
+    "through_bolt.stm_node_back": "Puntal y tensor: nodo en la placa posterior",
+    "through_bolt.stm_node_front": "Puntal y tensor: nodo en la placa frontal",
+    "through_bolt.stm_tie": "Puntal y tensor: refuerzo vertical como tensor",
+    "through_bolt.stm_tie_anchorage": "Puntal y tensor: desarrollo del tensor más allá del nodo",
+    "through_bolt.member_flexure": "Muro o columna: flexocompresión junto a la conexión",
 }
 
 
