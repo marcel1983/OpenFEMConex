@@ -1122,6 +1122,12 @@ EN.update({
     "Rigidización de la columna": "Column stiffening", "Rosca": "Threads", "Sistema": "System",
     "Por ejemplo: PE-1, eje B-3": "For example: PE-1, grid B-3",
     "Luz libre entre caras de columna": "Clear span between column faces",
+    "Curva M-θ solo de la conexión (sin la zona de panel)":
+        "M-θ curve of the connection only (without the panel zone)",
+    "Sin marcar, la rotación de la curva incluye la distorsión de la zona de panel de la "
+    "columna; el reporte muestra las dos curvas":
+        "Unticked, the rotation of the curve includes the distortion of the column panel "
+        "zone; the report shows both curves",
     "Diseño sísmico (rótula plástica) y clasificación por rigidez":
         "Seismic design (plastic hinge) and stiffness classification",
     "La viga se une al ala (eje fuerte)": "The beam frames to the flange (strong axis)",

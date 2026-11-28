@@ -39,10 +39,12 @@ compression.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 from openconex.connections.moment.end_plate import (
     STIFFENED_EXTENSION,
     EndPlateLayout,
@@ -189,7 +191,7 @@ def fem_model(mc: MomentConnection, pretension: bool = False) -> BasePlateModel:
         doubler = (mc.doubler_plate, x0, x1)
     cs = _steel(col.grade)
     flange = ColumnFlange(steel=cs, d=col.d, tw=col.tw, stiffeners=tuple(continuity),
-                          doubler=doubler,
+                          doubler=doubler, joint=(flanges[0], flanges[1]),
                           pretension=bolt_pretension(mc) if pretension else 0.0)
     concrete = Concrete(fc=28.0, N=length, B=col.bf, H=col.tf)
     stiffeners = _stiffeners(mc, ex, top, bottom)
@@ -357,10 +359,12 @@ def beam_inertia(model: BasePlateModel) -> float:
 class MomentRotation:
     """Moment-rotation curve of the connection (CalculiX, monotonic moment).
 
-    The rotation is that of the beam end relative to the column face: the rotation of
-    the stub end minus the elastic rotation of the stub itself. The column web and
-    panel zone are rigid in the model, so the curve is that of the plate, bolts and
-    column flange.
+    The rotation is that of the beam end minus the elastic rotation of the stub itself,
+    relative to the column: with ``panel_zone`` relative to the column section at the
+    beam axis (the rotation includes the shear distortion of the panel zone), without
+    it relative to the column flange over the web between the beam flanges (only the
+    connection: plate, bolts and the local bending of the column flange). The bending
+    of the short, fixed column segment of the model is left out in both.
     """
 
     points: list[tuple[float, float]]
@@ -377,6 +381,22 @@ class MomentRotation:
     pretension: float
     """Bolt pretension used [N]."""
     vtu: Path | None = None
+    panel_zone: bool = True
+    """Whether the rotation includes the panel zone (see the class)."""
+    other: list[tuple[float, float]] = field(default_factory=list)
+    """The curve with the other choice of ``panel_zone``, for comparison."""
+
+    @property
+    def alternate(self) -> MomentRotation | None:
+        """The curve with the other choice of ``panel_zone`` (None without it)."""
+        if len(self.other) < 2:
+            return None
+        return dataclasses.replace(self, points=self.other, other=[],
+                                   panel_zone=not self.panel_zone)
+
+    @property
+    def label(self) -> str:
+        return "con la zona de panel" if self.panel_zone else "solo la conexión"
 
     @property
     def M_max(self) -> float:
@@ -450,11 +470,13 @@ def moment_rotation(mc: MomentConnection, span: float, combos, workdir: str | Pa
                     ccx: str | None = None, threads: int | None = None, reuse: bool = True,
                     cancel=None, progress=None, fast: bool = False,
                     settings: MeshSettings | None = None, started=None,
-                    factor: float = 1.5) -> MomentRotation:
+                    factor: float = 1.5, panel_zone: bool = True) -> MomentRotation:
     """Moment-rotation curve: a moment alone, up to ``factor`` times the largest of the
     combinations (or the plastic moment of the beam without them), in steps of 5 %,
     with the bolts pretensioned (the stiffness of the joint as built). The run stops
-    where the connection cannot take more."""
+    where the connection cannot take more. ``panel_zone``: whether the rotation
+    includes the shear distortion of the panel zone (see MomentRotation); the curve
+    with the other choice is kept in ``other``."""
     from openfemconex.model import E_STEEL
     from openfemconex.results import read_dat_history
     from openfemconex.solve import file_stem, solve
@@ -476,29 +498,65 @@ def moment_rotation(mc: MomentConnection, span: float, combos, workdir: str | Pa
                 threads=threads, reuse=reuse, cancel=cancel, progress=progress,
                 max_increment=0.05, history=True, min_increment=1e-3, retry=False)
     base = workdir / file_stem(CURVE)
-    table = read_dat_history(base.with_suffix(".dat"), "displacements/LOADNODES")
+    dat = base.with_suffix(".dat")
+    table = read_dat_history(dat, "displacements/LOADNODES")
+    joint = read_dat_history(dat, "displacements/JOINT")
     rot_node = max(table[-1][1]) if table else 0  # the rotation node of the rigid body
+    from openfemconex.mesh import build_mesh
+
+    mesh = build_mesh(model, settings)
+    joint_nodes, xyz = mesh.joint_nodes, mesh.nodes
+
+    def column_rotations(nodes: dict) -> tuple[float, float]:
+        """(section at the beam axis, flange line over the web) rotations of the
+        column, positive as the beam rotation [rad]."""
+        if not joint_nodes or not nodes:
+            return 0.0, 0.0
+
+        def mean(name: str, dof: int) -> tuple[float, np.ndarray]:
+            ids = [int(n) for n in joint_nodes[name] if int(n) in nodes]
+            if not ids:
+                return 0.0, np.zeros(3)
+            return (float(np.mean([nodes[n][dof] for n in ids])),
+                    xyz[np.array(ids) - 1].mean(axis=0))
+
+        (u_top, p_top), (u_bot, p_bot) = mean("top", 2), mean("bottom", 2)
+        (u_near, p_near), (u_far, p_far) = mean("near", 0), mean("far", 0)
+        # rotation about y: ux = θy·z, uz = -θy·x; the beam rotation is -θy
+        line = (u_top - u_bot) / (p_top[0] - p_bot[0]) if p_top[0] != p_bot[0] else 0.0
+        section = (-(u_near - u_far) / (p_near[2] - p_far[2])
+                   if p_near[2] != p_far[2] else 0.0)
+        return section, line
+
+    times = [t for t, _ in table]
+    joint_at = {round(t, 9): n for t, n in joint}
+    rows = []  # (time, beam rotation, column section, flange line)
+    for t, n in table:
+        if rot_node not in n:
+            continue
+        s, f = column_rotations(joint_at.get(round(t, 9), {}))
+        rows.append((t, -float(n[rot_node][1]), s, f))
     # the first step only pretensions the bolts: the curve starts from its end (its
     # rotation is that of the pretension alone, taken as zero)
-    if model.flange.pretension > 0 and table:
-        start = table[0][1].get(rot_node, [0.0, 0.0, 0.0])
-        table = table[1:]
-        total = max((t for t, _ in table), default=0.0) > 1.0 + 1e-9
-        table = [(t - 1.0 if total else t, {k: v - start if k == rot_node else v
-                                             for k, v in n.items()}) for t, n in table]
-    points = [(0.0, 0.0)]
-    for time, nodes in table:
-        if time <= 0 or rot_node not in nodes:
+    if model.flange.pretension > 0 and rows:
+        t0, b0, s0, f0 = rows[0]
+        rows = rows[1:]
+        total = max(times, default=0.0) > 1.0 + 1e-9
+        rows = [(t - 1.0 if total else t, b - b0, s - s0, f - f0) for t, b, s, f in rows]
+    with_panel, without = [(0.0, 0.0)], [(0.0, 0.0)]
+    for time, beam_rot, section, line in rows:
+        if time <= 0 or time <= with_panel[-1][1] / target + 1e-9:
             continue
         M = time * target
-        stub = M * model.Lc / EI
-        theta = -float(nodes[rot_node][1]) - stub
-        if time > points[-1][1] / target + 1e-9:
-            points.append((theta, M))
+        theta = beam_rot - M * model.Lc / EI
+        with_panel.append((theta - section, M))
+        without.append((theta - line, M))
+    points, other = (with_panel, without) if panel_zone else (without, with_panel)
     return MomentRotation(points=points, target=target, converged=res.converged,
                           span=span, EI=EI, Ms=service_moment(combos),
                           pretension=model.flange.pretension,
-                          vtu=workdir / f"{file_stem(CURVE)}.vtu")
+                          vtu=workdir / f"{file_stem(CURVE)}.vtu", panel_zone=panel_zone,
+                          other=other)
 
 
 def curve_figure(mr: MomentRotation, path: str | Path, units=None,
@@ -521,7 +579,13 @@ def curve_figure(mr: MomentRotation, path: str | Path, units=None,
     right = max(th + [1.0]) * 1.15
     fig, ax = plt.subplots(figsize=size, dpi=150)
     try:
-        ax.plot(th, ms, color="#1f5fa8", lw=2, marker="o", ms=2.5, label="CalculiX")
+        ax.plot(th, ms, color="#1f5fa8", lw=2, marker="o", ms=2.5,
+                label=f"CalculiX, {mr.label}")
+        alt = mr.alternate
+        if alt is not None:
+            ax.plot([1000 * t for t, _ in alt.points], [k * m for _, m in alt.points],
+                    color="#8a96a3", lw=1.2, ls="-.",
+                    label=f"{alt.label} (K_s·L/EI = {alt.stiffness_ratio:.1f})")
         for ratio, name, color in ((FR_LIMIT, "FR: K·L/EI = 20", "#2e9e4f"),
                                    (SIMPLE_LIMIT, "Simple: K·L/EI = 2", "#d03040")):
             K = ratio * mr.EI / mr.span  # N·mm/rad

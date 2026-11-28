@@ -351,6 +351,9 @@ class ColumnFlange:
     continuity plates, one on each side of the web [mm]."""
     doubler: tuple[float, float, float] | None = None
     """(thickness, x from, x to) of a doubler plate on one face of the web (+y) [mm]."""
+    joint: tuple[float, float] | None = None
+    """x of the two beam flanges [mm]: the mesh marks the column nodes that measure the
+    rotation of the panel zone and of the column section there."""
     pretension: float = 0.0
     """Bolt pretension [N], applied as a pair of forces in a first step."""
 

@@ -134,10 +134,19 @@ Resolver calcula siempre, además, la curva momento-rotación de la conexión: u
 modelo más, con un momento solo que crece en pasos de 5 % hasta 1.5 veces el
 mayor de las combinaciones, y los pernos **pretensados** (la pretensión de la
 Tabla J3.1 de AISC 360, o la fracción de pernos ajustados, como un par de
-fuerzas en un primer paso). La rotación es la del extremo de la viga respecto de
-la cara de la columna, sin la deformación elástica de la viga; incluye la
-deformación del ala, del alma y de la zona de panel del tramo de columna del
-modelo.
+fuerzas en un primer paso). La rotación es la del extremo de la viga, sin su
+deformación elástica, respecto de la columna. Hay dos maneras de medirla, y la
+opción **Viga › Curva M-θ solo de la conexión** elige cuál clasifica:
+
+- **Con la zona de panel** (por omisión): respecto de la sección de la columna en
+  el eje de la viga. Incluye la placa, los pernos, la flexión local del ala y la
+  distorsión por cortante de la zona de panel.
+- **Solo la conexión**: respecto del ala de la columna sobre el alma, entre las
+  alas de la viga. Deja fuera la zona de panel, para cuando el análisis del
+  pórtico ya la modela.
+
+En las dos se deja fuera la flexión del tramo corto de columna del modelo. El
+reporte dibuja las dos curvas y da K_s·L/EI de la otra como comparación.
 
 Con la curva se clasifica la conexión según el comentario de AISC 360-22 §B3.4:
 la rigidez secante K_s = M_s/θ_s en el momento de servicio M_s (el mayor de las

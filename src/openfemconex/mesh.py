@@ -93,6 +93,9 @@ class Mesh:
     column_regions: dict = field(default_factory=dict)
     """Of a steel column: region name -> indices of its elements in part CONCRETE
     (``flange``, ``web``, ``continuity``, ``doubler``)."""
+    joint_nodes: dict = field(default_factory=dict)
+    """Of a steel column with ``ColumnFlange.joint``: ``top``, ``bottom`` (near face over
+    the web at the beam flanges), ``near``, ``far`` (both faces at the beam axis)."""
     opposite: Mesh | None = None
     """With an opposite column: its plate and column, in this mesh's numbering (parts
     PLATE, COLUMN, STIFFENER mean PLATE2, COLUMN2, STIFFENER2 here)."""
@@ -477,7 +480,22 @@ def _column_block(model: BasePlateModel, st: MeshSettings, base_k: int) -> dict:
         nut_weights.append(w / w.sum())
     ends = np.nonzero(np.isclose(np.abs(xyz[:, 0]), c.N / 2))[0] + base_k + 1
     bottom = new_id[box(gi, gj, 0)]
-    return dict(nodes=xyz, conn=conn, top=np.nonzero(K == nz - 1)[0],
+    # nodes measuring the rotation of the joint (model.ColumnFlange.joint): the near
+    # face over the web at each beam flange (the flange line rotates with the panel
+    # zone) and both faces of the column at the beam axis (the section rotation)
+    panel = {}
+    if cs.joint is not None:
+        def at(x, z):
+            i = int(np.argmin(np.abs(gx - x)))
+            k = int(np.argmin(np.abs(gz - z)))
+            js = [int(np.argmin(np.abs(gy - s * tw / 2))) for s in (-1, 1)]
+            ids = new_id[box(i, np.array(js), k)]
+            return ids[ids > 0]
+
+        x_axis = model.ex
+        panel = {"top": at(max(cs.joint), 0.0), "bottom": at(min(cs.joint), 0.0),
+                 "near": at(x_axis, 0.0), "far": at(x_axis, -d)}
+    return dict(nodes=xyz, conn=conn, top=np.nonzero(K == nz - 1)[0], panel=panel,
                 bottom=bottom[bottom > 0], nut_nodes=nut_nodes, nut_weights=nut_weights,
                 ends=ends, regions=order)
 
@@ -574,7 +592,8 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
         n_block = len(block["nodes"])
         flange_sets = dict(far_washer_nodes=block["nut_nodes"],
                            far_washer_weights=block["nut_weights"],
-                           flange_held_nodes=block["ends"], column_regions=block["regions"])
+                           flange_held_nodes=block["ends"], column_regions=block["regions"],
+                           joint_nodes=block["panel"])
     else:
         nx = max(4, math.ceil(c.N / st.concrete_size))
         ny = max(4, math.ceil(c.B / st.concrete_size))

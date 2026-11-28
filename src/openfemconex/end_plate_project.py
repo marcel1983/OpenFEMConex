@@ -534,9 +534,15 @@ def _curve_blocks(curve, units: UnitSystem, figure: str = "", figure_base: str =
     blocks.append(("p", "Momento solo, creciente hasta 1.5 veces el mayor de las "
                         "combinaciones, con los pernos pretensados "
                         f"(T_b = {curve.pretension / 1e3:.0f} kN). La rotación es la del "
-                        "extremo de la viga respecto de la cara de la columna (sin la "
-                        "deformación elástica de la viga); el alma y la zona de panel de "
-                        "la columna no se incluyen. Clasificación según el comentario de "
+                        "extremo de la viga, sin su deformación elástica, "
+                        + ("respecto de la sección de la columna en el eje de la viga: "
+                           "incluye la distorsión por cortante de la zona de panel. "
+                           if curve.panel_zone else
+                           "respecto del ala de la columna sobre el alma entre las alas de "
+                           "la viga: solo la conexión (placa, pernos y flexión local del "
+                           "ala), sin la zona de panel. ")
+                        + "La flexión del tramo de columna del modelo no se incluye. "
+                        "Clasificación según el comentario de "
                         f"AISC 360-22 §B3.4: FR si K_s·L/EI ≥ {FR_LIMIT:g}, simple si "
                         f"≤ {SIMPLE_LIMIT:g}, PR entre ambos.", ""))
     if figure:
@@ -553,6 +559,12 @@ def _curve_blocks(curve, units: UnitSystem, figure: str = "", figure_base: str =
         ["Luz de la viga L", fmt(curve.span, Kind.LENGTH, units)],
         ["K_s·L/EI", f"{curve.stiffness_ratio:.1f}"],
         ["Clasificación", name],
+    ]
+    alt = curve.alternate
+    if alt is not None:
+        rows.append([f"K_s·L/EI {alt.label} (comparación)",
+                     f"{alt.stiffness_ratio:.1f} ({alt.classification})"])
+    rows += [
         ["Momento máximo alcanzado", f"{fmt(curve.M_max, M, units)} a "
                                      f"{1000 * curve.theta_max:.1f} mrad"
                                      + ("" if curve.converged else " (el modelo no resiste "

@@ -130,9 +130,19 @@ Resolver always also computes the moment-rotation curve of the connection: one
 more model, with a moment alone rising in 5 % steps up to 1.5 times the largest
 of the combinations, and the bolts **pretensioned** (the AISC 360 Table J3.1
 pretension, or the snug-tight fraction, as a pair of forces in a first step).
-The rotation is that of the beam end relative to the column face, without the
-elastic deformation of the beam; it includes the deformation of the flange, web
-and panel zone of the column segment of the model.
+The rotation is that of the beam end, without its elastic deformation, relative
+to the column. There are two ways to measure it, and the option **Beam › M-θ
+curve of the connection only** picks the one that classifies:
+
+- **With the panel zone** (default): relative to the column section at the beam
+  axis. It includes the plate, the bolts, the local bending of the flange and the
+  shear distortion of the panel zone.
+- **Connection only**: relative to the column flange over the web, between the
+  beam flanges. It leaves the panel zone out, for when the frame analysis already
+  models it.
+
+Both leave out the bending of the short column segment of the model. The report
+draws both curves and gives K_s·L/EI of the other one for comparison.
 
 The curve classifies the connection after the AISC 360-22 §B3.4 Commentary: the
 secant stiffness K_s = M_s/θ_s at the service moment M_s (the largest of the ASD

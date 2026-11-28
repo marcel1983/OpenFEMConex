@@ -62,6 +62,9 @@ PAGES: dict[str, list[TBField]] = {
         F(("beam_grade",), "Acero", "steel"),
         F(("span",), "Luz libre entre caras de columna",
           tip="Diseño sísmico (rótula plástica) y clasificación por rigidez"),
+        F(("curve_connection_only",), "Curva M-θ solo de la conexión (sin la zona de panel)",
+          "bool", tip="Sin marcar, la rotación de la curva incluye la distorsión de la zona "
+                      "de panel de la columna; el reporte muestra las dos curvas"),
     ],
     "Columna": [
         F(("column",), "Perfil", "beam", tip="La viga se une al ala (eje fuerte)"),
@@ -260,6 +263,10 @@ class EndPlateEditor(ThroughBoltEditor):
     def combination_list(self) -> list:
         return epp.combinations(self.data, self.state.units)
 
+    def curve_panel_zone(self) -> bool:
+        """Whether the moment-rotation curve includes the panel zone."""
+        return not self.data.get("curve_connection_only")
+
     def span(self) -> float:
         """Beam span between column faces [mm]."""
         return epp._Reader(self.state.units).q(self.data.get("span"), Kind.LENGTH)
@@ -314,11 +321,11 @@ class EndPlateFemWorker(FemWorker):
     curve_failed = Signal(str)
 
     def __init__(self, conn, combos: list, out, edition, *, span: float, all_combos: list,
-                 **kwargs) -> None:
+                 panel_zone: bool = True, **kwargs) -> None:
         from openfemconex import end_plate_fem as epf
 
         super().__init__(conn, combos, out, edition, solver=epf.solve_combination, **kwargs)
-        self.span, self.all_combos = span, all_combos
+        self.span, self.all_combos, self.panel_zone = span, all_combos, panel_zone
 
     def run(self) -> None:
         from openfemconex import end_plate_fem as epf
@@ -331,7 +338,7 @@ class EndPlateFemWorker(FemWorker):
             curve = epf.moment_rotation(
                 self.conn, self.span, self.all_combos, self.out, ccx=self.ccx,
                 threads=self.threads, cancel=self.cancel, fast=self.fast,
-                settings=self.settings,
+                settings=self.settings, panel_zone=self.panel_zone,
                 started=lambda name, sta: self.started_combo.emit(name, str(sta)),
                 progress=lambda text: self.stage.emit(f"{epf.CURVE}: {text}"))
         except CcxCancelled:

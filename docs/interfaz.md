@@ -96,7 +96,8 @@ bloque AISC 358 y después CalculiX en las combinaciones marcadas en Cargas, con
 su avance en el registro; en Análisis › Resultados se elige la combinación y el
 resultado (von Mises, deformación plástica, desplazamientos, presión de contacto).
 Resolver calcula siempre al final la curva momento-rotación, que se ve en
-Análisis › Curva M-θ y va en el reporte. El ejemplo `examples/placa_extremo.ocnx` tiene una 4E y una
+Análisis › Curva M-θ y va en el reporte; la casilla Viga › Curva M-θ solo de la
+conexión la mide sin la zona de panel. El ejemplo `examples/placa_extremo.ocnx` tiene una 4E y una
 4ES sísmica.
 
 ![Conexión de momento con placa de extremo](img/placa_extremo_interfaz.png)

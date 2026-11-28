@@ -231,6 +231,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             _nset(f, "CONCENDS", mesh.concrete_end_nodes)
         if model.flange is not None:
             _nset(f, "FLANGEHELD", mesh.flange_held_nodes)
+            if mesh.joint_nodes:
+                _nset(f, "JOINT", sorted({int(n) for v in mesh.joint_nodes.values()
+                                          for n in v}))
         if opp is not None:
             _nset(f, "COLTOP2", mesh.opposite.column_top_nodes)
         _nset(f, "FOOTPRINT", mesh.footprint_nodes)
@@ -450,6 +453,8 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                 prints += [("ANCHORGND", "U"), ("CONCENDS", "RF")]
             elif model.flange is not None:
                 prints += [("ANCHORGND", "U"), ("FLANGEHELD", "RF")]
+                if mesh.joint_nodes:
+                    prints.append(("JOINT", "U"))
             if opp is not None:
                 prints.append(("LOADNODES2", "U"))
             for nset, key in prints:

@@ -236,6 +236,7 @@ class EndPlateWindow:
         # the combinations ticked in Loads, and always the moment-rotation curve
         worker = EndPlateFemWorker(self.ep.connection(), combos, self.ep.fem_dir(),
                                    EDITIONS["current"], span=span, all_combos=every,
+                                   panel_zone=self.ep.curve_panel_zone(),
                                    ccx=st.ccx, fast=st.fast, threads=st.threads,
                                    settings=mesh, strain_limit=st.strain_limit)
         worker.curve_done.connect(self._ep_curve_done)

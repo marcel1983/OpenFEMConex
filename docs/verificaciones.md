@@ -179,12 +179,18 @@ CalculiX y resuelve la 4E de la Guía de Diseño 4 con un momento de servicio.
 La curva momento-rotación (`end_plate_fem.moment_rotation`) es un modelo más con
 los pernos pretensados (par de fuerzas T_b en un primer paso, Tabla J3.1) y un
 momento solo hasta 1.5 veces el mayor de las combinaciones, en pasos de 5 %; la
-rotación es la del extremo de la viga menos su giro elástico M·L_c/EI. La
+rotación es la del extremo de la viga menos su giro elástico M·L_c/EI, medida
+respecto de la sección de la columna en el eje de la viga (con la zona de panel)
+o, con la opción `curve_connection_only`, respecto del ala sobre el alma entre
+las alas de la viga (solo la conexión); se calculan las dos y la otra queda como
+comparación. La
 conexión se clasifica con K_s·L/EI (comentario de AISC 360-22 §B3.4: FR ≥ 20,
 simple ≤ 2), con K_s secante en el momento de servicio (mayor ASD, o mayor LRFD
 / 1.5). En la 4E del ejemplo (`examples/placa_extremo.ocnx`, malla rápida) la
-curva tiene 20 puntos hasta 1349 kN·m, K_s·L/EI = 79 (FR) y 1161 kN·m a 0.02
-rad, frente a 1326 kN·m de la fluencia de la placa por líneas de fluencia.
+curva con la zona de panel tiene 15 puntos hasta 1012 kN·m a 18 mrad, con
+K_s·L/EI = 23 (FR); solo la conexión da K_s·L/EI = 72. La meseta viene de la
+fluencia del alma en la zona de panel, por debajo de los 1326 kN·m de la placa
+por líneas de fluencia.
 
 ## Pendiente
 

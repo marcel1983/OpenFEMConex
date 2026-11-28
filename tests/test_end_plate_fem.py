@@ -142,6 +142,10 @@ def test_curve_stiffness_and_classification():
     assert mr.moment_at(0.02) == pytest.approx(6e8 + 0.5e8 / 3)
     assert mr.M_ref == mr.moment_at(0.02)
     assert mr.M_max == 6.5e8 and mr.theta_max == 0.03
+    assert mr.alternate is None and mr.panel_zone
+    soft = [(2 * t, m) for t, m in pts]
+    mr2 = dataclasses.replace(mr, other=soft)
+    assert mr2.alternate.Ks == pytest.approx(0.5e11) and not mr2.alternate.panel_zone
     assert epf.MomentRotation(pts, 7e8, True, 2e5, EI, 3e8, 0.0).classification == "FR"
     assert epf.MomentRotation(pts, 7e8, True, 1000.0, EI, 3e8, 0.0).classification == "simple"
     combos = [epp.Combination("a", Method.LRFD, M=300e6), epp.Combination("b", Method.LRFD,
@@ -160,9 +164,10 @@ def test_curve_figure_and_report(tmp_path):
     results = epp.run(data, US)
     html = epp.report_html(data, results, US, {})
     assert "Curva momento-rotación" in html and "use Análisis › Resolver" in html
-    results.curve = mr
+    results.curve = dataclasses.replace(mr, other=[(2 * t, m) for t, m in pts])
     html = epp.report_html(data, results, US, {}, fem_figures={"curva": "c.png"})
     assert "c.png" in html and "parcialmente restringida (PR)" in html
+    assert "solo la conexión (comparación)" in html
 
 
 @pytest.mark.ccx
@@ -178,3 +183,7 @@ def test_moment_rotation_4e(tmp_path):
     assert all(t >= -1e-6 for t, _ in mr.points)
     assert mr.pretension > 0 and mr.Ks > 0
     assert mr.classification in ("FR", "PR")
+    # without the panel zone the connection is stiffer
+    alt = mr.alternate
+    assert alt is not None and not alt.panel_zone
+    assert alt.Ks >= mr.Ks
