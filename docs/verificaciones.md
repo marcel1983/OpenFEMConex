@@ -154,8 +154,26 @@ y el camino de las fuerzas con esquemas.
 
 Las pruebas (`tests/test_end_plate.py`) comprueban que los datos del proyecto
 llegan al motor sin cambios con el Ejemplo A de la Guía de Diseño 4 (4E) y el
-Ejemplo 6.3-2 de la Guía de Diseño 39 (4ES sísmica). Pendiente: interfaz, modelo
-CalculiX y curva momento-rotación.
+Ejemplo 6.3-2 de la Guía de Diseño 39 (4ES sísmica).
+
+El modelo CalculiX (`openfemconex.end_plate_fem`) lleva la placa sobre el modelo
+de placa base: la viga es la "columna" (tramo elástico de dos peraltes), la placa
+de extremo la "placa base" y el ala de la columna el "bloque", de acero
+elastoplástico, apoyado en el alma y en las placas de continuidad
+(`model.ColumnFlange`); los pernos son resortes solo a tracción entre la arandela
+y la tuerca detrás del ala, ajustados sin pretensión para las verificaciones (la
+pretensión de la Tabla J3.1 queda como opción del modelo, para la rigidez en
+servicio). Con sus resultados:
+
+| Verificación FEM | Criterio |
+|---|---|
+| Perno más cargado | Tracción con acción de palanca y cortante, F'nt de §J3.7 |
+| Placa, ala de la columna, rigidizadores | Deformación plástica equivalente media por elemento ≤ 5 % |
+| Soldaduras de filete | §J2.4; alas con la fuerza repartida en su ancho, alma en su punto más cargado |
+
+`tests/test_end_plate_fem.py` comprueba el modelo, la malla y el archivo de
+CalculiX y resuelve la 4E de la Guía de Diseño 4 con un momento de servicio.
+Pendiente: curva momento-rotación.
 
 ## Pendiente
 

@@ -4,8 +4,9 @@ Viga de acero soldada a una **placa de extremo** que se atornilla al **ala de
 una columna de acero** (eje fuerte). La conexión transmite momento, cortante y
 carga axial de la viga. Las verificaciones analíticas son las del motor de
 OpenConex (módulo `openconex.connections.moment`), que OpenFEMConex llama con
-los datos del proyecto (módulo `openfemconex.end_plate_project`). El modelo
-CalculiX y la curva momento-rotación se agregan sobre estos resultados.
+los datos del proyecto (módulo `openfemconex.end_plate_project`). Encima de
+estos resultados, un modelo CalculiX de la placa, los pernos y el ala de la
+columna da las fuerzas reales en los pernos y las deformaciones plásticas.
 
 Normas: AISC 360-22; resistencia de la placa y fuerzas en los pernos según AISC
 Design Guide 16 y Design Guide 4 (8ES); diseño sísmico según AISC 358-22
@@ -91,12 +92,42 @@ bloque no depende de las combinaciones (es LRFD) y aparece en el reporte como
 «AISC 358». Pide la luz libre de la viga entre caras de columna y, para la
 relación columna-viga, la carga axial de la columna.
 
+## Modelo CalculiX
+
+Resolver también arma un modelo de elementos finitos de cada combinación marcada
+en Cargas (módulo `openfemconex.end_plate_fem`):
+
+- **Viga**: un tramo de dos peraltes, elástico, que lleva las fuerzas a la
+  placa. La resistencia de la viga es del diseño del marco (y de AISC 358 si es
+  sísmica): una placa de extremo suele diseñarse para más que el momento
+  plástico de la viga.
+- **Placa de extremo y rigidizadores**: sólidos de acero elastoplástico,
+  soldados a la viga (nodos compartidos).
+- **Ala de la columna**: sólido de acero elastoplástico del espesor y ancho del
+  ala, sobre una longitud de columna, apoyado en su cara posterior a lo largo del
+  alma y de las placas de continuidad (apoyos rígidos: el modelo de las líneas
+  de fluencia del ala). La placa apoya en el ala por contacto sin fricción y sin
+  tracción.
+- **Pernos**: resortes axiales solo a tracción E·A/L sobre el agarre (placa más
+  ala), entre la arandela y la tuerca en la cara posterior del ala; toman el
+  cortante por aplastamiento. Para las verificaciones van ajustados sin
+  pretensión, como en los modelos de resistencia de las Guías de Diseño: la
+  fuerza que dan ya incluye la acción de palanca.
+
+Con el modelo se verifica el perno más cargado a tracción y cortante (§J3.6 y
+§J3.7), la deformación plástica de la placa, del ala de la columna y de los
+rigidizadores (límite 5 %) y las soldaduras de filete (las de las alas con la
+fuerza repartida en el ancho del ala). Una soldadura de penetración completa es
+tan resistente como la viga y no se verifica con el modelo. El alma de la
+columna y la zona de panel se verifican de forma analítica.
+
 ## Cargas y reporte
 
 Los casos de carga dan, en la cara de la columna: V, M y P de la viga (P
 positiva en compresión) y, si se revisa la zona de panel, Vc y Pc de la columna.
 Las combinaciones se generan con ASCE 7 en LRFD o ASD, o se escriben a mano.
 
-El reporte sigue el orden común: datos y cargas, verificaciones de cada
-combinación con su traza, el bloque sísmico, y al final el resumen, las
+El reporte sigue el orden común: datos y cargas y, para cada combinación,
+primero el modelo CalculiX (tablas de resultados, fuerzas en cada perno y
+gráficos) y después las verificaciones analíticas con su traza; el bloque sísmico, y al final el resumen, las
 recomendaciones, los requisitos de instalación y el alcance.

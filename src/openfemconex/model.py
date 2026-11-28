@@ -330,6 +330,26 @@ class FarPlate:
 
 
 @dataclass(frozen=True)
+class ColumnFlange:
+    """The block is the flange of a steel column (moment end plate).
+
+    The block is then of steel (``steel``, elastic-plastic), as deep as the flange
+    thickness, and the rods are bolts whose nuts bear on its far face (z = -H). The
+    flange is held on its far face along the column web (|y| ≤ ``web``/2) and along
+    each continuity plate (|x − x_c| ≤ t/2): the web and the plates are taken as rigid
+    supports, which is the model of the column flange yield lines.
+    """
+
+    steel: Steel
+    web: float
+    """Thickness of the column web [mm]."""
+    stiffeners: tuple[tuple[float, float], ...] = ()
+    """(x of its centre, thickness) of each continuity plate [mm]."""
+    pretension: float = 0.0
+    """Bolt pretension [N]: the spring law starts with this force (0 = snug tight)."""
+
+
+@dataclass(frozen=True)
 class BasePlateModel:
     section: Section
     column_steel: Steel
@@ -371,11 +391,18 @@ class BasePlateModel:
     """Second column (beam) with its plate on the far face, on the same rods: its plate
     and column are the mirror image below the block (through-bolt connection with an
     opposite beam). Its anchors and concrete are those of this model."""
+    flange: ColumnFlange | None = None
+    """The block is a steel column flange (moment end plate): see ColumnFlange."""
 
     @property
     def two_faces(self) -> bool:
         """The rods cross the block to a plate on its far face (block held at its ends)."""
         return self.far is not None or self.opposite is not None
+
+    @property
+    def free_nuts(self) -> bool:
+        """The rod ends are nuts on a deformable part (not fixed to the ground)."""
+        return self.two_faces or self.flange is not None
 
     @property
     def Lc(self) -> float:
@@ -421,3 +448,5 @@ class BasePlateModel:
                     for a, b in zip(o.anchors, self.anchors, strict=True)):
                 raise ValueError("the opposite plate must have the same anchors")
             replace(o, concrete=self.concrete).validate()
+        if self.flange is not None and self.two_faces:
+            raise ValueError("a column flange has no far plate")

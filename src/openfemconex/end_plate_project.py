@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -470,12 +471,58 @@ def _loads_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSys
     ]
 
 
+def _fem_blocks(side, units: UnitSystem, figures: dict | None = None,
+                figure_base: str = "") -> list:
+    """Results, bolt forces, figures and checks of the CalculiX model of one combination
+    (``end_plate_fem.FemSide``)."""
+    from openconex.report.builder import fmt
+
+    from openfemconex.report import _checks_block
+
+    res = side.results
+    F, S = Kind.FORCE, Kind.STRESS
+    blocks: list = [("h3", "Modelo CalculiX")]
+    if not res.converged:
+        blocks.append(("p", f"El análisis no convergió: llegó al {100 * res.load_fraction:.0f} "
+                            "% de la carga. Los resultados son los del último incremento "
+                            "resuelto.", "ng"))
+    T_max = max((a.tension for a in res.anchors), default=0.0)
+    rows = [
+        ["Tracción total en los pernos", fmt(res.anchor_tension_total, F, units)],
+        ["Tracción del perno más cargado (con acción de palanca)", fmt(T_max, F, units)],
+        ["Compresión de la placa sobre el ala de la columna", fmt(res.bearing_force, F, units)],
+        ["Presión de contacto máxima", fmt(res.bearing_pressure_max, S, units)],
+        ["von Mises máximo en la placa", fmt(res.plate_von_mises_max, S, units)],
+        ["Deformación plástica de la placa (media por elemento)",
+         f"{100 * res.plate_peeq_element:.2f} %"],
+        ["von Mises máximo en el ala de la columna", fmt(res.flange_von_mises_max, S, units)],
+        ["Deformación plástica del ala de la columna (media por elemento)",
+         f"{100 * res.flange_peeq_element:.2f} %"],
+    ]
+    if side.model.stiffeners:
+        rows.append(["Deformación plástica de los rigidizadores (media por elemento)",
+                     f"{100 * res.stiffener_peeq_element:.2f} %"])
+    blocks.append(("table", ["Resultado", "FEM"], rows, {1}))
+    bolts = [[f"{a.x:.0f}", f"{a.y:.0f}", fmt(a.tension, F, units),
+              fmt(math.hypot(a.Vx, a.Vy), F, units)] for a in res.anchors]
+    blocks.append(("table", ["x [mm]", "y [mm]", "Tracción", "Cortante"], bolts, {2, 3}))
+    vtu = side.vtu
+    figs = [(c, f"{figure_base}{f}") for c, f in (figures or {}).get(
+        vtu.name if vtu is not None else "", []) if f]
+    if figs:
+        blocks.append(("figs", "Resultados del modelo", figs, False))
+    blocks += [("h3", "Verificaciones con demandas del FEM"), _checks_block(side.checks, units)]
+    return blocks
+
+
 def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSystem,
                   info: dict[str, Any], figures: str = "", figure_base: str = "",
-                  picture: bool = False) -> list:
+                  picture: bool = False, fem_figures: dict | None = None) -> list:
     """Calculation report of one connection, as the blocks of ``openfemconex.report``:
-    data, loads, then for each combination the checks and their traces, the AISC 358
-    block, and the common closing (summary, recommendations, installation, scope)."""
+    data, loads, then for each combination the CalculiX model (when solved), the
+    analytic checks and their traces, the AISC 358 block, and the common closing
+    (summary, recommendations, installation, scope). ``fem_figures`` are those of
+    ``scenes.render_through_bolt_figures``."""
     from openfemconex.end_plate_advice import installation_notes, limitations, recommendations
     from openfemconex.report import (
         _checks_block,
@@ -491,6 +538,13 @@ def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSys
     norms = "AISC 360-22, AISC Design Guide 16 y Design Guide 4"
     if seismic:
         norms += ", AISC 358-22 y AISC 341-22"
+    fem_figures = fem_figures or {}
+    solved = any(r.fem for r in results.combos)
+    method = ("Modelo de elementos finitos con CalculiX (viga elástica, placa y ala de la "
+              "columna elastoplásticas, contacto placa-ala, pernos solo a tracción) y "
+              "verificaciones analíticas." if solved else
+              "Cálculo analítico (sin modelo de elementos finitos: resuelva con CalculiX "
+              "para agregarlo).")
     live = [x for x in results.all_checks() if x.applicable]
     worst = max(live, key=lambda x: x.ratio, default=None)
     blocks: list = [
@@ -503,8 +557,7 @@ def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSys
                    ("Revisión", str(info.get("revision", ""))),
                    ("Normas", norms),
                    ("Fecha", str(info.get("date") or dt.date.today().isoformat()))]),
-        ("p", "Cálculo analítico (sin modelo de elementos finitos: resuelva con CalculiX "
-              "para agregarlo).", "note"),
+        ("p", method, "note"),
         ("verdict", results.ok, f". Rige: {check_title(worst)} ({worst.combo}), ratio "
                                 f"{worst.ratio:.2f}." if worst else "."),
         ("h2", "Datos"),
@@ -517,12 +570,27 @@ def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSys
         blocks.append(("figs", "Esquemas", [
             ("Cómo viaja la fuerza", f"{figures}/placa_extremo_fuerzas.png"),
             ("Estados límite de la columna", f"{figures}/placa_extremo_columna.png")], False))
+    if fem_figures.get(""):
+        blocks.append(("figs", "Modelo de elementos finitos",
+                       [(c, f"{figure_base}{f}") for c, f in fem_figures[""] if f], False))
     blocks += _loads_blocks(data, results, units, mc.panel_zone)
     for r in results.combos:
-        blocks += [("h2", f"Combinación {r.combo.name} ({r.combo.method.value})"),
-                   ("h3", "Verificaciones analíticas"),
+        c = r.combo
+        blocks += [("h2", f"Combinación {c.name} ({c.method.value})"),
+                   ("p", f"V = {c.V / 1e3:.0f} kN, M = {c.M / 1e6:.0f} kN·m, "
+                         f"P = {c.P / 1e3:.0f} kN.", "")]
+        if r.worst:
+            blocks.append(("verdict", r.ok, f" · rige: {check_title(r.worst)} "
+                                            f"(ratio {r.worst.ratio:.2f})"))
+        for side in r.fem:
+            blocks += _fem_blocks(side, units, fem_figures, figure_base)
+        if not r.fem:
+            blocks.append(("p", "Esta combinación no se resolvió con CalculiX: solo tiene "
+                                "las verificaciones analíticas.", "note"))
+        blocks += [("h3", "Verificaciones analíticas"),
                    _checks_block(r.checks, units),
-                   _traces_block(r.checks, units)]
+                   ("h3", "Traza de cálculo"),
+                   _traces_block(r.all_checks, units)]
     if seismic:
         blocks += [
             ("h2", "Diseño sísmico (AISC 358-22 y AISC 341-22)"),
@@ -531,7 +599,8 @@ def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSys
             _checks_block(results.seismic, units),
             _traces_block(results.seismic, units),
         ]
-    rows = [[r.combo.name, "No", "—", governing(r.checks),
+    rows = [[r.combo.name, "Sí" if r.fem else "No",
+             governing([x for side in r.fem for x in side.checks]), governing(r.checks),
              "Cumple" if r.ok else "No cumple"] for r in results.combos]
     if seismic:
         ok = all(c.status.value != "ng" for c in results.seismic)
@@ -545,21 +614,21 @@ def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSys
 
 def report_html(data: dict[str, Any], results: EndPlateResults, units: UnitSystem,
                 info: dict[str, Any], figures: str = "", figure_base: str = "",
-                picture: bool = False) -> str:
+                picture: bool = False, fem_figures: dict | None = None) -> str:
     """Calculation report as HTML (see ``report_blocks``)."""
     from openfemconex.report import blocks_to_html
 
     return blocks_to_html(report_blocks(data, results, units, info, figures, figure_base,
-                                        picture))
+                                        picture, fem_figures))
 
 
 def report_docx(path, figure_dir, data: dict[str, Any], results: EndPlateResults,
                 units: UnitSystem, info: dict[str, Any], figures: str = "",
-                picture: bool = False):
+                picture: bool = False, fem_figures: dict | None = None):
     """Editable Word report with the same content."""
     from openfemconex.report_docx import write_docx
 
-    blocks = report_blocks(data, results, units, info, figures, "", picture)
+    blocks = report_blocks(data, results, units, info, figures, "", picture, fem_figures)
     return write_docx(blocks, path, figure_dir)
 
 

@@ -705,9 +705,9 @@ class MainWindow(EndPlateWindow, QMainWindow):
         self.log.appendPlainText(tr("{name}: resolviendo con CalculiX…", name=name))
         self.solve_progress.combo_started(name, Path(sta))
 
-    def _tb_combo_done(self, name: str, sides: list) -> None:
+    def _tb_combo_done(self, name: str, sides: list, editor=None) -> None:
         units = self.state.units
-        self.tb.attach_fem(name, sides)
+        (editor or self.tb).attach_fem(name, sides)
         res = sides[0].results if sides else None
         checks = [c for s in sides for c in s.checks if c.applicable]
         worst = max(checks, key=lambda r: r.ratio, default=None)
@@ -1374,6 +1374,8 @@ class MainWindow(EndPlateWindow, QMainWindow):
     def stop(self) -> None:
         if getattr(self, "tb_worker", None) is not None:
             self.stop_tb()
+        if getattr(self, "ep_worker", None) is not None:
+            self.stop_ep()
         if self.worker is not None:
             self.worker.cancel.set()
             self.log.appendPlainText(tr("Deteniendo CalculiX…"))
@@ -1393,7 +1395,8 @@ class MainWindow(EndPlateWindow, QMainWindow):
         self.solve_progress.combo_started(name, sta)
 
     def _poll_progress(self) -> None:
-        if self.worker is None and getattr(self, "tb_worker", None) is None:
+        if self.worker is None and getattr(self, "tb_worker", None) is None \
+                and getattr(self, "ep_worker", None) is None:
             return
         if not self.solve_progress.isVisible():
             self.solve_progress.poll()
@@ -1612,9 +1615,10 @@ class MainWindow(EndPlateWindow, QMainWindow):
         if self.worker is not None:
             self.worker.cancel.set()
             self.worker.wait(5000)
-        if getattr(self, "tb_worker", None) is not None:
-            self.tb_worker.cancel.set()
-            self.tb_worker.wait(5000)
+        for name in ("tb_worker", "ep_worker"):
+            if getattr(self, name, None) is not None:
+                getattr(self, name).cancel.set()
+                getattr(self, name).wait(5000)
         if not self._confirm_discard():
             event.ignore()
             return

@@ -32,7 +32,8 @@ import numpy as np
 from openfemconex.mesh import FACE_BOTTOM, FACE_TOP, Mesh
 from openfemconex.model import BasePlateModel, Loads
 
-__all__ = ["AnchorStiffness", "InpNumbering", "anchor_stiffness", "write_inp"]
+__all__ = ["AnchorStiffness", "InpNumbering", "anchor_stiffness", "rod_force",
+           "write_inp"]
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,13 @@ def anchor_stiffness(model: BasePlateModel) -> AnchorStiffness:
     k_lat = 12 * a.E * a.inertia / lb**3
     return AnchorStiffness(axial=k, compression=k if a.leveling_nuts else 1e-3 * k,
                            lateral=k_lat, length=L)
+
+
+def rod_force(model: BasePlateModel, ks: AnchorStiffness, elongation: float) -> float:
+    """Axial force of a rod with free nuts from its elongation (the spring law)."""
+    T0 = model.flange.pretension if model.flange is not None else 0.0
+    d = elongation + T0 / ks.axial
+    return ks.axial * d if d > 0 else ks.compression * d
 
 
 @dataclass(frozen=True)
@@ -202,7 +210,7 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             # on one translation would add a spurious couple to the model. With a far
             # plate the node is its nut, on the same line along z.
             z = (-c.H - far.thickness if far is not None else -c.H - opp.tp if opp is not None
-                 else model.tp)
+                 else -c.H if model.flange is not None else model.tp)
             f.write(f"{nid}, {a.x:.6f}, {a.y:.6f}, {z:.6f}\n")
 
         # ---- solid elements ----
@@ -216,6 +224,8 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         _nset(f, "CONCBOT", mesh.concrete_bottom_nodes)
         if model.two_faces:
             _nset(f, "CONCENDS", mesh.concrete_end_nodes)
+        if model.flange is not None:
+            _nset(f, "FLANGEHELD", mesh.flange_held_nodes)
         if opp is not None:
             _nset(f, "COLTOP2", mesh.opposite.column_top_nodes)
         _nset(f, "FOOTPRINT", mesh.footprint_nodes)
@@ -225,7 +235,11 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         cs, ps = model.column_steel, model.plate_steel
         _material(f, "COLSTEEL", cs.E, cs.nu, cs.plastic_curve())
         _material(f, "PLATESTEEL", ps.E, ps.nu, ps.plastic_curve())
-        _material(f, "CONCRETE", c.E, c.nu)
+        if model.flange is not None:
+            fs = model.flange.steel
+            _material(f, "CONCRETE", fs.E, fs.nu, fs.plastic_curve())
+        else:
+            _material(f, "CONCRETE", c.E, c.nu)
         f.write("*SOLID SECTION, ELSET=COLUMN, MATERIAL=COLSTEEL\n")
         f.write("*SOLID SECTION, ELSET=PLATE, MATERIAL=PLATESTEEL\n")
         f.write("*SOLID SECTION, ELSET=CONCRETE, MATERIAL=CONCRETE\n")
@@ -293,8 +307,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         tied = list(zip(anchor_ref, mesh.washer_nodes, mesh.washer_weights)) + [
             (base, wn - down, ww)
             for base, wn, ww in zip(anchor_base, mesh.washer_nodes, mesh.washer_weights)]
-        if model.two_faces:
-            # the nut on the far plate: its node follows the plate face under it
+        if model.free_nuts:
+            # the nut on the far plate (or on the column flange): its node follows the
+            # face under it
             tied += list(zip(anchor_ground, mesh.far_washer_nodes, mesh.far_washer_weights))
         for ref, wn, ww in tied:
             for dof in (1, 2, 3):
@@ -318,7 +333,14 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         # 0.005 mm on each side of zero: it stops Newton from chattering when a rod
         # starts to work under moment, but it hinders pure uplift, so it is the retry.
         kt, kc, width = ks.axial, ks.compression, 0.005
-        if knee and kc < 0.01 * kt:
+        T0 = model.flange.pretension if model.flange is not None else 0.0
+        if T0 > 0:
+            # pretensioned bolt: it pulls with T0 at zero elongation and goes slack when
+            # the plies are pushed apart by T0/kt
+            d0 = -T0 / kt
+            f.write(f"{-kc * (X + d0):.6e}, {-X:.6e}\n0., {d0:.6e}\n"
+                    f"{T0 + kt * X:.6e}, {X:.6e}\n")
+        elif knee and kc < 0.01 * kt:
             f_neg = -0.01 * kt * width
             f_pos = 0.1 * kt * width
             f.write(f"{f_neg - kc * (X - width):.6e}, {-X:.6e}\n{f_neg:.6e}, {-width:.6e}\n"
@@ -372,7 +394,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             f.write(f"*RIGID BODY, NSET=COLTOP2, REF NODE={load_ref2}, ROT NODE={load_rot2}\n")
 
         # ---- boundary conditions ----
-        if not model.two_faces:
+        if model.flange is not None:
+            f.write("*BOUNDARY\nFLANGEHELD, 1, 3\n")
+        elif not model.two_faces:
             f.write("*BOUNDARY\nCONCBOT, 1, 3\nANCHORGND, 1, 3\n")
         else:
             f.write("*BOUNDARY\nCONCENDS, 1, 3\n")
@@ -414,6 +438,8 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                 prints.append(("LUGNODES", "U"))
             if model.two_faces:
                 prints += [("ANCHORGND", "U"), ("CONCENDS", "RF")]
+            elif model.flange is not None:
+                prints += [("ANCHORGND", "U"), ("FLANGEHELD", "RF")]
             if opp is not None:
                 prints.append(("LOADNODES2", "U"))
             for nset, key in prints:

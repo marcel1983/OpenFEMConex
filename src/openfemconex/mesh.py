@@ -88,6 +88,8 @@ class Mesh:
     far_top_area: np.ndarray = field(default_factory=lambda: np.zeros(0))
     concrete_end_nodes: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
     """Block nodes at its ends x = ±N/2, held when there is a far plate."""
+    flange_held_nodes: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
+    """Far-face nodes of a column flange over its web and continuity plates (held)."""
     opposite: Mesh | None = None
     """With an opposite column: its plate and column, in this mesh's numbering (parts
     PLATE, COLUMN, STIFFENER mean PLATE2, COLUMN2, STIFFENER2 here)."""
@@ -469,12 +471,27 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
     # --- concrete: structured grid -------------------------------------------
     c = model.concrete
     base_k = next_id - 1
-    nx = max(4, math.ceil(c.N / st.concrete_size))
-    ny = max(4, math.ceil(c.B / st.concrete_size))
-    gx = np.linspace(-c.N / 2, c.N / 2, nx + 1)
-    gy = np.linspace(-c.B / 2, c.B / 2, ny + 1)
-    gz = (_graded_both(c.H, st.concrete_layers + 4) if model.two_faces
-          else _graded(c.H, st.concrete_layers))
+    cf = model.flange
+    if cf is not None:
+        # a steel column flange: finer, with grid lines on the web and the continuity
+        # plates (held there) and around the nuts on its far face
+        r = model.anchor.washer / 2
+        size = 1.5 * st.size_fine
+        gx = _lines(-c.N / 2, c.N / 2, size,
+                    [a.x + f * r for a in model.anchors for f in (-1, -0.5, 0, 0.5, 1)]
+                    + [v for xc, t in cf.stiffeners for v in (xc - t / 2, xc + t / 2)])
+        gy = _lines(-c.B / 2, c.B / 2, size,
+                    [a.y + f * r for a in model.anchors for f in (-1, -0.5, 0, 0.5, 1)]
+                    + [-cf.web / 2, cf.web / 2])
+        gz = np.linspace(-c.H, 0.0, max(3, st.plate_layers - 1) + 1)
+        nx, ny = len(gx) - 1, len(gy) - 1
+    else:
+        nx = max(4, math.ceil(c.N / st.concrete_size))
+        ny = max(4, math.ceil(c.B / st.concrete_size))
+        gx = np.linspace(-c.N / 2, c.N / 2, nx + 1)
+        gy = np.linspace(-c.B / 2, c.B / 2, ny + 1)
+        gz = (_graded_both(c.H, st.concrete_layers + 4) if model.two_faces
+              else _graded(c.H, st.concrete_layers))
     X, Y, Z = np.meshgrid(gx, gy, gz, indexing="ij")
     nodes.append(np.column_stack([X.ravel(), Y.ravel(), Z.ravel()]))
 
@@ -489,6 +506,32 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
     conc_top = np.nonzero(K == len(gz) - 2)[0]
     gi, gj = np.meshgrid(np.arange(nx + 1), np.arange(ny + 1), indexing="ij")
     conc_bottom = kid(gi.ravel(), gj.ravel(), 0)
+    flange_sets = {}
+    if cf is not None:
+        gi, gj = gi.ravel(), gj.ravel()
+        bx, by = gx[gi], gy[gj]
+        held = np.abs(by) <= cf.web / 2 + 1e-6
+        for xc, t in cf.stiffeners:
+            held |= np.abs(bx - xc) <= t / 2 + 1e-6
+        wx = np.zeros(len(gx))
+        wx[:-1] += np.diff(gx) / 2
+        wx[1:] += np.diff(gx) / 2
+        wy = np.zeros(len(gy))
+        wy[:-1] += np.diff(gy) / 2
+        wy[1:] += np.diff(gy) / 2
+        area_b = wx[gi] * wy[gj]
+        nut_nodes, nut_weights = [], []
+        for a in model.anchors:
+            # the nut on the far face, spread over its bearing area (the flange is
+            # meshed without the hole)
+            d = np.hypot(bx - a.x, by - a.y)
+            sel = d <= r + 1e-6
+            if sel.sum() < 4:
+                sel = np.argsort(d)[:4]
+            nut_nodes.append(kid(gi[sel], gj[sel], 0))
+            nut_weights.append(area_b[sel] / area_b[sel].sum())
+        flange_sets = dict(far_washer_nodes=nut_nodes, far_washer_weights=nut_weights,
+                           flange_held_nodes=kid(gi[held], gj[held], 0))
     far = None
     first_far = base_k + 1 + len(X.ravel())
     if model.far is not None:
@@ -604,4 +647,5 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
         **({} if not model.two_faces else dict(
             concrete_bottom_elements=first["CONCRETE"] + np.nonzero(K == 0)[0],
             concrete_end_nodes=conc_ends)),
+        **flange_sets,
     )

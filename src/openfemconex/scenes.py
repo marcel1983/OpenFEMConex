@@ -419,6 +419,8 @@ def _rods(plotter, model: BasePlateModel, color: str = "#b5651d") -> None:
     # through-bolts: across the block to the nut on the far plate
     far_t = (model.far.thickness if model.far is not None
              else model.opposite.tp if model.opposite is not None else None)
+    if far_t is None and model.flange is not None:
+        far_t = 0.0  # the nut bears on the back of the column flange
     if far_t is not None:
         H = model.concrete.H
         bottom = -H - far_t - 1.6 * a.diameter
@@ -576,8 +578,10 @@ def draw_model(plotter, model: BasePlateModel, mesh: Mesh, edges: bool = False,
         if part not in present:
             continue
         surface = grid.threshold([part - 0.5, part + 0.5], scalars="part").extract_surface()
-        plotter.add_mesh(surface, color=color, show_edges=edges, edge_color="#3a3a3a",
-                         line_width=0.4, opacity=0.45 if part == 3 else 1.0)
+        steel_block = part == 3 and model.flange is not None  # column flange
+        plotter.add_mesh(surface, color="#a9b7c8" if steel_block else color,
+                         show_edges=edges, edge_color="#3a3a3a", line_width=0.4,
+                         opacity=0.45 if part == 3 and not steel_block else 1.0)
         if not edges:
             plotter.add_mesh(surface.extract_feature_edges(feature_angle=40), color="#2b2b2b",
                              line_width=1.2)
@@ -609,7 +613,9 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
            "height": 0.5, "width": 0.06, "title_font_size": 14, "label_font_size": 12,
            "color": STYLE["text"], "n_labels": 5, "fmt": "%.3g"}
     part = grid.cell_data["part"]
-    steel = grid.extract_cells(np.nonzero(part != 3)[0])
+    # a steel column flange (moment end plate) is drawn with its results like the rest
+    flange = model.flange is not None
+    steel = grid.extract_cells(np.nonzero(part != 3)[0]) if not flange else grid
     concrete = grid.threshold([2.5, 3.5], scalars="part")
     if name == "CPRESS":
         # cells above or below the middle of the concrete block: each face on its own
@@ -631,7 +637,8 @@ def draw_results(plotter, vtu: str | Path, model: BasePlateModel, results: Resul
         warped = steel.warp_by_vector("U", factor=scale)
         plotter.add_mesh(warped, scalars=name, cmap=cmap, scalar_bar_args=bar,
                          show_edges=True, edge_color="#404040", line_width=0.2)
-        plotter.add_mesh(concrete.extract_surface(), color=COLORS[3], opacity=0.3)
+        if not flange:
+            plotter.add_mesh(concrete.extract_surface(), color=COLORS[3], opacity=0.3)
         _rods(plotter, model)
         _lug(plotter, model)
         _rebar(plotter, model)
@@ -660,8 +667,10 @@ def draw_solved_model(plotter, vtu: str | Path, model: BasePlateModel, edges: bo
         if part not in present:
             continue
         surface = grid.threshold([part - 0.5, part + 0.5], scalars="part").extract_surface()
-        plotter.add_mesh(surface, color=color, show_edges=edges, edge_color="#3a3a3a",
-                         line_width=0.4, opacity=0.45 if part == 3 else 1.0)
+        steel_block = part == 3 and model.flange is not None  # column flange
+        plotter.add_mesh(surface, color="#a9b7c8" if steel_block else color,
+                         show_edges=edges, edge_color="#3a3a3a", line_width=0.4,
+                         opacity=0.45 if part == 3 and not steel_block else 1.0)
         if not edges:
             plotter.add_mesh(surface.extract_feature_edges(feature_angle=40), color="#2b2b2b",
                              line_width=1.2)
@@ -818,16 +827,20 @@ def render_through_bolt_figures(out: str | Path, sides: list, *, far_caption: st
             stem = "fem_" + "".join(ch if ch.isalnum() else "_" for ch in vtu.stem)
             two = m.far is not None or m.opposite is not None
             plate = tr("placa de extremo") + (tr(" de la viga 1") if m.opposite else "")
-            vm = max(r.plate_von_mises_max, r.far_von_mises_max)
+            vm = max(r.plate_von_mises_max, r.far_von_mises_max, r.flange_von_mises_max)
             entries = [
                 ("von Mises", "", tr("Esfuerzo de von Mises (deformada × {s}): máx. {v} MPa",
                                      s=f"{scale:g}", v=f"{vm:.0f}")),
                 ("Deformación plástica", "",
                  tr("Deformación plástica equivalente: máx. {p} %",
-                    p=f"{100 * max(r.plate_peeq_max, r.far_peeq_element):.2f}")),
+                    p=f"{100 * max(r.plate_peeq_max, r.far_peeq_element,
+                                   r.flange_peeq_element):.2f}")),
                 ("Desplazamiento", "", tr("Desplazamiento total (deformada × {s})",
                                           s=f"{scale:g}")),
                 ("Presión de contacto", "front",
+                 tr("Presión de contacto de la placa de extremo sobre el ala de la columna: "
+                    "máx. {p} MPa", p=f"{r.bearing_pressure_max:.1f}")
+                 if m.flange is not None else
                  tr("Presión de contacto de la {plate} sobre el concreto: máx. {p} MPa",
                     plate=plate, p=f"{r.bearing_pressure_max:.1f}")),
             ]
