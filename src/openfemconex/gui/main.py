@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import sys
 from html import escape
 from pathlib import Path
@@ -489,6 +490,8 @@ class MainWindow(QMainWindow):
         g.add_button("Abrir", icon("browser"), self.open_tb_report,
                      "Abre el reporte completo en el navegador")
         g.add_button("Exportar PDF", icon("pdf"), self.export_tb_pdf)
+        g.add_button("Exportar Word", icon("report"), self.export_tb_docx,
+                     "Reporte editable en Word (.docx), con los mismos gráficos")
         g = tab("Identificación")
         g.add_button("Ficha", icon("info"), lambda: self.show_tb_page("Identificación"),
                      "Nombre de la conexión; el proyecto, cliente e ingeniero son los del "
@@ -801,19 +804,31 @@ class MainWindow(QMainWindow):
                                         "{error}", error=error))
         return figures
 
+    def _tb_figures(self, folder: Path) -> tuple[bool, dict]:
+        """Render the 3D picture and the FEM figures into ``folder``: (picture made,
+        FEM figures)."""
+        picture = bool(self._tb_picture(folder))
+        return picture, self._tb_fem_figures(folder)
+
     def _tb_report(self, folder: Path) -> str:
-        base = self._tb_picture(folder)
-        picture = bool(base)
-        figures = self._tb_fem_figures(folder)
-        if figures and not base:
-            base = QUrl.fromLocalFile(str(folder)).toString() + "/"
+        """HTML for the PDF: images by absolute file URL (QTextDocument)."""
+        picture, figures = self._tb_figures(folder)
+        base = QUrl.fromLocalFile(str(folder.resolve())).toString() + "/"
         return self.tb.report_html(figure_base=base, fem_figures=figures, picture=picture)
 
     def generate_tb_report(self) -> Path | None:
         if not self._tb_report_ready():
             return None
         folder = self._tb_report_dir()
-        html = self._tb_report(folder)
+        picture, figures = self._tb_figures(folder)
+        # the HTML names its images relative to its own folder, so that a browser finds
+        # them and the folder can be moved or sent; the help diagrams are copied there
+        help_dir = folder / "esquemas"
+        help_dir.mkdir(exist_ok=True)
+        for png in Path(self.tb.help_dir()).glob("*.png"):
+            shutil.copy2(png, help_dir / png.name)
+        html = self.tb.report_html(figure_base="", help_figures="esquemas",
+                                   fem_figures=figures, picture=picture)
         path = folder / "reporte.html"
         path.write_text(html, encoding="utf-8")
         self.status_label.setText(tr("Reporte escrito en {path}", path=path))
@@ -822,7 +837,23 @@ class MainWindow(QMainWindow):
     def open_tb_report(self) -> None:
         path = self.generate_tb_report()
         if path is not None:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
+
+    def export_tb_docx(self, path: str | None = None) -> Path | None:
+        if not self._tb_report_ready():
+            return None
+        folder = self._tb_report_dir()
+        if not path:
+            default = str(folder / "reporte.docx")
+            path, _ = QFileDialog.getSaveFileName(self, tr("Exportar Word"), default,
+                                                  "Word (*.docx)")
+        if not path:
+            return None
+        picture, figures = self._tb_figures(folder)
+        out = self.tb.report_docx(Path(path), folder, fem_figures=figures, picture=picture)
+        self.log.appendPlainText(tr("Word escrito en {path}", path=out))
+        self.status_label.setText(tr("Word escrito en {path}", path=out))
+        return out
 
     def export_tb_pdf(self, path: str | None = None) -> Path | None:
         if not self._tb_report_ready():

@@ -412,7 +412,9 @@ class ProjectState(QObject):
 
     def output_dir(self) -> Path:
         if self.path is not None:
-            return self.path.with_name(self.path.stem + "_fem")
+            # absolute: the reports point at their images with file URLs
+            path = self.path.resolve()
+            return path.with_name(path.stem + "_fem")
         if self._tmp is None:
             self._tmp = tempfile.TemporaryDirectory(prefix="openfemconex_")
         return Path(self._tmp.name)

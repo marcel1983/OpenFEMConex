@@ -706,6 +706,8 @@ EN: dict[str, str] = {
     "Desplazamiento total (deformada × {s})": "Total displacement (deformation × {s})",
     "Presión de contacto bajo la placa": "Contact pressure under the plate",
     "Presión de contacto en la cara opuesta": "Contact pressure on the far face",
+    "Reporte editable en Word (.docx), con los mismos gráficos":
+        "Editable Word report (.docx) with the same figures",
     "Modelo de elementos finitos (vista isométrica)": "Finite element model (isometric view)",
     "Malla de elementos finitos (vista isométrica)": "Finite element mesh (isometric view)",
     "Esfuerzo de von Mises (deformada × {s}): máx. {v} MPa":

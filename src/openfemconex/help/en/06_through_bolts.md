@@ -137,7 +137,7 @@ the data of the first example. When it is selected in the tree:
 - **Results** (Analysis tab): combination, beam and field (von Mises, plastic
   strain, displacement, contact pressure of the end plate and **contact pressure
   on the far face**: back plate or end plate of beam 2).
-- **Report**: HTML or PDF, in the same order as the base plate report: data, 3D
+- **Report**: HTML, PDF or Word (.docx, editable), in the same order as the base plate report: data, 3D
   view, the diagrams of this topic, isometric views of the CalculiX model and
   its mesh, loads; for each combination the FEM results (table compared with the
   analytic model, bolt forces, plots of von Mises stress, plastic strain,
