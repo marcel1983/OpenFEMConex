@@ -178,6 +178,14 @@ def _beam_labels() -> list[str]:
 class TBForm(QWidget):
     """One page of fields of the current connection."""
 
+    TOGGLES: dict[str, tuple[str, str, dict[str, Any]]] = {
+        "Viga opuesta": ("opposite", "Hay una viga del otro lado (conexión opuesta)",
+                         tbp.OPPOSITE),
+    }
+    """Pages with a check box that switches an optional block on (its key, the text
+    and the block written when it is switched on)."""
+    NOTES: dict[str, str] = NOTES
+
     def __init__(self, editor: ThroughBoltEditor, title: str, fields: list[TBField]) -> None:
         super().__init__()
         self.editor = editor
@@ -187,9 +195,11 @@ class TBForm(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(f"<b>{tr(title)}</b>"))
         self.toggle: QCheckBox | None = None
-        if title == "Viga opuesta":
-            self.toggle = QCheckBox(tr("Hay una viga del otro lado (conexión opuesta)"))
-            self.toggle.toggled.connect(self._opposite_toggled)
+        self.block = ""
+        if title in self.TOGGLES:
+            self.block, text, self._default = self.TOGGLES[title]
+            self.toggle = QCheckBox(tr(text))
+            self.toggle.toggled.connect(self._block_toggled)
             layout.addWidget(self.toggle)
         form = QFormLayout()
         layout.addLayout(form)
@@ -198,8 +208,8 @@ class TBForm(QWidget):
             w.setToolTip(tr(f.tip))
             self.widgets[f.path] = w
             form.addRow(tr(f.label), w)
-        if title in NOTES:
-            note = QLabel(tr(NOTES[title]))
+        if title in self.NOTES:
+            note = QLabel(tr(self.NOTES[title]))
             note.setWordWrap(True)
             note.setStyleSheet("color: palette(mid);")
             layout.addWidget(note)
@@ -249,20 +259,20 @@ class TBForm(QWidget):
             value = with_unit(value, f.quantity_kind(), self.editor.state.units)
         self.editor.update(f.path, value)
 
-    def _opposite_toggled(self, on: bool) -> None:
+    def _block_toggled(self, on: bool) -> None:
         if not self._loading:
-            self.editor.update(("opposite",), copy.deepcopy(tbp.OPPOSITE) if on else None)
+            self.editor.update((self.block,), copy.deepcopy(self._default) if on else None)
 
     def refresh(self, data: dict[str, Any]) -> None:
         self._loading = True
         try:
             if self.toggle is not None:
-                self.toggle.setChecked(bool(data.get("opposite")))
+                self.toggle.setChecked(bool(data.get(self.block)))
             for f in self.fields:
                 value = _get(data, f.path)
                 w = self.widgets[f.path]
                 if self.toggle is not None:
-                    w.setEnabled(bool(data.get("opposite")))
+                    w.setEnabled(bool(data.get(self.block)))
                 if isinstance(w, QComboBox):
                     if f.kind == "choice":
                         w.setCurrentIndex(max(0, w.findData(value)))
@@ -394,6 +404,12 @@ class ThroughBoltEditor(QObject):
     """The data of the connection changed (the 3D view follows)."""
     results_changed = Signal()
 
+    PAGES: dict[str, list[TBField]] = PAGES
+    """Pages of data fields; another connection type gives its own (and ``FORM``,
+    ``LOADS``)."""
+    FORM: type = TBForm
+    LOADS: type = TBLoadsPanel
+
     def __init__(self, state: ProjectState) -> None:
         super().__init__()
         self.state = state
@@ -403,14 +419,15 @@ class ThroughBoltEditor(QObject):
         self.error = ""
         self.stale = False
         self._edition = ""
-        self.forms = {name: TBForm(self, name, fields) for name, fields in PAGES.items()}
+        self.forms = {name: self.FORM(self, name, fields)
+                      for name, fields in self.PAGES.items()}
         self.pages: dict[str, QScrollArea] = {}
         for name, form in self.forms.items():
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setWidget(form)
             self.pages[name] = scroll
-        self.combinations = TBLoadsPanel(self)
+        self.combinations = self.LOADS(self)
         self.checks = QTableWidget(0, 7)
         self.checks.setHorizontalHeaderLabels([tr(h, "column") for h in (
             "Combinación", "Verificación", "Demanda", "Capacidad", "Ratio", "Estado",
@@ -433,8 +450,13 @@ class ThroughBoltEditor(QObject):
         if index != self.index:
             self.results, self.stale = [], False
         self.index = index
-        self.data = tbp.migrate(copy.deepcopy(conns[index]))
+        self.data = self.load(copy.deepcopy(conns[index]))
         self.refresh()
+
+    @staticmethod
+    def load(data: dict[str, Any]) -> dict[str, Any]:
+        """The stored data of a connection, brought to the current format."""
+        return tbp.migrate(data)
 
     def refresh(self) -> None:
         for form in self.forms.values():
@@ -464,7 +486,7 @@ class ThroughBoltEditor(QObject):
     def _validate(self) -> None:
         try:
             self.connection()
-            tbp.combinations(self.data, self.state.units)
+            self.combination_list()
             self.error = ""
         except Exception as exc:
             self.error = str(exc).strip().splitlines()[0] if str(exc).strip() else \
@@ -473,13 +495,20 @@ class ThroughBoltEditor(QObject):
     def connection(self):
         return tbp.build(self.data, self.state.units)
 
+    def combination_list(self) -> list:
+        return tbp.combinations(self.data, self.state.units)
+
+    def run(self) -> list:
+        """Analytic results of every combination (``ComboResult``)."""
+        return tbp.run(self.data, self.state.units, self.state.settings.edition)
+
     # ------------------------------------------------------------------ checks
     def calculate(self, keep_fem: bool = False) -> bool:
         """Analytic checks; ``keep_fem`` keeps the CalculiX results of the same data."""
         fem = {r.combo.name: r.fem for r in self.results} if keep_fem and not self.stale \
             else {}
         try:
-            self.results = tbp.run(self.data, self.state.units, self.state.settings.edition)
+            self.results = self.run()
             for r in self.results:
                 r.fem = fem.get(r.combo.name, [])
         except Exception as exc:

@@ -158,13 +158,17 @@ class ProjectState(QObject):
 
     @staticmethod
     def _new_connection(kind: str, existing: list[dict[str, Any]]) -> dict[str, Any]:
-        if kind != tb_project.TYPE:
+        from openfemconex import end_plate_project as ep_project
+
+        projects = {tb_project.TYPE: (tb_project, "PP"), ep_project.TYPE: (ep_project, "PE")}
+        if kind not in projects:
             raise ValueError(f"tipo de conexión desconocido: {kind}")
+        module, prefix = projects[kind]
         names = {c.get("name") for c in existing}
-        n = len(existing) + 1
-        while f"PP-{n}" in names:
+        n = sum(1 for c in existing if c.get("type") == kind) + 1
+        while f"{prefix}-{n}" in names:
             n += 1
-        return tb_project.new_connection(f"PP-{n}")
+        return module.new_connection(f"{prefix}-{n}")
 
     def add_connection(self, kind: str) -> int:
         """Add a connection; returns its index in :meth:`connections` (-1: the base plate)."""

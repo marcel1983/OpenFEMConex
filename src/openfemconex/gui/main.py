@@ -43,6 +43,9 @@ from PySide6.QtWidgets import (
 from openfemconex import __version__
 from openfemconex.checks import EDITIONS
 from openfemconex.gui.connection_picker import ConnectionPicker, type_icon, type_title
+from openfemconex.gui.end_plate_panel import EndPlateEditor
+from openfemconex.gui.end_plate_window import MODE as EP_MODE
+from openfemconex.gui.end_plate_window import EndPlateWindow
 from openfemconex.gui.help import HelpDialog, about, topics
 from openfemconex.gui.icons import app_icon, icon
 from openfemconex.gui.library import ColumnPanel, MaterialsDialog, SectionsDialog
@@ -99,14 +102,16 @@ def plain_math(latex: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-class MainWindow(QMainWindow):
+class MainWindow(EndPlateWindow, QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.dark = settings().value("dark", False, type=bool)
         self.state = ProjectState()
         self.tb = ThroughBoltEditor(self.state)
+        self.ep = EndPlateEditor(self.state)
         self.mode = "base_plate"
-        """Type of the connection being edited: ``base_plate`` or ``through_bolt``."""
+        """Type of the connection being edited: ``base_plate``, ``through_bolt`` or
+        ``moment_end_plate``."""
         self.worker: SolveWorker | None = None
         self._view = "model"
         self._edges = False
@@ -121,12 +126,14 @@ class MainWindow(QMainWindow):
         self.central.addWidget(self.viewer)
         self.central.addWidget(self.loads)
         self.central.addWidget(self.tb.combinations)
+        self.central.addWidget(self.ep.combinations)
         self.setCentralWidget(self.central)
 
         self._build_status()  # first: the other parts may report through it
         self._build_docks()
         self._build_ribbon()
         self._build_tb_ribbon()
+        self._build_ep_ribbon()
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -144,6 +151,8 @@ class MainWindow(QMainWindow):
         self.state.connections_changed.connect(self._fill_tree)
         self.tb.changed.connect(self._show_tb_view)
         self.tb.results_changed.connect(self._on_tb_results)
+        self.ep.changed.connect(self._show_ep_view)
+        self.ep.results_changed.connect(self._on_ep_results)
         self._on_loaded()
         self._on_changed()
         self._on_results()
@@ -151,6 +160,7 @@ class MainWindow(QMainWindow):
         self.viewer.set_dark(self.dark)
         self.ribbon.setStyleSheet(RIBBON_STYLE)
         self.tb_ribbon.setStyleSheet(RIBBON_STYLE)
+        self.ep_ribbon.setStyleSheet(RIBBON_STYLE)
 
     # ------------------------------------------------------------------ construction
     def _build_docks(self) -> None:
@@ -246,9 +256,11 @@ class MainWindow(QMainWindow):
         self.properties.addWidget(scroll)
         self.analysis_panel = AnalysisPanel(self.state)
         self.analysis_panel.solve_requested.connect(
-            lambda: self.solve_tb() if self.mode == "through_bolt" else self.solve())
+            lambda: {"through_bolt": self.solve_tb, EP_MODE: self.solve_ep}.get(
+                self.mode, self.solve)())
         self.analysis_panel.stop_requested.connect(
-            lambda: self.stop_tb() if self.mode == "through_bolt" else self.stop())
+            lambda: {"through_bolt": self.stop_tb, EP_MODE: lambda: None}.get(
+                self.mode, self.stop)())
         self.analysis_panel.progress_requested.connect(lambda: self.show_progress())
         self.properties.addWidget(self.analysis_panel)
         self.detail = QTextBrowser()
@@ -287,6 +299,7 @@ class MainWindow(QMainWindow):
         self.anchor_forces.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.bottom.addTab(self.anchor_forces, tr("Fuerzas en anclajes"))
         self.bottom.addTab(self.tb.checks, tr("Verificaciones"))
+        self._add_ep_widgets()
         bottom = QDockWidget(tr("Resultados"), self)
         bottom.setObjectName("dockBottom")
         bottom.setWidget(self.bottom)
@@ -486,9 +499,9 @@ class MainWindow(QMainWindow):
 
     def _sync_panel(self) -> None:
         """The green button of the Análisis panel follows the ribbon of the current type."""
-        through = getattr(self, "mode", "base_plate") == "through_bolt"
-        solve = getattr(self, "tb_solve_button" if through else "solve_button", None)
-        stop = getattr(self, "tb_stop_button" if through else "stop_button", None)
+        prefix = {"through_bolt": "tb_", EP_MODE: "ep_"}.get(getattr(self, "mode", ""), "")
+        solve = getattr(self, f"{prefix}solve_button", None)
+        stop = getattr(self, f"{prefix}stop_button", None)
         if solve is not None and stop is not None:
             self.analysis_panel.set_running(stop.isEnabled(), solve.isEnabled())
 
@@ -497,14 +510,24 @@ class MainWindow(QMainWindow):
         """Edit the base plate (``base_plate``) or connection ``index`` of the list."""
         self.mode = mode
         through = mode == "through_bolt"
-        self.ribbons.setCurrentWidget(self.tb_ribbon if through else self.ribbon)
-        self.viewer.dims.setVisible(not through)
-        self.viewer.numbers.setVisible(not through)
-        self.analysis_panel.set_base_plate(not through)
-        for w, on in ((self.log, True), (self.checks, not through),
-                      (self.anchor_forces, not through), (self.tb.checks, through)):
+        end_plate = mode == EP_MODE
+        base = not (through or end_plate)
+        self.ribbons.setCurrentWidget(self.tb_ribbon if through else
+                                      self.ep_ribbon if end_plate else self.ribbon)
+        self.viewer.dims.setVisible(base)
+        self.viewer.numbers.setVisible(base)
+        self.analysis_panel.set_base_plate(base)
+        for w, on in ((self.log, True), (self.checks, base),
+                      (self.anchor_forces, base), (self.tb.checks, through),
+                      (self.ep.checks, end_plate)):
             self.bottom.setTabVisible(self.bottom.indexOf(w), on)
-        if through:
+        if end_plate:
+            self.ep.set_index(index)
+            self._view = "ep"
+            self.central.setCurrentWidget(self.viewer)
+            self._ep_ribbon_tab(self.ep_ribbon.current())
+            self._show_ep_view(reset=True)
+        elif through:
             self.tb.set_index(index)
             self._view = "tb"
             self.central.setCurrentWidget(self.viewer)
@@ -527,13 +550,17 @@ class MainWindow(QMainWindow):
         index = self.state.add_connection(picker.selected)
         if picker.selected == "base_plate":
             self.set_mode("base_plate")
+        elif picker.selected == EP_MODE:
+            self.set_mode(EP_MODE, index)
+            self.ep_ribbon.select("Geometría")
         else:
             self.set_mode("through_bolt", index)
             self.tb_ribbon.select("Geometría")
 
     def remove_connection(self) -> None:
-        index = self.tb.index if self.mode == "through_bolt" else -1
-        name = (self.tb.data.get("name", "") if index >= 0 else tr("Placa base"))
+        editor = {"through_bolt": self.tb, EP_MODE: self.ep}.get(self.mode)
+        index = editor.index if editor is not None else -1
+        name = (editor.data.get("name", "") if index >= 0 else tr("Placa base"))
         answer = QMessageBox.question(self, tr("Quitar conexión"),
                                       tr("¿Quitar la conexión {name} del proyecto?", name=name))
         if answer != QMessageBox.StandardButton.Yes:
@@ -549,7 +576,13 @@ class MainWindow(QMainWindow):
         if self.state.has_base_plate:
             self.set_mode("base_plate")
         elif self.state.connections():
-            self.set_mode("through_bolt", 0)
+            self.set_mode(self._mode_of(0), 0)
+
+    def _mode_of(self, index: int) -> str:
+        """Editing mode of connection ``index`` of the list."""
+        conns = self.state.connections()
+        kind = conns[index].get("type") if 0 <= index < len(conns) else ""
+        return EP_MODE if kind == EP_MODE else "through_bolt"
 
     def show_tb_page(self, name: str) -> None:
         self.properties.setCurrentWidget(self.tb.pages[name])
@@ -879,6 +912,8 @@ class MainWindow(QMainWindow):
         self._fill_tree()
         if self.mode == "through_bolt":
             self._show_tb_view()
+        elif self.mode == EP_MODE:
+            self._show_ep_view()
         elif self._view == "results":
             self.show_results()
         else:
@@ -921,12 +956,16 @@ class MainWindow(QMainWindow):
                                        (self.tb_units_box, self.tb_edition_box)):
             units_box.setCurrentText(units)
             edition_box.setCurrentIndex(max(0, edition_box.findData(edition)))
+        self.ep_units_box.setCurrentText(units)
         self.log.clear()
         self._current_combo = None
         self._view = "model"
-        if self.mode == "through_bolt" and 0 <= self.tb.index < len(self.state.connections()):
-            self.set_mode("through_bolt", self.tb.index)  # same project, new units
-        elif self.mode == "through_bolt" or not self.state.has_base_plate:
+        editor = {"through_bolt": self.tb, EP_MODE: self.ep}.get(self.mode)
+        conns = self.state.connections()
+        if editor is not None and 0 <= editor.index < len(conns) \
+                and self._mode_of(editor.index) == self.mode:
+            self.set_mode(self.mode, editor.index)  # same project, new units
+        elif editor is not None or not self.state.has_base_plate:
             self._select_first()
 
     def _on_changed(self) -> None:
@@ -950,8 +989,8 @@ class MainWindow(QMainWindow):
 
     def _update_status(self) -> None:
         st = self.state
-        if self.mode == "through_bolt":
-            text, color = self.tb.status()
+        if self.mode in ("through_bolt", EP_MODE):
+            text, color = (self.tb if self.mode == "through_bolt" else self.ep).status()
             self.status_label.setText(text)
             self.status_label.setStyleSheet(f"color: {color};" if color else "")
             self.solve_button.setEnabled(False)
@@ -993,7 +1032,10 @@ class MainWindow(QMainWindow):
             if self.mode == "base_plate":
                 self._bold(root)
         for i, conn in enumerate(st.connections()):
-            self._fill_tb(top, i, conn)
+            if conn.get("type") == EP_MODE:
+                self._fill_ep(top, i, conn)
+            else:
+                self._fill_tb(top, i, conn)
         top.setExpanded(True)
 
     @staticmethod
@@ -1162,8 +1204,14 @@ class MainWindow(QMainWindow):
             if name < 0:
                 if self.mode != "base_plate":
                     self.set_mode("base_plate")
-            elif self.mode != "through_bolt" or self.tb.index != name:
-                self.set_mode("through_bolt", name)
+            else:
+                mode = self._mode_of(name)
+                editor = self.ep if mode == EP_MODE else self.tb
+                if self.mode != mode or editor.index != name:
+                    self.set_mode(mode, name)
+            return
+        if kind.startswith("ep_"):
+            self._ep_tree_clicked(kind, name)
             return
         if kind.startswith("tb_"):
             index = name[0] if kind == "tb_page" else name
@@ -1178,7 +1226,9 @@ class MainWindow(QMainWindow):
                 self.tb_ribbon.select("Verificación")
             return
         if kind == "info":
-            if self.mode == "through_bolt":
+            if self.mode == EP_MODE:
+                self.show_ep_page("Identificación")
+            elif self.mode == "through_bolt":
                 self.show_tb_page("Identificación")
             else:
                 self.show_section("Ficha")

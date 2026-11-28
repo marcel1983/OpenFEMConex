@@ -1,0 +1,139 @@
+{
+  "format_version": 14,
+  "info": {
+    "name": "Ejemplo placa de extremo",
+    "number": "",
+    "client": "",
+    "engineer": "",
+    "revision": "0",
+    "language": "es",
+    "units": "US"
+  },
+  "openfemconex": {
+    "connections": [
+      {
+        "type": "moment_end_plate",
+        "name": "PE-1 (DG4 4E, ej. A)",
+        "beam": "W21X55",
+        "beam_grade": "ASTM A992",
+        "column": "W14X109",
+        "column_grade": "ASTM A992",
+        "electrode": "E70XX",
+        "span": "30 ft",
+        "end_plate": {
+          "layout": "extended_4",
+          "bolt_diameter": "1 1/4 in",
+          "bolt_grade": "ASTM F3125 Gr. A490",
+          "bolt_threads": "N",
+          "width": "9 in",
+          "thickness": "1 1/4 in",
+          "gage": "5 1/2 in",
+          "pf": "2 in",
+          "pf_o": "2 in",
+          "pext": "3 5/8 in",
+          "pb": "",
+          "grade": "ASTM A572 Gr. 50",
+          "flange_weld": "",
+          "web_weld": "5/16 in",
+          "weld_reinforcement": "5/16 in",
+          "snug_tight": false,
+          "symmetric": true
+        },
+        "column_side": {
+          "continuity_plate": "5/8 in",
+          "continuity_plate_weld": "",
+          "doubler_plate": "",
+          "two_sided": false,
+          "column_near_end": false,
+          "panel_zone": false,
+          "panel_zone_inelastic": false
+        },
+        "seismic": null,
+        "cases": [
+          {
+            "name": "D",
+            "type": "D",
+            "V": "12 kip",
+            "M": "1700 kip*in"
+          },
+          {
+            "name": "L",
+            "type": "L",
+            "V": "18 kip",
+            "M": "3700 kip*in"
+          }
+        ],
+        "combinations": {
+          "methods": [
+            "LRFD",
+            "ASD"
+          ],
+          "include_code": true
+        }
+      },
+      {
+        "type": "moment_end_plate",
+        "name": "PE-2 (DG39 4ES sísmica)",
+        "beam": "W24X62",
+        "beam_grade": "ASTM A992",
+        "column": "W14X159",
+        "column_grade": "ASTM A992",
+        "electrode": "E70XX",
+        "span": "345 in",
+        "end_plate": {
+          "layout": "extended_4_stiffened",
+          "bolt_diameter": "1 1/4 in",
+          "bolt_grade": "ASTM F3125 Gr. A490",
+          "bolt_threads": "N",
+          "width": "9 in",
+          "thickness": "1.125 in",
+          "gage": "5 1/2 in",
+          "pf": "2 in",
+          "pf_o": "2 in",
+          "pext": "3 5/8 in",
+          "pb": "",
+          "grade": "ASTM A572 Gr. 50",
+          "flange_weld": "",
+          "web_weld": "5/16 in",
+          "weld_reinforcement": "5/16 in",
+          "snug_tight": false,
+          "symmetric": true
+        },
+        "column_side": {
+          "continuity_plate": "",
+          "continuity_plate_weld": "",
+          "doubler_plate": "",
+          "two_sided": false,
+          "column_near_end": false,
+          "panel_zone": true,
+          "panel_zone_inelastic": true
+        },
+        "seismic": {
+          "system": "smf",
+          "gravity_load": "",
+          "gravity_shear": "31 kip",
+          "column_axial": "99.7 kip",
+          "column_above": true,
+          "stiffener_thickness": "1/2 in",
+          "column_shear": "69 kip",
+          "column_height_above": "",
+          "column_height_below": ""
+        },
+        "cases": [
+          {
+            "name": "D",
+            "type": "D",
+            "V": "10 kip",
+            "M": "50 kip*ft"
+          }
+        ],
+        "combinations": {
+          "methods": [
+            "LRFD"
+          ],
+          "include_code": true
+        }
+      }
+    ]
+  }
+}

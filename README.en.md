@@ -65,8 +65,8 @@ from OpenConex.
 - **Moment end plate (in progress).** Beam to column flange with a flush or
   extended plate (4E, 4ES, 8ES and multiple row): yield lines and bolts with
   prying (Design Guides 16 and 4), column side (flange bending, web, panel zone,
-  continuity and doubler plates) and AISC 358-22 prequalified seismic design. For
-  now the analytic checks and the help; the interface, the CalculiX model and the
+  continuity and doubler plates) and AISC 358-22 prequalified seismic design.
+  Interface, 3D view, analytic checks, report and help; the CalculiX model and the
   moment-rotation curve come next.
 - **Several connections per project.** **Project › Add connection** opens a
   picker with an isometric view of each type; each connection has its own data,
