@@ -166,6 +166,22 @@ class Viewer(QWidget):
             self.plotter.camera_position = camera
         self.plotter.render()
 
+    def show_end_plate(self, mc, reset: bool = True) -> None:
+        """Moment end-plate connection: column, stiffening, beams, plates and bolts."""
+        from openfemconex import ep_scene
+
+        ep = mc.end_plate
+        if not self._begin(tr("Placa de extremo: {n} pernos",
+                              n=2 * len(ep_scene.bolt_rows(mc.beam, ep)))):
+            return
+        camera = None if reset else self.plotter.camera_position
+        ep_scene.draw(self.plotter, mc)
+        if camera is None:
+            ep_scene.isometric(self.plotter)
+        else:
+            self.plotter.camera_position = camera
+        self.plotter.render()
+
     def screenshot(self, path: str | Path) -> Path | None:
         if self.plotter is None:
             return None

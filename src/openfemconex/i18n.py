@@ -1115,3 +1115,134 @@ _CONNECTIONS: dict[str, str] = {
         'Anchor reinforcement (hairpins, top ties of the pedestal) placed before casting, against the rods or at the specified distance, with its full development length on each side of the breakout cone: the checks only count on it under those conditions.',  # noqa: E501
 }
 EN.update({k: v for k, v in _CONNECTIONS.items() if k not in EN})
+
+EN.update({
+    # moment end-plate connection: pages, fields and tips
+    "Diseño sísmico": "Seismic design", "Pernos": "Bolts", "Soldaduras": "Welds",
+    "Rigidización de la columna": "Column stiffening", "Rosca": "Threads", "Sistema": "System",
+    "Por ejemplo: PE-1, eje B-3": "For example: PE-1, grid B-3",
+    "Luz libre entre caras de columna": "Clear span between column faces",
+    "Diseño sísmico (rótula plástica) y clasificación por rigidez":
+        "Seismic design (plastic hinge) and stiffness classification",
+    "La viga se une al ala (eje fuerte)": "The beam frames to the flange (strong axis)",
+    "Al ras, 1 fila por ala": "Flush, 1 row per flange",
+    "Al ras, 2 filas por ala": "Flush, 2 rows per flange",
+    "Al ras, 2 filas, rigidizador entre filas": "Flush, 2 rows, stiffener between the rows",
+    "Al ras, 2 filas, rigidizador interior": "Flush, 2 rows, inside stiffener",
+    "Extendida rigidizada, 4 pernos (4ES)": "Extended stiffened, 4 bolts (4ES)",
+    "Extendida multifila 1/2": "Extended multiple row 1/2",
+    "Extendida multifila 1/3": "Extended multiple row 1/3",
+    "Extendida multifila 1/3 rigidizada": "Extended multiple row 1/3 stiffened",
+    "pf,i (cara interior del ala a la primera fila)":
+        "pf,i (inner face of the flange to the first row)",
+    "pb (paso entre filas)": "pb (pitch between rows)",
+    "Disposiciones con dos o más filas dentro del ala, y entre las dos filas exteriores de "
+    "la 8ES": "Layouts with two or more rows inside the flange, and between the two outer "
+              "rows of the 8ES",
+    "pf,o (cara exterior del ala a la fila exterior)":
+        "pf,o (outer face of the flange to the outer row)",
+    "Extensión más allá del ala": "Extension past the flange",
+    "ps,o (fila exterior al rigidizador)": "ps,o (outer row to the stiffener)",
+    "Espesor del rigidizador entre filas": "Thickness of the stiffener between the rows",
+    "Al ras con rigidizador entre las filas": "Flush with a stiffener between the rows",
+    "ps (fila al rigidizador)": "ps (row to the stiffener)",
+    "Al ras con rigidizador interior": "Flush with an inside stiffener",
+    "Mismo patrón en las dos alas (momento reversible)":
+        "Same pattern at both flanges (moment reversal)",
+    "Sin marcar: solo dos pernos en el ala comprimida":
+        "Unchecked: only two bolts at the compression flange",
+    "Incluida en el plano de corte (N)": "Included in the shear plane (N)",
+    "Excluida (X)": "Excluded (X)",
+    "Ajustados sin pretensión (snug-tight)": "Snug-tightened (no pretension)",
+    "La fuerza de pretensión de la acción de palanca es una fracción de la de la tabla J3.1":
+        "The pretension used for prying is a fraction of that of Table J3.1",
+    "Pretensión Tb": "Pretension Tb",
+    "Vacío: la de la tabla J3.1 de AISC 360-22": "Empty: that of AISC 360-22 Table J3.1",
+    "E70XX": "E70XX", "E80XX": "E80XX",
+    "Filete de las alas": "Flange fillet weld",
+    "Filete de refuerzo de la CJP": "Reinforcing fillet of the CJP weld",
+    "Alas con penetración completa: N = tf + 2w en el alma de la columna":
+        "CJP flange welds: N = tf + 2w on the column web",
+    "Filete del alma (cada lado)": "Web fillet weld (each side)",
+    "Espesor de las placas de continuidad": "Thickness of the continuity plates",
+    "Un par a la altura de cada ala de la viga; vacío: sin placas":
+        "A pair at each beam flange; empty: no plates",
+    "Ancho de cada placa": "Width of each plate",
+    "Vacío: (bf − tw)/2 de la columna": "Empty: (bf − tw)/2 of the column",
+    "Filete de las placas a las alas": "Fillet weld of the plates to the flanges",
+    "Vacío: penetración completa": "Empty: complete joint penetration",
+    "Espesor de la placa doble": "Doubler plate thickness",
+    "Vacío: sin placa doble": "Empty: no doubler plate",
+    "Filete de la placa doble a las alas": "Fillet weld of the doubler to the flanges",
+    "Vigas a ambos lados de la columna": "Beams on both sides of the column",
+    "Revisa el pandeo del alma por compresión (§J10.5)":
+        "Checks web compression buckling (§J10.5)",
+    "Cerca del extremo de la columna": "Near the column end",
+    "Fuerza del ala a menos de d de la columna de su extremo (§J10)":
+        "Flange force within the column depth d of its end (§J10)",
+    "Revisar la zona de panel": "Check the panel zone",
+    "Con el cortante de piso Vc y la carga axial Pc de cada caso de carga":
+        "With the story shear Vc and axial force Pc of each load case",
+    "Deformación de la zona de panel considerada": "Panel-zone deformation considered",
+    "En el análisis de estabilidad (§J10.6, Ec. J10-11 y J10-12)":
+        "In the stability analysis (§J10.6, Eq. J10-11 and J10-12)",
+    "Pórtico especial (SMF)": "Special moment frame (SMF)",
+    "Pórtico intermedio (IMF)": "Intermediate moment frame (IMF)",
+    "Carga de gravedad factorada en la viga": "Factored gravity load on the beam",
+    "1.2D + f1 L + 0.15S, fuerza por longitud": "1.2D + f1 L + 0.15S, force per length",
+    "Cortante de gravedad adicional en la rótula": "Additional gravity shear at the hinge",
+    "Carga axial de la columna (compresión)": "Column axial force (compression)",
+    "Para la relación columna-viga": "For the column-beam ratio",
+    "La columna sigue arriba del nudo": "The column continues above the joint",
+    "Espesor del rigidizador de la extensión": "Thickness of the extension stiffener",
+    "BSEEP (4ES y 8ES)": "BSEEP (4ES and 8ES)",
+    "Cortante de piso de la columna Vc": "Story shear of the column Vc",
+    "Se resta del cortante de la zona de panel (SMF)":
+        "Subtracted from the panel-zone shear (SMF)",
+    "Altura al punto de inflexión arriba": "Height to the inflection point above",
+    "Proyecta los momentos de columna al eje de la viga (SMF)":
+        "Projects the column moments to the beam centreline (SMF)",
+    "Altura al punto de inflexión abajo": "Height to the inflection point below",
+    "pf,i, pf,o y pb se miden desde las caras del ala de la viga, como en las Guías de "
+    "Diseño 4 y 16; vea los esquemas en la ayuda.":
+        "pf,i, pf,o and pb are measured from the faces of the beam flange, as in Design "
+        "Guides 4 and 16; see the sketches in the help.",
+    "Con placas de continuidad, las revisiones del alma de la columna no aplican y la "
+    "flexión del ala usa el mecanismo rigidizado.":
+        "With continuity plates, the column web checks do not apply and the flange bending "
+        "uses the stiffened mechanism.",
+    "Conexión precalificada AISC 358-22 capítulo 6: 4E (BUEEP), 4ES y 8ES (BSEEP). Usa la "
+    "luz libre de la viga (página Viga). Es diseño por capacidad: no depende de las "
+    "combinaciones.":
+        "AISC 358-22 Chapter 6 prequalified connection: 4E (BUEEP), 4ES and 8ES (BSEEP). "
+        "It uses the clear span of the beam (Beam page). It is capacity design: it does "
+        "not depend on the combinations.",
+    "Conexión sísmica precalificada (AISC 358)": "Prequalified seismic connection (AISC 358)",
+    "Configuraciones, camino de las fuerzas y estados límite de esta conexión":
+        "Layouts, load path and limit states of this connection",
+    "Calcula las verificaciones de AISC 360-22, las Guías de Diseño 16 y 4 y, si es "
+    "sísmica, AISC 358-22 para todas las combinaciones":
+        "Runs the checks of AISC 360-22, Design Guides 16 and 4 and, when seismic, AISC "
+        "358-22 for every combination",
+    "Placa de extremo: {n} combinaciones calculadas.": "End plate: {n} combinations checked.",
+    "El modelo CalculiX y la curva momento-rotación de esta conexión llegan en la próxima "
+    "versión.": "The CalculiX model and the moment-rotation curve of this connection come "
+                "in the next version.",
+    "Placa de extremo: {n} pernos": "End plate: {n} bolts",
+    "Viga de acero al ala de una columna con placa de extremo al ras o extendida (4E, 4ES, "
+    "8ES, multifila), con diseño sísmico AISC 358. Cálculo analítico AISC 360-22 y Guías de "
+    "Diseño 16 y 4.":
+        "Steel beam to a column flange with a flush or extended end plate (4E, 4ES, 8ES, "
+        "multiple row), with AISC 358 seismic design. Analytic checks to AISC 360-22 and "
+        "Design Guides 16 and 4.",
+    "Casos de carga de servicio de la viga en la cara de la columna: las combinaciones ASCE "
+    "7 (LRFD o ASD) se generan de sus tipos y se pueden editar o agregar propias. M positivo "
+    "con tracción arriba, P positiva en compresión; Vc y Pc son el cortante de piso y la "
+    "carga axial de la columna, solo para la zona de panel. Un número sin unidad se toma en "
+    "las unidades del proyecto.":
+        "Service load cases of the beam at the column face: the ASCE 7 combinations (LRFD "
+        "or ASD) are generated from their types and can be edited, or your own added. M "
+        "positive with tension at the top, P positive in compression; Vc and Pc are the "
+        "story shear and axial force of the column, for the panel zone only. A number "
+        "without a unit is taken in the project units.",
+})

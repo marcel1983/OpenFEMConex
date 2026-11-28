@@ -72,8 +72,8 @@ levantamiento de cada uno.
 
 Un proyecto puede tener varias conexiones. **Proyecto › Agregar conexión** (y
 **Proyecto › Nuevo**) abre un selector con la vista isométrica de cada tipo:
-placa base, pernos pasantes en concreto y, por ahora deshabilitados, corte
-simple, momento con placa de extremo y empalme. El árbol del proyecto lista
+placa base, pernos pasantes en concreto, momento con placa de extremo y, por
+ahora deshabilitados, corte simple y empalme. El árbol del proyecto lista
 las conexiones con su icono; al seleccionar una, el ribbon, las propiedades,
 la vista 3D y la tabla de verificaciones pasan a ese tipo, con las mismas
 etapas (Geometría, Cargas, Análisis, Verificación, Reporte). **Quitar
@@ -86,6 +86,16 @@ Las pestañas Cargas, Análisis y Reporte son las mismas para todos los tipos
 ![Selector de tipo de conexión](img/selector_conexiones.png)
 
 ![Conexión de pernos pasantes con viga opuesta y grout](img/pernos_pasantes_interfaz.png)
+
+La conexión de momento con placa de extremo tiene en Geometría las páginas Viga,
+Columna, Placa de extremo (las diez disposiciones), Pernos, Soldaduras,
+Rigidización de la columna y Diseño sísmico (se activa solo con 4E, 4ES y 8ES).
+Sus cargas son V, M y P de la viga y, con la zona de panel, Vc y Pc de la
+columna; Resolver corre el cálculo analítico de todas las combinaciones y el
+bloque AISC 358. El ejemplo `examples/placa_extremo.ocnx` tiene una 4E y una
+4ES sísmica.
+
+![Conexión de momento con placa de extremo](img/placa_extremo_interfaz.png)
 
 La placa base sigue en el bloque `base_plate` de OpenConex (una por proyecto
 en esta versión); las demás conexiones van en `"openfemconex": {"connections":

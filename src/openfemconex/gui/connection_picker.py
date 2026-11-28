@@ -42,7 +42,9 @@ TYPES = (
     ConnectionType("shear_tab", "Corte simple", "Placa simple a la columna. Próximamente.",
                    False),
     ConnectionType("moment_end_plate", "Momento con placa de extremo",
-                   "Viga a columna de acero. Próximamente.", False),
+                   "Viga de acero al ala de una columna con placa de extremo al ras o "
+                   "extendida (4E, 4ES, 8ES, multifila), con diseño sísmico AISC 358. "
+                   "Cálculo analítico AISC 360-22 y Guías de Diseño 16 y 4."),
     ConnectionType("splice", "Empalme de viga", "Empalme con cubreplacas. Próximamente.",
                    False),
 )
