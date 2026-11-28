@@ -158,22 +158,39 @@ Ejemplo 6.3-2 de la Guía de Diseño 39 (4ES sísmica).
 
 El modelo CalculiX (`openfemconex.end_plate_fem`) lleva la placa sobre el modelo
 de placa base: la viga es la "columna" (tramo elástico de dos peraltes), la placa
-de extremo la "placa base" y el ala de la columna el "bloque", de acero
-elastoplástico, apoyado en el alma y en las placas de continuidad
-(`model.ColumnFlange`); los pernos son resortes solo a tracción entre la arandela
-y la tuerca detrás del ala, ajustados sin pretensión para las verificaciones (la
+de extremo la "placa base" y el ala cercana de la columna el "bloque"; con
+`model.ColumnFlange` la malla agrega el resto de la columna (alma, ala lejana,
+placas de continuidad y placa doble), todo de acero elastoplástico con nodos
+compartidos, empotrada en los extremos del tramo (altura de la placa más un
+peralte de columna a cada lado); los pernos son resortes solo a tracción entre la
+arandela y la tuerca en la cara interior del ala, ajustados sin pretensión para las verificaciones (la
 pretensión de la Tabla J3.1 queda como opción del modelo, para la rigidez en
 servicio). Con sus resultados:
 
 | Verificación FEM | Criterio |
 |---|---|
 | Perno más cargado | Tracción con acción de palanca y cortante, F'nt de §J3.7 |
-| Placa, ala de la columna, rigidizadores | Deformación plástica equivalente media por elemento ≤ 5 % |
+| Placa, alas y alma de la columna, rigidizadores, placas de continuidad, placa doble | Deformación plástica equivalente media por elemento ≤ 5 % |
 | Soldaduras de filete | §J2.4; alas con la fuerza repartida en su ancho, alma en su punto más cargado |
 
 `tests/test_end_plate_fem.py` comprueba el modelo, la malla y el archivo de
 CalculiX y resuelve la 4E de la Guía de Diseño 4 con un momento de servicio.
-Pendiente: curva momento-rotación.
+
+La curva momento-rotación (`end_plate_fem.moment_rotation`) es un modelo más con
+los pernos pretensados (par de fuerzas T_b en un primer paso, Tabla J3.1) y un
+momento solo hasta 1.5 veces el mayor de las combinaciones, en pasos de 5 %; la
+rotación es la del extremo de la viga menos su giro elástico M·L_c/EI, medida
+respecto de la sección de la columna en el eje de la viga (con la zona de panel)
+o, con la opción `curve_connection_only`, respecto del ala sobre el alma entre
+las alas de la viga (solo la conexión); se calculan las dos y la otra queda como
+comparación. La
+conexión se clasifica con K_s·L/EI (comentario de AISC 360-22 §B3.4: FR ≥ 20,
+simple ≤ 2), con K_s secante en el momento de servicio (mayor ASD, o mayor LRFD
+/ 1.5). En la 4E del ejemplo (`examples/placa_extremo.ocnx`, malla rápida) la
+curva con la zona de panel tiene 15 puntos hasta 1012 kN·m a 18 mrad, con
+K_s·L/EI = 23 (FR); solo la conexión da K_s·L/EI = 72. La meseta viene de la
+fluencia del alma en la zona de panel, por debajo de los 1326 kN·m de la placa
+por líneas de fluencia.
 
 ## Pendiente
 

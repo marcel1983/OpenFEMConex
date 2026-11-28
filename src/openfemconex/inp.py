@@ -58,10 +58,11 @@ def anchor_stiffness(model: BasePlateModel) -> AnchorStiffness:
 
 
 def rod_force(model: BasePlateModel, ks: AnchorStiffness, elongation: float) -> float:
-    """Axial force of a rod with free nuts from its elongation (the spring law)."""
+    """Axial force of a rod with free nuts from its elongation: the spring law plus,
+    for a pretensioned bolt, the pretension applied as a pair of forces."""
     T0 = model.flange.pretension if model.flange is not None else 0.0
-    d = elongation + T0 / ks.axial
-    return ks.axial * d if d > 0 else ks.compression * d
+    d = elongation
+    return T0 + (ks.axial * d if d > 0 else ks.compression * d)
 
 
 @dataclass(frozen=True)
@@ -115,7 +116,11 @@ def _material(f: TextIO, name: str, E: float, nu: float,
 
 def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
               *, increments: int = 200, initial_increment: float = 0.05,
-              knee: bool = False, min_increment: float = 1e-6) -> InpNumbering:
+              knee: bool = False, min_increment: float = 1e-6, max_increment: float = 0.2,
+              history: bool = False) -> InpNumbering:
+    """Write the CalculiX input deck. With ``history`` the load nodes and the rods are
+    printed to the .dat file at every increment (a load-deformation curve); otherwise
+    only at the end of each step."""
     path = Path(path)
     nn = len(mesh.nodes)
     na = len(model.anchors)
@@ -226,6 +231,9 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
             _nset(f, "CONCENDS", mesh.concrete_end_nodes)
         if model.flange is not None:
             _nset(f, "FLANGEHELD", mesh.flange_held_nodes)
+            if mesh.joint_nodes:
+                _nset(f, "JOINT", sorted({int(n) for v in mesh.joint_nodes.values()
+                                          for n in v}))
         if opp is not None:
             _nset(f, "COLTOP2", mesh.opposite.column_top_nodes)
         _nset(f, "FOOTPRINT", mesh.footprint_nodes)
@@ -333,14 +341,7 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
         # 0.005 mm on each side of zero: it stops Newton from chattering when a rod
         # starts to work under moment, but it hinders pure uplift, so it is the retry.
         kt, kc, width = ks.axial, ks.compression, 0.005
-        T0 = model.flange.pretension if model.flange is not None else 0.0
-        if T0 > 0:
-            # pretensioned bolt: it pulls with T0 at zero elongation and goes slack when
-            # the plies are pushed apart by T0/kt
-            d0 = -T0 / kt
-            f.write(f"{-kc * (X + d0):.6e}, {-X:.6e}\n0., {d0:.6e}\n"
-                    f"{T0 + kt * X:.6e}, {X:.6e}\n")
-        elif knee and kc < 0.01 * kt:
+        if knee and kc < 0.01 * kt:
             f_neg = -0.01 * kt * width
             f_pos = 0.1 * kt * width
             f.write(f"{f_neg - kc * (X - width):.6e}, {-X:.6e}\n{f_neg:.6e}, {-width:.6e}\n"
@@ -420,11 +421,23 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                      (load_rot2, 1, -(loads2.Mx + loads2.Vy * h2)),
                      (load_rot2, 2, -(loads2.My - loads2.Vx * h2))]
         rest = [r for r in rest if r[2]]
-        steps = ([axial, rest] if (loads.P > 0 or (loads2 is not None and loads2.P > 0))
-                 and rest else [axial + rest])
+        T0 = model.flange.pretension if model.flange is not None else 0.0
+        if T0 > 0:
+            # Bolt pretension: a pair of forces T0 on the plate under each washer and on
+            # the flange under each nut, in a first step; the tension-only spring adds
+            # its force when the joint opens (T0 + kt·δ, the force of a pretensioned
+            # bolt once the plies separate). Forces on the mesh nodes, with the washer
+            # weights: a dependent node of an *EQUATION takes no load.
+            for wn, ww, fwn, fww in zip(mesh.washer_nodes, mesh.washer_weights,
+                                        mesh.far_washer_nodes, mesh.far_washer_weights):
+                axial += [(int(n), 3, -T0 * float(w)) for n, w in zip(wn, ww)]
+                axial += [(int(n), 3, T0 * float(w)) for n, w in zip(fwn, fww)]
+        steps = ([axial, rest] if (loads.P > 0 or (loads2 is not None and loads2.P > 0)
+                                   or T0 > 0) and rest else [axial + rest])
         for k, cloads in enumerate(steps):
             last = k == len(steps) - 1
-            first, largest = (initial_increment, 0.2) if last else (1.0, 1.0)
+            first, largest = ((min(initial_increment, max_increment), max_increment) if last
+                              else (1.0, 1.0))
             f.write(f"*STEP, INC={increments}\n*STATIC\n{first:.4e}, 1., {min_increment:.1e}, "
                     f"{largest:.4e}\n")
             f.write("*CLOAD\n")
@@ -440,12 +453,15 @@ def write_inp(path: str | Path, model: BasePlateModel, mesh: Mesh, loads: Loads,
                 prints += [("ANCHORGND", "U"), ("CONCENDS", "RF")]
             elif model.flange is not None:
                 prints += [("ANCHORGND", "U"), ("FLANGEHELD", "RF")]
+                if mesh.joint_nodes:
+                    prints.append(("JOINT", "U"))
             if opp is not None:
                 prints.append(("LOADNODES2", "U"))
             for nset, key in prints:
                 # every increment: if the step stops early the last converged state is
                 # still in the .dat file
-                f.write(f"*NODE PRINT, NSET={nset}\n{key}\n")
+                every = ", FREQUENCY=1" if history else ""
+                f.write(f"*NODE PRINT, NSET={nset}{every}\n{key}\n")
             f.write("*END STEP\n")
 
     return InpNumbering(load_ref, load_rot, anchor_ref, anchor_ground, spring_axial,

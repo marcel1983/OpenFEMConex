@@ -5,8 +5,9 @@ steel column** (strong axis). The connection carries the moment, shear and axial
 force of the beam. The analytic checks are those of the OpenConex engine
 (`openconex.connections.moment`), which OpenFEMConex calls with the project data
 (`openfemconex.end_plate_project`). On top of these results, a CalculiX model of
-the plate, the bolts and the column flange gives the actual bolt forces and the
-plastic strains.
+the plate, the bolts and the column flange gives the actual bolt forces, the
+plastic strains and the moment-rotation curve with the FR, PR or simple
+classification.
 
 Standards: AISC 360-22; plate strength and bolt forces after AISC Design Guide
 16 and Design Guide 4 (8ES); seismic design after AISC 358-22 Chapter 6 with
@@ -101,21 +102,62 @@ Resolver also builds a finite element model of each combination ticked in Loads
   the beam.
 - **End plate and stiffeners**: elastic-plastic steel solids, welded to the beam
   (shared nodes).
-- **Column flange**: an elastic-plastic steel solid of the flange thickness and
-  width over a length of the column, held on its back face along the web and the
-  continuity plates (rigid supports: the model of the flange yield lines). The
-  plate bears on the flange through frictionless contact without tension.
+- **Column**: the whole section, of elastic-plastic steel, over the height of the
+  plate plus one column depth above and below: near flange, web and far flange,
+  with the **continuity plates** (at the beam flanges, on both sides of the web,
+  of the given width or up to the flange edge, over the full depth) and the web
+  **doubler plate** if any (between the continuity plates, or 6 in beyond the
+  beam flanges without them). All the parts share nodes, as welded. The column is
+  fixed at both ends. The plate bears on the flange through frictionless contact
+  without tension.
 - **Bolts**: tension-only axial springs E·A/L over the grip (plate plus flange),
-  between the washer and the nut on the back of the flange; they take the shear
+  between the washer and the nut on the inner face of the flange; they take the shear
   in bearing. For the checks they are snug tight, without pretension, as in the
   strength models of the Design Guides: their force already includes prying.
 
 The model checks the most loaded bolt in tension and shear (§J3.6 and §J3.7),
-the plastic strain of the plate, of the column flange and of the stiffeners (5 %
-limit) and the fillet welds (those of the flanges with the force spread over the
-flange width). A complete joint penetration weld is as strong as the beam and is
-not checked with the model. The column web and panel zone are checked
-analytically.
+the plastic strain of the plate, of the column flanges and web, of the
+stiffeners, of the continuity plates and of the doubler plate (5 % limit) and
+the fillet welds (those of the flanges with the force spread over the flange
+width). A complete joint penetration weld is as strong as the beam and is not
+checked with the model. The column web, panel zone and continuity plates are
+also checked analytically: the column segment of the model is short and fixed,
+so the panel zone shear of the model is not exactly that of the frame.
+
+## Moment-rotation curve
+
+Resolver always also computes the moment-rotation curve of the connection: one
+more model, with a moment alone rising in 5 % steps up to 1.5 times the largest
+of the combinations, and the bolts **pretensioned** (the AISC 360 Table J3.1
+pretension, or the snug-tight fraction, as a pair of forces in a first step).
+The rotation is that of the beam end, without its elastic deformation, relative
+to the column. There are two ways to measure it, and the option **Beam › M-θ
+curve of the connection only** picks the one that classifies:
+
+- **With the panel zone** (default): relative to the column section at the beam
+  axis. It includes the plate, the bolts, the local bending of the flange and the
+  shear distortion of the panel zone.
+- **Connection only**: relative to the column flange over the web, between the
+  beam flanges. It leaves the panel zone out, for when the frame analysis already
+  models it.
+
+Both leave out the bending of the short column segment of the model. The report
+draws both curves and gives K_s·L/EI of the other one for comparison.
+
+The curve classifies the connection after the AISC 360-22 §B3.4 Commentary: the
+secant stiffness K_s = M_s/θ_s at the service moment M_s (the largest of the ASD
+combinations or, with LRFD only, the largest divided by 1.5) is compared with the
+beam stiffness EI/L:
+
+| K_s·L/EI | Connection |
+|---|---|
+| ≥ 20 | Fully restrained (FR) |
+| between 2 and 20 | Partially restrained (PR) |
+| ≤ 2 | Simple |
+
+The report includes the curve, the initial and secant stiffness, the
+classification, the largest moment reached and the moment at 0.02 rad. In the
+interface, Analysis › M-θ curve shows it.
 
 ## Loads and report
 
@@ -125,5 +167,6 @@ Combinations are generated with ASCE 7 in LRFD or ASD, or typed by hand.
 
 The report follows the common order: data and loads and, for each
 combination, first the CalculiX model (result tables, the force in each bolt and
-plots) and then the analytic checks with their trace; the seismic block, and at the end the summary,
+plots) and then the analytic checks with their trace (the moment-rotation curve
+comes before the combinations); the seismic block, and at the end the summary,
 recommendations, installation requirements and scope.

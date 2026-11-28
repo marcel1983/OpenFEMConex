@@ -54,12 +54,15 @@ def test_new_connection_and_shared_stages(window):
 
 
 def analytic_only(window, monkeypatch):
-    """Resolver without CalculiX: no combination ticked for it."""
+    """Resolver without CalculiX (not found): only the analytic checks."""
     import openfemconex.gui.end_plate_window as epw
+    from openfemconex.runner import CcxError
 
-    monkeypatch.setattr(window.ep.combinations, "selected", lambda: [])
-    monkeypatch.setattr(epw.QMessageBox, "information", lambda *a, **k: None)
-    monkeypatch.setattr(epw, "find_ccx", lambda *a, **k: "ccx")
+    def missing(*args, **kwargs):
+        raise CcxError("no ccx")
+
+    monkeypatch.setattr(epw, "find_ccx", missing)
+    monkeypatch.setattr(epw.QMessageBox, "warning", lambda *a, **k: None)
 
 
 def test_solve_fills_checks_and_tree(window, monkeypatch):
@@ -168,5 +171,8 @@ def test_solve_with_calculix(window, qtbot, tmp_path):
     sides = window.ep.fem_sides()
     assert sides and sides[0][1].results.converged
     assert any(r.id.startswith("end_plate.fem_") for r in window.ep.results[0].all_checks)
+    assert window.ep.curve is not None and len(window.ep.curve.points) > 3
     path = window.generate_ep_report()
-    assert "Modelo CalculiX" in path.read_text(encoding="utf-8")
+    html = path.read_text(encoding="utf-8")
+    assert "Modelo CalculiX" in html and "curva_momento_rotacion.png" in html
+    assert (path.parent / "curva_momento_rotacion.png").exists()

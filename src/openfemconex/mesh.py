@@ -89,7 +89,13 @@ class Mesh:
     concrete_end_nodes: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
     """Block nodes at its ends x = ±N/2, held when there is a far plate."""
     flange_held_nodes: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))
-    """Far-face nodes of a column flange over its web and continuity plates (held)."""
+    """Nodes of the ends of a steel column (moment end plate), held."""
+    column_regions: dict = field(default_factory=dict)
+    """Of a steel column: region name -> indices of its elements in part CONCRETE
+    (``flange``, ``web``, ``continuity``, ``doubler``)."""
+    joint_nodes: dict = field(default_factory=dict)
+    """Of a steel column with ``ColumnFlange.joint``: ``top``, ``bottom`` (near face over
+    the web at the beam flanges), ``near``, ``far`` (both faces at the beam axis)."""
     opposite: Mesh | None = None
     """With an opposite column: its plate and column, in this mesh's numbering (parts
     PLATE, COLUMN, STIFFENER mean PLATE2, COLUMN2, STIFFENER2 here)."""
@@ -390,6 +396,110 @@ class MeshError(ValueError):
     pass
 
 
+def _column_block(model: BasePlateModel, st: MeshSettings, base_k: int) -> dict:
+    """Hexahedra of a steel I column (``model.flange``) under the plate.
+
+    Its near flange is the block of the base plate model (z from -tf to 0), the web
+    and the far flange follow down to z = -d, with the continuity plates and the
+    doubler plate between the flanges. All the parts are cells of one tensor grid,
+    kept where their centre is in steel, so they share their nodes.
+    """
+    c, cs = model.concrete, model.flange
+    tf, d, tw = c.H, cs.d, cs.tw
+    r = model.anchor.washer / 2
+    size = 1.5 * st.size_fine
+    xb = [a.x + f * r for a in model.anchors for f in (-1, -0.5, 0, 0.5, 1)]
+    xb += [v for xc, t, _ in cs.stiffeners for v in (xc - t / 2, xc + t / 2)]
+    yb = [a.y + f * r for a in model.anchors for f in (-1, -0.5, 0, 0.5, 1)]
+    yb += [-tw / 2, tw / 2]
+    yb += [v for _, _, w in cs.stiffeners for v in (-tw / 2 - w, tw / 2 + w)]
+    if cs.doubler is not None:
+        td, x0, x1 = cs.doubler
+        xb += [x0, x1]
+        yb += [tw / 2 + td]
+    gx = _lines(-c.N / 2, c.N / 2, size, xb)
+    gy = _lines(-c.B / 2, c.B / 2, size, yb)
+    layers = max(3, st.plate_layers - 1)
+    web_depth = d - 2 * tf
+    gz = np.concatenate([
+        np.linspace(-d, -d + tf, 3)[:-1],
+        np.linspace(-d + tf, -tf, max(2, math.ceil(web_depth / (1.5 * size))) + 1)[:-1],
+        np.linspace(-tf, 0.0, layers + 1)])
+    nx, ny, nz = len(gx) - 1, len(gy) - 1, len(gz) - 1
+    I, J, K = np.meshgrid(np.arange(nx), np.arange(ny), np.arange(nz), indexing="ij")
+    I, J, K = I.ravel(), J.ravel(), K.ravel()
+    cx, cy, cz = (gx[I] + gx[I + 1]) / 2, (gy[J] + gy[J + 1]) / 2, (gz[K] + gz[K + 1]) / 2
+    between = (cz < -tf) & (cz > -d + tf)
+    regions = {"flange": ~between, "web": between & (np.abs(cy) < tw / 2)}
+    cont = np.zeros(len(I), dtype=bool)
+    for xc, t, w in cs.stiffeners:
+        cont |= (np.abs(cx - xc) < t / 2) & (np.abs(cy) > tw / 2) & (np.abs(cy) < tw / 2 + w)
+    regions["continuity"] = between & cont
+    if cs.doubler is not None:
+        td, x0, x1 = cs.doubler
+        regions["doubler"] = (between & (cy > tw / 2) & (cy < tw / 2 + td) & (cx > x0)
+                              & (cx < x1) & ~cont)
+    keep = np.zeros(len(I), dtype=bool)
+    for mask in regions.values():
+        keep |= mask
+
+    def box(i, j, k):
+        return (np.asarray(i) * (ny + 1) + np.asarray(j)) * (nz + 1) + np.asarray(k)
+
+    I, J, K = I[keep], J[keep], K[keep]
+    conn = np.column_stack([box(I, J, K), box(I + 1, J, K), box(I + 1, J + 1, K),
+                            box(I, J + 1, K), box(I, J, K + 1), box(I + 1, J, K + 1),
+                            box(I + 1, J + 1, K + 1), box(I, J + 1, K + 1)])
+    used = np.unique(conn)
+    new_id = np.full((nx + 1) * (ny + 1) * (nz + 1), -1)
+    new_id[used] = base_k + 1 + np.arange(len(used))
+    X, Y, Z = np.meshgrid(gx, gy, gz, indexing="ij")
+    xyz = np.column_stack([X.ravel(), Y.ravel(), Z.ravel()])[used]
+    conn = new_id[conn]
+    order = {name: np.nonzero(mask[keep])[0] for name, mask in regions.items()}
+    # the nut of each bolt on the inner face of the near flange (z = -tf), spread over
+    # its bearing area (the flange is meshed without the hole)
+    k_in = int(np.argmin(np.abs(gz + tf)))
+    wx = np.zeros(nx + 1)
+    wx[:-1] += np.diff(gx) / 2
+    wx[1:] += np.diff(gx) / 2
+    wy = np.zeros(ny + 1)
+    wy[:-1] += np.diff(gy) / 2
+    wy[1:] += np.diff(gy) / 2
+    gi, gj = np.meshgrid(np.arange(nx + 1), np.arange(ny + 1), indexing="ij")
+    gi, gj = gi.ravel(), gj.ravel()
+    face = new_id[box(gi, gj, k_in)]
+    nut_nodes, nut_weights = [], []
+    for a in model.anchors:
+        dist = np.hypot(gx[gi] - a.x, gy[gj] - a.y)
+        sel = (dist <= r + 1e-6) & (face > 0)
+        if sel.sum() < 4:
+            sel = np.argsort(np.where(face > 0, dist, np.inf))[:4]
+        w = wx[gi[sel]] * wy[gj[sel]]
+        nut_nodes.append(face[sel])
+        nut_weights.append(w / w.sum())
+    ends = np.nonzero(np.isclose(np.abs(xyz[:, 0]), c.N / 2))[0] + base_k + 1
+    bottom = new_id[box(gi, gj, 0)]
+    # nodes measuring the rotation of the joint (model.ColumnFlange.joint): the near
+    # face over the web at each beam flange (the flange line rotates with the panel
+    # zone) and both faces of the column at the beam axis (the section rotation)
+    panel = {}
+    if cs.joint is not None:
+        def at(x, z):
+            i = int(np.argmin(np.abs(gx - x)))
+            k = int(np.argmin(np.abs(gz - z)))
+            js = [int(np.argmin(np.abs(gy - s * tw / 2))) for s in (-1, 1)]
+            ids = new_id[box(i, np.array(js), k)]
+            return ids[ids > 0]
+
+        x_axis = model.ex
+        panel = {"top": at(max(cs.joint), 0.0), "bottom": at(min(cs.joint), 0.0),
+                 "near": at(x_axis, 0.0), "far": at(x_axis, -d)}
+    return dict(nodes=xyz, conn=conn, top=np.nonzero(K == nz - 1)[0], panel=panel,
+                bottom=bottom[bottom > 0], nut_nodes=nut_nodes, nut_weights=nut_weights,
+                ends=ends, regions=order)
+
+
 def build_mesh(model: BasePlateModel, settings: MeshSettings | None = None) -> Mesh:
     """Hexahedral mesh of the model.
 
@@ -472,19 +582,18 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
     c = model.concrete
     base_k = next_id - 1
     cf = model.flange
+    flange_sets = {}
     if cf is not None:
-        # a steel column flange: finer, with grid lines on the web and the continuity
-        # plates (held there) and around the nuts on its far face
-        r = model.anchor.washer / 2
-        size = 1.5 * st.size_fine
-        gx = _lines(-c.N / 2, c.N / 2, size,
-                    [a.x + f * r for a in model.anchors for f in (-1, -0.5, 0, 0.5, 1)]
-                    + [v for xc, t in cf.stiffeners for v in (xc - t / 2, xc + t / 2)])
-        gy = _lines(-c.B / 2, c.B / 2, size,
-                    [a.y + f * r for a in model.anchors for f in (-1, -0.5, 0, 0.5, 1)]
-                    + [-cf.web / 2, cf.web / 2])
-        gz = np.linspace(-c.H, 0.0, max(3, st.plate_layers - 1) + 1)
-        nx, ny = len(gx) - 1, len(gy) - 1
+        # a steel column: flanges, web, continuity plates and doubler plate cut from one
+        # structured grid, so that every part shares its nodes with the next one
+        block = _column_block(model, st, base_k)
+        nodes.append(block["nodes"])
+        concrete, conc_top, conc_bottom = block["conn"], block["top"], block["bottom"]
+        n_block = len(block["nodes"])
+        flange_sets = dict(far_washer_nodes=block["nut_nodes"],
+                           far_washer_weights=block["nut_weights"],
+                           flange_held_nodes=block["ends"], column_regions=block["regions"],
+                           joint_nodes=block["panel"])
     else:
         nx = max(4, math.ceil(c.N / st.concrete_size))
         ny = max(4, math.ceil(c.B / st.concrete_size))
@@ -492,48 +601,26 @@ def _build_mesh(model: BasePlateModel, settings: MeshSettings) -> Mesh:
         gy = np.linspace(-c.B / 2, c.B / 2, ny + 1)
         gz = (_graded_both(c.H, st.concrete_layers + 4) if model.two_faces
               else _graded(c.H, st.concrete_layers))
-    X, Y, Z = np.meshgrid(gx, gy, gz, indexing="ij")
-    nodes.append(np.column_stack([X.ravel(), Y.ravel(), Z.ravel()]))
+        X, Y, Z = np.meshgrid(gx, gy, gz, indexing="ij")
+        nodes.append(np.column_stack([X.ravel(), Y.ravel(), Z.ravel()]))
+        n_block = X.size
 
-    def kid(i, j, k):
-        return base_k + (np.asarray(i) * (ny + 1) + np.asarray(j)) * (len(gz)) + np.asarray(k) + 1
+        def kid(i, j, k):
+            return (base_k + (np.asarray(i) * (ny + 1) + np.asarray(j)) * (len(gz))
+                    + np.asarray(k) + 1)
 
-    I, J, K = np.meshgrid(np.arange(nx), np.arange(ny), np.arange(len(gz) - 1), indexing="ij")
-    I, J, K = I.ravel(), J.ravel(), K.ravel()
-    concrete = np.column_stack([
-        kid(I, J, K), kid(I + 1, J, K), kid(I + 1, J + 1, K), kid(I, J + 1, K),
-        kid(I, J, K + 1), kid(I + 1, J, K + 1), kid(I + 1, J + 1, K + 1), kid(I, J + 1, K + 1)])
-    conc_top = np.nonzero(K == len(gz) - 2)[0]
-    gi, gj = np.meshgrid(np.arange(nx + 1), np.arange(ny + 1), indexing="ij")
-    conc_bottom = kid(gi.ravel(), gj.ravel(), 0)
-    flange_sets = {}
-    if cf is not None:
-        gi, gj = gi.ravel(), gj.ravel()
-        bx, by = gx[gi], gy[gj]
-        held = np.abs(by) <= cf.web / 2 + 1e-6
-        for xc, t in cf.stiffeners:
-            held |= np.abs(bx - xc) <= t / 2 + 1e-6
-        wx = np.zeros(len(gx))
-        wx[:-1] += np.diff(gx) / 2
-        wx[1:] += np.diff(gx) / 2
-        wy = np.zeros(len(gy))
-        wy[:-1] += np.diff(gy) / 2
-        wy[1:] += np.diff(gy) / 2
-        area_b = wx[gi] * wy[gj]
-        nut_nodes, nut_weights = [], []
-        for a in model.anchors:
-            # the nut on the far face, spread over its bearing area (the flange is
-            # meshed without the hole)
-            d = np.hypot(bx - a.x, by - a.y)
-            sel = d <= r + 1e-6
-            if sel.sum() < 4:
-                sel = np.argsort(d)[:4]
-            nut_nodes.append(kid(gi[sel], gj[sel], 0))
-            nut_weights.append(area_b[sel] / area_b[sel].sum())
-        flange_sets = dict(far_washer_nodes=nut_nodes, far_washer_weights=nut_weights,
-                           flange_held_nodes=kid(gi[held], gj[held], 0))
+        I, J, K = np.meshgrid(np.arange(nx), np.arange(ny), np.arange(len(gz) - 1),
+                              indexing="ij")
+        I, J, K = I.ravel(), J.ravel(), K.ravel()
+        concrete = np.column_stack([
+            kid(I, J, K), kid(I + 1, J, K), kid(I + 1, J + 1, K), kid(I, J + 1, K),
+            kid(I, J, K + 1), kid(I + 1, J, K + 1), kid(I + 1, J + 1, K + 1),
+            kid(I, J + 1, K + 1)])
+        conc_top = np.nonzero(K == len(gz) - 2)[0]
+        gi, gj = np.meshgrid(np.arange(nx + 1), np.arange(ny + 1), indexing="ij")
+        conc_bottom = kid(gi.ravel(), gj.ravel(), 0)
     far = None
-    first_far = base_k + 1 + len(X.ravel())
+    first_far = base_k + 1 + n_block
     if model.far is not None:
         far = _far_plate(model, st, first_far)
         nodes.append(far[0])

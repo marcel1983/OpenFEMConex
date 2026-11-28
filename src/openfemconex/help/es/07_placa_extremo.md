@@ -6,7 +6,8 @@ carga axial de la viga. Las verificaciones analíticas son las del motor de
 OpenConex (módulo `openconex.connections.moment`), que OpenFEMConex llama con
 los datos del proyecto (módulo `openfemconex.end_plate_project`). Encima de
 estos resultados, un modelo CalculiX de la placa, los pernos y el ala de la
-columna da las fuerzas reales en los pernos y las deformaciones plásticas.
+columna da las fuerzas reales en los pernos, las deformaciones plásticas y la
+curva momento-rotación con la clasificación FR, PR o simple.
 
 Normas: AISC 360-22; resistencia de la placa y fuerzas en los pernos según AISC
 Design Guide 16 y Design Guide 4 (8ES); diseño sísmico según AISC 358-22
@@ -103,23 +104,64 @@ en Cargas (módulo `openfemconex.end_plate_fem`):
   plástico de la viga.
 - **Placa de extremo y rigidizadores**: sólidos de acero elastoplástico,
   soldados a la viga (nodos compartidos).
-- **Ala de la columna**: sólido de acero elastoplástico del espesor y ancho del
-  ala, sobre una longitud de columna, apoyado en su cara posterior a lo largo del
-  alma y de las placas de continuidad (apoyos rígidos: el modelo de las líneas
-  de fluencia del ala). La placa apoya en el ala por contacto sin fricción y sin
-  tracción.
+- **Columna**: el perfil completo, de acero elastoplástico, sobre la altura de
+  la placa más un peralte de la columna arriba y abajo: ala cercana, alma y ala
+  lejana, con las **placas de continuidad** (a la altura de las alas de la viga,
+  a ambos lados del alma, del ancho indicado o hasta el borde del ala, en todo el
+  peralte) y la **placa doble** del alma si la hay (entre las placas de
+  continuidad, o 6 in más allá de las alas de la viga sin ellas). Todas las
+  piezas comparten nodos, como soldadas. La columna se empotra en sus dos
+  extremos. La placa apoya en el ala por contacto sin fricción y sin tracción.
 - **Pernos**: resortes axiales solo a tracción E·A/L sobre el agarre (placa más
-  ala), entre la arandela y la tuerca en la cara posterior del ala; toman el
+  ala), entre la arandela y la tuerca en la cara interior del ala; toman el
   cortante por aplastamiento. Para las verificaciones van ajustados sin
   pretensión, como en los modelos de resistencia de las Guías de Diseño: la
   fuerza que dan ya incluye la acción de palanca.
 
 Con el modelo se verifica el perno más cargado a tracción y cortante (§J3.6 y
-§J3.7), la deformación plástica de la placa, del ala de la columna y de los
-rigidizadores (límite 5 %) y las soldaduras de filete (las de las alas con la
-fuerza repartida en el ancho del ala). Una soldadura de penetración completa es
-tan resistente como la viga y no se verifica con el modelo. El alma de la
-columna y la zona de panel se verifican de forma analítica.
+§J3.7), la deformación plástica de la placa, de las alas y del alma de la
+columna, de los rigidizadores, de las placas de continuidad y de la placa doble
+(límite 5 %) y las soldaduras de filete (las de las alas con la fuerza repartida
+en el ancho del ala). Una soldadura de penetración completa es tan resistente
+como la viga y no se verifica con el modelo. El alma de la columna, la zona de
+panel y las placas de continuidad se verifican además de forma analítica: el
+tramo de columna del modelo es corto y empotrado, así que el cortante de la zona
+de panel del modelo no es exactamente el del pórtico.
+
+## Curva momento-rotación
+
+Resolver calcula siempre, además, la curva momento-rotación de la conexión: un
+modelo más, con un momento solo que crece en pasos de 5 % hasta 1.5 veces el
+mayor de las combinaciones, y los pernos **pretensados** (la pretensión de la
+Tabla J3.1 de AISC 360, o la fracción de pernos ajustados, como un par de
+fuerzas en un primer paso). La rotación es la del extremo de la viga, sin su
+deformación elástica, respecto de la columna. Hay dos maneras de medirla, y la
+opción **Viga › Curva M-θ solo de la conexión** elige cuál clasifica:
+
+- **Con la zona de panel** (por omisión): respecto de la sección de la columna en
+  el eje de la viga. Incluye la placa, los pernos, la flexión local del ala y la
+  distorsión por cortante de la zona de panel.
+- **Solo la conexión**: respecto del ala de la columna sobre el alma, entre las
+  alas de la viga. Deja fuera la zona de panel, para cuando el análisis del
+  pórtico ya la modela.
+
+En las dos se deja fuera la flexión del tramo corto de columna del modelo. El
+reporte dibuja las dos curvas y da K_s·L/EI de la otra como comparación.
+
+Con la curva se clasifica la conexión según el comentario de AISC 360-22 §B3.4:
+la rigidez secante K_s = M_s/θ_s en el momento de servicio M_s (el mayor de las
+combinaciones ASD o, solo con LRFD, el mayor dividido entre 1.5) se compara con
+la rigidez de la viga, EI/L:
+
+| K_s·L/EI | Conexión |
+|---|---|
+| ≥ 20 | Totalmente restringida (FR) |
+| entre 2 y 20 | Parcialmente restringida (PR) |
+| ≤ 2 | Simple |
+
+El reporte incluye la curva, la rigidez inicial y la secante, la clasificación,
+el momento máximo alcanzado y el momento a 0.02 rad. En la interfaz, Análisis ›
+Curva M-θ la muestra.
 
 ## Cargas y reporte
 
@@ -129,5 +171,6 @@ Las combinaciones se generan con ASCE 7 en LRFD o ASD, o se escriben a mano.
 
 El reporte sigue el orden común: datos y cargas y, para cada combinación,
 primero el modelo CalculiX (tablas de resultados, fuerzas en cada perno y
-gráficos) y después las verificaciones analíticas con su traza; el bloque sísmico, y al final el resumen, las
+gráficos) y después las verificaciones analíticas con su traza (antes de las
+combinaciones va la curva momento-rotación); el bloque sísmico, y al final el resumen, las
 recomendaciones, los requisitos de instalación y el alcance.

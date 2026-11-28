@@ -10,25 +10,25 @@ for the through-bolts, and reuses its mesh, solver and result reader:
   to the plate: the strength of the beam belongs to the frame design (and, for a
   seismic connection, to the AISC 358 checks), and an end plate is often designed for
   more than the beam's plastic moment (the probable moment at the column face);
-* "block" = the column flange (``model.ColumnFlange``): elastic-plastic steel of the
-  flange thickness and width, over a length of the column, held on its back face
-  along the column web and along the continuity plates; frictionless contact with
-  the end plate;
+* "block" = the near flange of the column (``model.ColumnFlange``), in frictionless
+  contact with the end plate; the mesh adds the rest of the column under it: web, far
+  flange, continuity plates (full depth, both sides of the web) and doubler plate,
+  all elastic-plastic steel sharing nodes, over the plate height plus one column
+  depth above and below, fixed at both ends;
 * "anchor rods" = the bolts: axial springs E·A/L over the grip (plate + flange),
-  tension only, between a washer on the plate and the nut on the back of the flange;
-  they take the shear by bearing (lateral springs). For the checks the bolts are snug
-  tight, as in the strength models of the Design Guides (the pretension does not add
-  to the required tension of AISC J3.6, and the force of a separated joint is the
-  applied tension plus prying). With ``pretension`` the spring law starts at the
-  Table J3.1 pretension (or its snug-tight fraction): the stiffness of the joint in
-  service, for the moment-rotation curve;
+  tension only, between a washer on the plate and the nut on the inner face of the
+  flange; they take the shear by bearing (lateral springs). For the checks the bolts
+  are snug tight, as in the strength models of the Design Guides (the pretension
+  does not add to the required tension of AISC J3.6, and the force of a separated
+  joint is the applied tension plus prying). With ``pretension`` the Table J3.1
+  pretension (or its snug-tight fraction) is applied first: the stiffness of the
+  joint in service, for the moment-rotation curve;
 * extension stiffeners (4ES, 8ES, 1/3 stiffened) and the stiffeners of the stiffened
   flush layouts: plates welded to the beam and to the end plate.
 
-The web and continuity plates are taken as rigid supports of the flange, so the model
-gives the local behaviour of the connection (plate, bolts, column flange); the panel
-zone and the column web are checked analytically and their flexibility is added to
-the moment-rotation curve separately.
+The column segment is short and fixed at its ends, so the shear of its panel zone is
+not exactly that of the frame: the column web, panel zone and continuity plates are
+also checked analytically.
 
 Model axes (those of the base plate): z along the beam, out of the column flange; x
 up the beam depth; y across. The plate centre is at x = 0 and the beam axis at x =
@@ -39,10 +39,12 @@ compression.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 from openconex.connections.moment.end_plate import (
     STIFFENED_EXTENSION,
     EndPlateLayout,
@@ -73,8 +75,9 @@ from openfemconex.model import (
 )
 from openfemconex.results import Results
 
-__all__ = ["STRAIN_LIMIT", "FemSide", "bolt_pretension", "fem_checks", "fem_loads",
-           "fem_model", "solve_combination"]
+__all__ = ["FR_LIMIT", "SIMPLE_LIMIT", "STRAIN_LIMIT", "FemSide", "MomentRotation",
+           "bolt_pretension", "curve_figure", "fem_checks", "fem_loads", "fem_model",
+           "moment_rotation", "service_moment", "solve_combination"]
 
 STRAIN_LIMIT = 0.05
 INCH = 25.4
@@ -171,15 +174,24 @@ def fem_model(mc: MomentConnection, pretension: bool = False) -> BasePlateModel:
                       welded_washers=True)
     if B > col.bf + 1e-6:
         raise ValueError("la placa de extremo es más ancha que el ala de la columna")
-    # the flange over the plate and one flange width beyond it, above and below
-    length = N + 2 * max(col.bf / 2, 4 * INCH)
+    # the column over the plate and a column depth beyond it, above and below
+    length = N + 2 * max(col.d, col.bf / 2, 4 * INCH)
+    flanges = [(beam.d - beam.tf) / 2 - centre, -(beam.d - beam.tf) / 2 - centre]
     continuity = []
     if mc.continuity_plate > 0:
-        t = mc.continuity_plate
-        for zf in ((beam.d - beam.tf) / 2, -(beam.d - beam.tf) / 2):
-            continuity.append((zf - centre, t))
+        width = min(mc.continuity_plate_width or (col.bf - col.tw) / 2,
+                    (col.bf - col.tw) / 2)
+        continuity = [(x, mc.continuity_plate, width) for x in flanges]
+    doubler = None
+    if mc.doubler_plate > 0:
+        # between the continuity plates, or 6 in beyond the beam flanges without them
+        reach = 0.0 if continuity else 6 * INCH
+        x0 = max(min(flanges) - reach, -length / 2)
+        x1 = min(max(flanges) + reach, length / 2)
+        doubler = (mc.doubler_plate, x0, x1)
     cs = _steel(col.grade)
-    flange = ColumnFlange(steel=cs, web=col.tw, stiffeners=tuple(continuity),
+    flange = ColumnFlange(steel=cs, d=col.d, tw=col.tw, stiffeners=tuple(continuity),
+                          doubler=doubler, joint=(flanges[0], flanges[1]),
                           pretension=bolt_pretension(mc) if pretension else 0.0)
     concrete = Concrete(fc=28.0, N=length, B=col.bf, H=col.tf)
     stiffeners = _stiffeners(mc, ex, top, bottom)
@@ -265,6 +277,12 @@ def fem_checks(mc: MomentConnection, res: Results, model: BasePlateModel,
                        label))
     out.append(_strain("end_plate.fem_flange_strain", res.flange_peeq_element, strain_limit,
                        label))
+    # the rest of the column: its web (panel zone), continuity plates and doubler plate
+    for region, id_ in (("web", "end_plate.fem_column_web_strain"),
+                        ("continuity", "end_plate.fem_continuity_strain"),
+                        ("doubler", "end_plate.fem_doubler_strain")):
+        if region in res.column_peeq_element:
+            out.append(_strain(id_, res.column_peeq_element[region], strain_limit, label))
     if model.stiffeners:
         out.append(_strain("end_plate.fem_stiffener_strain", res.stiffener_peeq_element,
                            strain_limit, label))
@@ -317,3 +335,283 @@ def solve_combination(mc: MomentConnection, combo, workdir: str | Path, *,
     return [FemSide("viga", combo.name, res, model,
                     fem_checks(mc, res, model, ed, combo.name, combo.method, strain_limit),
                     workdir / f"{file_stem(combo.name)}.vtu")]
+
+
+# -------------------------------------------------------------------- moment-rotation
+FR_LIMIT = 20.0
+"""K_s·L/EI at or above which a connection is fully restrained (AISC 360-22 B3.4
+Commentary)."""
+SIMPLE_LIMIT = 2.0
+"""K_s·L/EI at or below which a connection is simple (AISC 360-22 B3.4 Commentary)."""
+ROTATION_REF = 0.02
+"""Rotation at which the strength of a connection without a peak is read [rad]."""
+CURVE = "curva_momento_rotacion"
+"""File name of the CalculiX run of the curve."""
+
+
+def beam_inertia(model: BasePlateModel) -> float:
+    """Strong-axis moment of inertia of the beam stub as meshed (no fillets) [mm⁴]."""
+    s = model.section
+    return (s.bf * s.d**3 - (s.bf - s.tw) * (s.d - 2 * s.tf) ** 3) / 12
+
+
+@dataclass
+class MomentRotation:
+    """Moment-rotation curve of the connection (CalculiX, monotonic moment).
+
+    The rotation is that of the beam end minus the elastic rotation of the stub itself,
+    relative to the column: with ``panel_zone`` relative to the column section at the
+    beam axis (the rotation includes the shear distortion of the panel zone), without
+    it relative to the column flange over the web between the beam flanges (only the
+    connection: plate, bolts and the local bending of the column flange). The bending
+    of the short, fixed column segment of the model is left out in both.
+    """
+
+    points: list[tuple[float, float]]
+    """(rotation [rad], moment [N·mm]) from (0, 0), one per increment."""
+    target: float
+    """Moment applied at the end of the run [N·mm]."""
+    converged: bool
+    span: float
+    """Beam span between column faces [mm]."""
+    EI: float
+    """Of the beam [N·mm²]."""
+    Ms: float
+    """Service moment [N·mm] (see service_moment)."""
+    pretension: float
+    """Bolt pretension used [N]."""
+    vtu: Path | None = None
+    panel_zone: bool = True
+    """Whether the rotation includes the panel zone (see the class)."""
+    other: list[tuple[float, float]] = field(default_factory=list)
+    """The curve with the other choice of ``panel_zone``, for comparison."""
+
+    @property
+    def alternate(self) -> MomentRotation | None:
+        """The curve with the other choice of ``panel_zone`` (None without it)."""
+        if len(self.other) < 2:
+            return None
+        return dataclasses.replace(self, points=self.other, other=[],
+                                   panel_zone=not self.panel_zone)
+
+    @property
+    def label(self) -> str:
+        return "con la zona de panel" if self.panel_zone else "solo la conexión"
+
+    @property
+    def M_max(self) -> float:
+        return max((m for _, m in self.points), default=0.0)
+
+    @property
+    def theta_max(self) -> float:
+        return max((t for t, _ in self.points), default=0.0)
+
+    def rotation_at(self, M: float) -> float | None:
+        """Rotation at the moment M (interpolated), None beyond the curve."""
+        for (t0, m0), (t1, m1) in zip(self.points, self.points[1:]):
+            if m0 <= M <= m1 and m1 > m0:
+                return t0 + (t1 - t0) * (M - m0) / (m1 - m0)
+        return None
+
+    def moment_at(self, theta: float) -> float | None:
+        """Moment at the rotation theta (interpolated), None beyond the curve."""
+        for (t0, m0), (t1, m1) in zip(self.points, self.points[1:]):
+            if t0 <= theta <= t1 and t1 > t0:
+                return m0 + (m1 - m0) * (theta - t0) / (t1 - t0)
+        return None
+
+    @property
+    def initial_stiffness(self) -> float:
+        """Secant stiffness of the first increment [N·mm/rad]."""
+        for t, m in self.points[1:]:
+            if t > 0:
+                return m / t
+        return math.inf
+
+    @property
+    def Ks(self) -> float:
+        """Secant stiffness at the service moment [N·mm/rad] (the initial one without
+        a service moment, the last point when Ms is beyond the curve)."""
+        if self.Ms <= 0:
+            return self.initial_stiffness
+        theta = self.rotation_at(self.Ms)
+        if theta is None:
+            t, m = self.points[-1]
+            return m / t if t > 0 else math.inf
+        return self.Ms / theta if theta > 0 else math.inf
+
+    @property
+    def stiffness_ratio(self) -> float:
+        """K_s·L/EI."""
+        return self.Ks * self.span / self.EI
+
+    @property
+    def classification(self) -> str:
+        """``FR``, ``PR`` or ``simple`` by K_s·L/EI (AISC 360-22 B3.4 Commentary)."""
+        r = self.stiffness_ratio
+        return "FR" if r >= FR_LIMIT else "simple" if r <= SIMPLE_LIMIT else "PR"
+
+    @property
+    def M_ref(self) -> float | None:
+        """Moment at 0.02 rad, when the curve gets there."""
+        return self.moment_at(ROTATION_REF)
+
+
+def service_moment(combos) -> float:
+    """Service moment for the stiffness: the largest |M| of the ASD combinations or,
+    with LRFD only, the largest |M| divided by 1.5 (a typical load factor)."""
+    asd = [abs(c.M) for c in combos if c.method is Method.ASD]
+    if asd:
+        return max(asd)
+    return max((abs(c.M) for c in combos), default=0.0) / 1.5
+
+
+def moment_rotation(mc: MomentConnection, span: float, combos, workdir: str | Path, *,
+                    ccx: str | None = None, threads: int | None = None, reuse: bool = True,
+                    cancel=None, progress=None, fast: bool = False,
+                    settings: MeshSettings | None = None, started=None,
+                    factor: float = 1.5, panel_zone: bool = True) -> MomentRotation:
+    """Moment-rotation curve: a moment alone, up to ``factor`` times the largest of the
+    combinations (or the plastic moment of the beam without them), in steps of 5 %,
+    with the bolts pretensioned (the stiffness of the joint as built). The run stops
+    where the connection cannot take more. ``panel_zone``: whether the rotation
+    includes the shear distortion of the panel zone (see MomentRotation); the curve
+    with the other choice is kept in ``other``."""
+    from openfemconex.model import E_STEEL
+    from openfemconex.results import read_dat_history
+    from openfemconex.solve import file_stem, solve
+
+    workdir = Path(workdir)
+    settings = settings or MeshSettings(fast=fast)
+    model = fem_model(mc, pretension=True)
+    model.validate()
+    EI = E_STEEL * beam_inertia(model)
+    M_design = max((abs(c.M) for c in combos), default=0.0)
+    if M_design <= 0:
+        beam = mc.beam
+        Z = beam.bf * beam.tf * (beam.d - beam.tf) + beam.tw * (beam.d - 2 * beam.tf) ** 2 / 4
+        M_design = STEELS[beam.grade].Fy * Z / factor
+    target = factor * M_design
+    if started is not None:
+        started(CURVE, workdir / f"{file_stem(CURVE)}.sta")
+    res = solve(model, Loads(My=-target, name=CURVE), workdir, settings=settings, ccx=ccx,
+                threads=threads, reuse=reuse, cancel=cancel, progress=progress,
+                max_increment=0.05, history=True, min_increment=1e-3, retry=False)
+    base = workdir / file_stem(CURVE)
+    dat = base.with_suffix(".dat")
+    table = read_dat_history(dat, "displacements/LOADNODES")
+    joint = read_dat_history(dat, "displacements/JOINT")
+    rot_node = max(table[-1][1]) if table else 0  # the rotation node of the rigid body
+    from openfemconex.mesh import build_mesh
+
+    mesh = build_mesh(model, settings)
+    joint_nodes, xyz = mesh.joint_nodes, mesh.nodes
+
+    def column_rotations(nodes: dict) -> tuple[float, float]:
+        """(section at the beam axis, flange line over the web) rotations of the
+        column, positive as the beam rotation [rad]."""
+        if not joint_nodes or not nodes:
+            return 0.0, 0.0
+
+        def mean(name: str, dof: int) -> tuple[float, np.ndarray]:
+            ids = [int(n) for n in joint_nodes[name] if int(n) in nodes]
+            if not ids:
+                return 0.0, np.zeros(3)
+            return (float(np.mean([nodes[n][dof] for n in ids])),
+                    xyz[np.array(ids) - 1].mean(axis=0))
+
+        (u_top, p_top), (u_bot, p_bot) = mean("top", 2), mean("bottom", 2)
+        (u_near, p_near), (u_far, p_far) = mean("near", 0), mean("far", 0)
+        # rotation about y: ux = θy·z, uz = -θy·x; the beam rotation is -θy
+        line = (u_top - u_bot) / (p_top[0] - p_bot[0]) if p_top[0] != p_bot[0] else 0.0
+        section = (-(u_near - u_far) / (p_near[2] - p_far[2])
+                   if p_near[2] != p_far[2] else 0.0)
+        return section, line
+
+    times = [t for t, _ in table]
+    joint_at = {round(t, 9): n for t, n in joint}
+    rows = []  # (time, beam rotation, column section, flange line)
+    for t, n in table:
+        if rot_node not in n:
+            continue
+        s, f = column_rotations(joint_at.get(round(t, 9), {}))
+        rows.append((t, -float(n[rot_node][1]), s, f))
+    # the first step only pretensions the bolts: the curve starts from its end (its
+    # rotation is that of the pretension alone, taken as zero)
+    if model.flange.pretension > 0 and rows:
+        t0, b0, s0, f0 = rows[0]
+        rows = rows[1:]
+        total = max(times, default=0.0) > 1.0 + 1e-9
+        rows = [(t - 1.0 if total else t, b - b0, s - s0, f - f0) for t, b, s, f in rows]
+    with_panel, without = [(0.0, 0.0)], [(0.0, 0.0)]
+    for time, beam_rot, section, line in rows:
+        if time <= 0 or time <= with_panel[-1][1] / target + 1e-9:
+            continue
+        M = time * target
+        theta = beam_rot - M * model.Lc / EI
+        with_panel.append((theta - section, M))
+        without.append((theta - line, M))
+    points, other = (with_panel, without) if panel_zone else (without, with_panel)
+    return MomentRotation(points=points, target=target, converged=res.converged,
+                          span=span, EI=EI, Ms=service_moment(combos),
+                          pretension=model.flange.pretension,
+                          vtu=workdir / f"{file_stem(CURVE)}.vtu", panel_zone=panel_zone,
+                          other=other)
+
+
+def curve_figure(mr: MomentRotation, path: str | Path, units=None,
+                 size: tuple[float, float] = (6.4, 4.2)) -> Path:
+    """PNG of the curve with the service moment, its secant stiffness and the limits
+    of a fully restrained and of a simple connection (K_s·L/EI = 20 and 2)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from openconex.report.builder import fmt
+    from openconex.units import Kind, UnitSystem
+
+    units = units or UnitSystem()
+    value, unit = fmt(1e6, Kind.MOMENT, units, 6).split(maxsplit=1)
+    k = float(value) / 1e6  # N·mm -> display unit
+    th = [1000 * t for t, _ in mr.points]
+    ms = [k * m for _, m in mr.points]
+    top = max(ms + [k * mr.Ms]) * 1.1 or 1.0
+    right = max(th + [1.0]) * 1.15
+    fig, ax = plt.subplots(figsize=size, dpi=150)
+    try:
+        ax.plot(th, ms, color="#1f5fa8", lw=2, marker="o", ms=2.5,
+                label=f"CalculiX, {mr.label}")
+        alt = mr.alternate
+        if alt is not None:
+            ax.plot([1000 * t for t, _ in alt.points], [k * m for _, m in alt.points],
+                    color="#8a96a3", lw=1.2, ls="-.",
+                    label=f"{alt.label} (K_s·L/EI = {alt.stiffness_ratio:.1f})")
+        for ratio, name, color in ((FR_LIMIT, "FR: K·L/EI = 20", "#2e9e4f"),
+                                   (SIMPLE_LIMIT, "Simple: K·L/EI = 2", "#d03040")):
+            K = ratio * mr.EI / mr.span  # N·mm/rad
+            t_end = min(right, top / (k * K) * 1000)
+            ax.plot([0, t_end], [0, k * K * t_end / 1000], ls="--", lw=1, color=color,
+                    label=name)
+        if mr.Ms > 0:
+            ax.axhline(k * mr.Ms, color="#888888", lw=0.8, ls=":")
+            ax.text(right * 0.98, k * mr.Ms, f"M_s = {k * mr.Ms:.0f} {unit}", ha="right",
+                    va="bottom", fontsize=8, color="#555555")
+            theta = mr.rotation_at(mr.Ms)
+            if theta is not None:
+                ax.plot([0, 1000 * theta], [0, k * mr.Ms], color="#d08020", lw=1.2,
+                        label=f"K_s = M_s/θ_s, K_s·L/EI = {mr.stiffness_ratio:.1f}")
+        if mr.M_ref is not None:
+            ax.plot([1000 * ROTATION_REF], [k * mr.M_ref], marker="s", color="#1f5fa8",
+                    ms=5, ls="none", label=f"M(0.02 rad) = {k * mr.M_ref:.0f} {unit}")
+        ax.set_xlim(0, right)
+        ax.set_ylim(0, top)
+        ax.set_xlabel("Rotación θ [mrad]")
+        ax.set_ylabel(f"Momento M [{unit}]")
+        ax.grid(True, lw=0.3, alpha=0.6)
+        ax.legend(fontsize=7, loc="lower right")
+        fig.tight_layout()
+        path = Path(path)
+        fig.savefig(path)
+    finally:
+        plt.close(fig)
+    return path

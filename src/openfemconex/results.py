@@ -15,7 +15,8 @@ from openfemconex.inp import InpNumbering
 from openfemconex.mesh import Mesh
 from openfemconex.model import BasePlateModel, Loads, SectionKind
 
-__all__ = ["AnchorForce", "Results", "WeldPoint", "read_dat", "read_frd", "summarize",
+__all__ = ["AnchorForce", "Results", "WeldPoint", "read_dat", "read_dat_history", "read_frd",
+           "summarize",
            "stiffener_weld_forces", "von_mises", "weld_forces"]
 
 
@@ -45,6 +46,32 @@ def read_dat(path: str | Path) -> dict[str, dict[int, np.ndarray]]:
                 current[0] = np.array([float(p) for p in parts])
             else:
                 current[int(parts[0])] = np.array([float(p) for p in parts[1:]])
+        except ValueError:
+            current = None
+    return out
+
+
+def read_dat_history(path: str | Path, key: str) -> list[tuple[float, dict[int, np.ndarray]]]:
+    """Every printed table of ``key`` (``kind/SET``, as in read_dat) with its time:
+    [(time, {node: values})], in the order of the file (the increments)."""
+    out: list[tuple[float, dict[int, np.ndarray]]] = []
+    current: dict[int, np.ndarray] | None = None
+    for line in Path(path).read_text().splitlines():
+        text = line.strip()
+        if " for set " in line:
+            kind = text.split("(")[0].strip()
+            name = text.split(" for set ")[1].split()[0]
+            current = None
+            if f"{kind}/{name}" == key:
+                time = float(text.rsplit("time", 1)[1]) if "time" in text else 0.0
+                current = {}
+                out.append((time, current))
+            continue
+        if not text or current is None:
+            continue
+        parts = text.split()
+        try:
+            current[int(parts[0])] = np.array([float(v) for v in parts[1:]])
         except ValueError:
             current = None
     return out
@@ -274,8 +301,13 @@ class Results:
     far_column_top_displacement: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Of the opposite column, in global axes."""
     flange_von_mises_max: float = 0.0
-    """Of the column flange, when the block is one (moment end plate)."""
+    """Of the column flanges, when the block is a steel column (moment end plate)."""
     flange_peeq_element: float = 0.0
+    column_von_mises: dict[str, float] = field(default_factory=dict)
+    """Of a steel column: largest von Mises stress of each of its regions (``flange``,
+    ``web``, ``continuity``, ``doubler``)."""
+    column_peeq_element: dict[str, float] = field(default_factory=dict)
+    """Of a steel column: largest element-mean PEEQ of each of its regions."""
 
     def to_json(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(asdict(self), indent=2))
@@ -413,8 +445,13 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
         conn = mesh.parts["CONCRETE"]
         vm_table = np.zeros(len(mesh.nodes) + 1)
         vm_table[sid] = vm
-        far.update(flange_von_mises_max=float(vm_table[conn].max()),
-                   flange_peeq_element=float(peeq[conn].mean(axis=1).max()))
+        regions = mesh.column_regions or {"flange": np.arange(len(conn))}
+        vms = {k: float(vm_table[conn[i]].max()) for k, i in regions.items() if len(i)}
+        peeqs = {k: float(peeq[conn[i]].mean(axis=1).max()) for k, i in regions.items()
+                 if len(i)}
+        far.update(flange_von_mises_max=vms.get("flange", 0.0),
+                   flange_peeq_element=peeqs.get("flange", 0.0),
+                   column_von_mises=vms, column_peeq_element=peeqs)
     if model.opposite is not None:
         # the stresses of the mirror image: the normal one keeps its sign
         far["far_weld"] = weld_forces(model.opposite, mesh.opposite, sid, sv)

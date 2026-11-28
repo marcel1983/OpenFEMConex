@@ -1122,6 +1122,12 @@ EN.update({
     "Rigidización de la columna": "Column stiffening", "Rosca": "Threads", "Sistema": "System",
     "Por ejemplo: PE-1, eje B-3": "For example: PE-1, grid B-3",
     "Luz libre entre caras de columna": "Clear span between column faces",
+    "Curva M-θ solo de la conexión (sin la zona de panel)":
+        "M-θ curve of the connection only (without the panel zone)",
+    "Sin marcar, la rotación de la curva incluye la distorsión de la zona de panel de la "
+    "columna; el reporte muestra las dos curvas":
+        "Unticked, the rotation of the curve includes the distortion of the column panel "
+        "zone; the report shows both curves",
     "Diseño sísmico (rótula plástica) y clasificación por rigidez":
         "Seismic design (plastic hinge) and stiffness classification",
     "La viga se une al ala (eje fuerte)": "The beam frames to the flange (strong axis)",
@@ -1228,6 +1234,21 @@ EN.update({
         "358-22 for every combination, and solves with CalculiX the combinations ticked in "
         "Loads: plate, pretensioned bolts, column flange and welds",
     "Placa de extremo: {n} combinaciones calculadas.": "End plate: {n} combinations checked.",
+    "Después, la curva momento-rotación (un modelo más).":
+        "Then the moment-rotation curve (one more model).",
+    "Curva momento-rotación: {n} puntos hasta {m}; K_s·L/EI = {r}: {name}.":
+        "Moment-rotation curve: {n} points up to {m}; K_s·L/EI = {r}: {name}.",
+    "Curva momento-rotación: no se pudo resolver: {error}":
+        "Moment-rotation curve: could not be solved: {error}",
+    "Curva momento-rotación": "Moment-rotation curve",
+    "La curva se calcula con CalculiX: use Análisis › Resolver.":
+        "The curve is computed with CalculiX: use Analysis › Solve.",
+    "Curva M-θ": "M-θ curve",
+    "Curva momento-rotación de la conexión y su clasificación (FR, PR o simple)":
+        "Moment-rotation curve of the connection and its classification (FR, PR or simple)",
+    "totalmente restringida (FR)": "fully restrained (FR)",
+    "parcialmente restringida (PR)": "partially restrained (PR)",
+    "simple": "simple",
     "FEM: perno más cargado, tracción con palanca y cortante (J3.7)":
         "FEM: most loaded bolt, tension with prying, and shear (J3.7)",
     "Presión de contacto de la placa de extremo sobre el ala de la columna: máx. {p} MPa":
@@ -1235,6 +1256,19 @@ EN.update({
     "FEM: deformación plástica del ala de la columna":
         "FEM: plastic strain of the column flange",
     "FEM: deformación plástica de los rigidizadores": "FEM: plastic strain of the stiffeners",
+    "FEM: deformación plástica del alma de la columna":
+        "FEM: plastic strain of the column web",
+    "FEM: deformación plástica de las placas de continuidad":
+        "FEM: plastic strain of the continuity plates",
+    "FEM: deformación plástica de la placa doble": "FEM: plastic strain of the doubler plate",
+    "Agregue una placa doble en la zona de panel o placas de continuidad, o use una "
+    "columna con alma más gruesa: el alma se plastifica en el nudo.":
+        "Add a doubler plate in the panel zone or continuity plates, or use a column with "
+        "a thicker web: the web yields in the joint.",
+    "Aumente el espesor o el ancho de las placas de continuidad.":
+        "Increase the thickness or the width of the continuity plates.",
+    "Aumente el espesor de la placa doble o agregue placas de continuidad.":
+        "Increase the thickness of the doubler plate or add continuity plates.",
     "FEM: soldadura de las alas de la viga a la placa":
         "FEM: weld of the beam flanges to the plate",
     "FEM: soldadura del alma de la viga a la placa": "FEM: weld of the beam web to the plate",

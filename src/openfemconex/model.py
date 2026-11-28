@@ -331,22 +331,31 @@ class FarPlate:
 
 @dataclass(frozen=True)
 class ColumnFlange:
-    """The block is the flange of a steel column (moment end plate).
+    """The block is the near flange of a steel I column (moment end plate).
 
-    The block is then of steel (``steel``, elastic-plastic), as deep as the flange
-    thickness, and the rods are bolts whose nuts bear on its far face (z = -H). The
-    flange is held on its far face along the column web (|y| ≤ ``web``/2) and along
-    each continuity plate (|x − x_c| ≤ t/2): the web and the plates are taken as rigid
-    supports, which is the model of the column flange yield lines.
+    The model then has the whole column over the length of the block (``concrete.N``):
+    the near flange (the block, of thickness ``concrete.H`` = t_f and width
+    ``concrete.B`` = b_f, in contact with the plate), the web, the far flange down to
+    z = -``d``, the continuity plates and the doubler plate, all of elastic-plastic
+    ``steel``. The rods are bolts whose nuts bear on the inner face of the near
+    flange (z = -t_f), and the column is held at both ends (x = ±N/2).
     """
 
     steel: Steel
-    web: float
+    d: float
+    """Column depth [mm]."""
+    tw: float
     """Thickness of the column web [mm]."""
-    stiffeners: tuple[tuple[float, float], ...] = ()
-    """(x of its centre, thickness) of each continuity plate [mm]."""
+    stiffeners: tuple[tuple[float, float, float], ...] = ()
+    """(x of its centre, thickness, width from the web face) of each pair of
+    continuity plates, one on each side of the web [mm]."""
+    doubler: tuple[float, float, float] | None = None
+    """(thickness, x from, x to) of a doubler plate on one face of the web (+y) [mm]."""
+    joint: tuple[float, float] | None = None
+    """x of the two beam flanges [mm]: the mesh marks the column nodes that measure the
+    rotation of the panel zone and of the column section there."""
     pretension: float = 0.0
-    """Bolt pretension [N]: the spring law starts with this force (0 = snug tight)."""
+    """Bolt pretension [N], applied as a pair of forces in a first step."""
 
 
 @dataclass(frozen=True)
