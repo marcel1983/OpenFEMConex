@@ -1228,6 +1228,21 @@ EN.update({
         "358-22 for every combination, and solves with CalculiX the combinations ticked in "
         "Loads: plate, pretensioned bolts, column flange and welds",
     "Placa de extremo: {n} combinaciones calculadas.": "End plate: {n} combinations checked.",
+    "Después, la curva momento-rotación (un modelo más).":
+        "Then the moment-rotation curve (one more model).",
+    "Curva momento-rotación: {n} puntos hasta {m}; K_s·L/EI = {r}: {name}.":
+        "Moment-rotation curve: {n} points up to {m}; K_s·L/EI = {r}: {name}.",
+    "Curva momento-rotación: no se pudo resolver: {error}":
+        "Moment-rotation curve: could not be solved: {error}",
+    "Curva momento-rotación": "Moment-rotation curve",
+    "La curva se calcula con CalculiX: use Análisis › Resolver.":
+        "The curve is computed with CalculiX: use Analysis › Solve.",
+    "Curva M-θ": "M-θ curve",
+    "Curva momento-rotación de la conexión y su clasificación (FR, PR o simple)":
+        "Moment-rotation curve of the connection and its classification (FR, PR or simple)",
+    "totalmente restringida (FR)": "fully restrained (FR)",
+    "parcialmente restringida (PR)": "partially restrained (PR)",
+    "simple": "simple",
     "FEM: perno más cargado, tracción con palanca y cortante (J3.7)":
         "FEM: most loaded bolt, tension with prying, and shear (J3.7)",
     "Presión de contacto de la placa de extremo sobre el ala de la columna: máx. {p} MPa":

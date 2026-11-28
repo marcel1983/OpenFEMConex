@@ -6,7 +6,8 @@ carga axial de la viga. Las verificaciones analíticas son las del motor de
 OpenConex (módulo `openconex.connections.moment`), que OpenFEMConex llama con
 los datos del proyecto (módulo `openfemconex.end_plate_project`). Encima de
 estos resultados, un modelo CalculiX de la placa, los pernos y el ala de la
-columna da las fuerzas reales en los pernos y las deformaciones plásticas.
+columna da las fuerzas reales en los pernos, las deformaciones plásticas y la
+curva momento-rotación con la clasificación FR, PR o simple.
 
 Normas: AISC 360-22; resistencia de la placa y fuerzas en los pernos según AISC
 Design Guide 16 y Design Guide 4 (8ES); diseño sísmico según AISC 358-22
@@ -121,6 +122,31 @@ fuerza repartida en el ancho del ala). Una soldadura de penetración completa es
 tan resistente como la viga y no se verifica con el modelo. El alma de la
 columna y la zona de panel se verifican de forma analítica.
 
+## Curva momento-rotación
+
+Resolver calcula siempre, además, la curva momento-rotación de la conexión: un
+modelo más, con un momento solo que crece en pasos de 5 % hasta 1.5 veces el
+mayor de las combinaciones, y los pernos **pretensados** (la pretensión de la
+Tabla J3.1 de AISC 360, o la fracción de pernos ajustados, como un par de
+fuerzas en un primer paso). La rotación es la del extremo de la viga respecto de
+la cara de la columna, sin la deformación elástica de la viga; el alma y la zona
+de panel de la columna no están en el modelo.
+
+Con la curva se clasifica la conexión según el comentario de AISC 360-22 §B3.4:
+la rigidez secante K_s = M_s/θ_s en el momento de servicio M_s (el mayor de las
+combinaciones ASD o, solo con LRFD, el mayor dividido entre 1.5) se compara con
+la rigidez de la viga, EI/L:
+
+| K_s·L/EI | Conexión |
+|---|---|
+| ≥ 20 | Totalmente restringida (FR) |
+| entre 2 y 20 | Parcialmente restringida (PR) |
+| ≤ 2 | Simple |
+
+El reporte incluye la curva, la rigidez inicial y la secante, la clasificación,
+el momento máximo alcanzado y el momento a 0.02 rad. En la interfaz, Análisis ›
+Curva M-θ la muestra.
+
 ## Cargas y reporte
 
 Los casos de carga dan, en la cara de la columna: V, M y P de la viga (P
@@ -129,5 +155,6 @@ Las combinaciones se generan con ASCE 7 en LRFD o ASD, o se escriben a mano.
 
 El reporte sigue el orden común: datos y cargas y, para cada combinación,
 primero el modelo CalculiX (tablas de resultados, fuerzas en cada perno y
-gráficos) y después las verificaciones analíticas con su traza; el bloque sísmico, y al final el resumen, las
+gráficos) y después las verificaciones analíticas con su traza (antes de las
+combinaciones va la curva momento-rotación); el bloque sísmico, y al final el resumen, las
 recomendaciones, los requisitos de instalación y el alcance.

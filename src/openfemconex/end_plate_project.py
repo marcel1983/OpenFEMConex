@@ -340,6 +340,8 @@ class EndPlateResults:
 
     combos: list[ComboResult]
     seismic: list[CheckResult] = field(default_factory=list)
+    curve: Any = None
+    """The moment-rotation curve (``end_plate_fem.MomentRotation``), once solved."""
 
     @property
     def ok(self) -> bool:
@@ -515,6 +517,53 @@ def _fem_blocks(side, units: UnitSystem, figures: dict | None = None,
     return blocks
 
 
+def _curve_blocks(curve, units: UnitSystem, figure: str = "", figure_base: str = "") -> list:
+    """The moment-rotation curve, its stiffness and the FR/PR classification."""
+    from openconex.report.builder import fmt
+
+    blocks: list = [("h2", "Curva momento-rotación")]
+    if curve is None:
+        return blocks + [("p", "La curva se calcula con CalculiX: use Análisis › Resolver "
+                               "(se resuelve siempre, aunque no haya combinaciones marcadas).",
+                          "note")]
+    from openfemconex.end_plate_fem import FR_LIMIT, ROTATION_REF, SIMPLE_LIMIT
+
+    M = Kind.MOMENT
+    name = {"FR": "totalmente restringida (FR)", "PR": "parcialmente restringida (PR)",
+            "simple": "simple"}[curve.classification]
+    blocks.append(("p", "Momento solo, creciente hasta 1.5 veces el mayor de las "
+                        "combinaciones, con los pernos pretensados "
+                        f"(T_b = {curve.pretension / 1e3:.0f} kN). La rotación es la del "
+                        "extremo de la viga respecto de la cara de la columna (sin la "
+                        "deformación elástica de la viga); el alma y la zona de panel de "
+                        "la columna no se incluyen. Clasificación según el comentario de "
+                        f"AISC 360-22 §B3.4: FR si K_s·L/EI ≥ {FR_LIMIT:g}, simple si "
+                        f"≤ {SIMPLE_LIMIT:g}, PR entre ambos.", ""))
+    if figure:
+        blocks.append(("figs", "", [("Curva momento-rotación", f"{figure_base}{figure}")],
+                       False))
+    theta_s = curve.rotation_at(curve.Ms) if curve.Ms > 0 else None
+    M_ref = curve.M_ref
+    rows = [
+        ["Momento de servicio M_s", fmt(curve.Ms, M, units)],
+        ["Rotación en servicio θ_s",
+         f"{1000 * theta_s:.2f} mrad" if theta_s is not None else "—"],
+        ["Rigidez secante K_s = M_s/θ_s", f"{fmt(curve.Ks, M, units)}/rad"],
+        ["Rigidez inicial", f"{fmt(curve.initial_stiffness, M, units)}/rad"],
+        ["Luz de la viga L", fmt(curve.span, Kind.LENGTH, units)],
+        ["K_s·L/EI", f"{curve.stiffness_ratio:.1f}"],
+        ["Clasificación", name],
+        ["Momento máximo alcanzado", f"{fmt(curve.M_max, M, units)} a "
+                                     f"{1000 * curve.theta_max:.1f} mrad"
+                                     + ("" if curve.converged else " (el modelo no resiste "
+                                                                    "más)")],
+        [f"Momento a {1000 * ROTATION_REF:.0f} mrad",
+         fmt(M_ref, M, units) if M_ref is not None else "no se alcanza"],
+    ]
+    blocks.append(("table", ["Resultado", "Valor"], rows, {1}))
+    return blocks
+
+
 def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSystem,
                   info: dict[str, Any], figures: str = "", figure_base: str = "",
                   picture: bool = False, fem_figures: dict | None = None) -> list:
@@ -573,6 +622,7 @@ def report_blocks(data: dict[str, Any], results: EndPlateResults, units: UnitSys
     if fem_figures.get(""):
         blocks.append(("figs", "Modelo de elementos finitos",
                        [(c, f"{figure_base}{f}") for c, f in fem_figures[""] if f], False))
+    blocks += _curve_blocks(results.curve, units, fem_figures.get("curva", ""), figure_base)
     blocks += _loads_blocks(data, results, units, mc.panel_zone)
     for r in results.combos:
         c = r.combo

@@ -163,7 +163,8 @@ def limitations(data: dict[str, Any], mc: MomentConnection) -> list[str]:
         "apoyada rígidamente en el alma y en las placas de continuidad, pernos ajustados "
         "sin pretensión que toman el cortante. El alma de la columna, la zona de panel y "
         "las soldaduras de penetración completa se verifican de forma analítica.",
-        "Sin curva momento-rotación en esta versión del reporte.",
+        "Curva momento-rotación con pernos pretensados y momento solo; no incluye la "
+        "deformación del alma ni de la zona de panel de la columna.",
     ]
     if data.get("seismic"):
         out.append("El diseño sísmico revisa la conexión precalificada para el momento "

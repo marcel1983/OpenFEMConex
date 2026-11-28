@@ -5,8 +5,9 @@ steel column** (strong axis). The connection carries the moment, shear and axial
 force of the beam. The analytic checks are those of the OpenConex engine
 (`openconex.connections.moment`), which OpenFEMConex calls with the project data
 (`openfemconex.end_plate_project`). On top of these results, a CalculiX model of
-the plate, the bolts and the column flange gives the actual bolt forces and the
-plastic strains.
+the plate, the bolts and the column flange gives the actual bolt forces, the
+plastic strains and the moment-rotation curve with the FR, PR or simple
+classification.
 
 Standards: AISC 360-22; plate strength and bolt forces after AISC Design Guide
 16 and Design Guide 4 (8ES); seismic design after AISC 358-22 Chapter 6 with
@@ -117,6 +118,31 @@ flange width). A complete joint penetration weld is as strong as the beam and is
 not checked with the model. The column web and panel zone are checked
 analytically.
 
+## Moment-rotation curve
+
+Resolver always also computes the moment-rotation curve of the connection: one
+more model, with a moment alone rising in 5 % steps up to 1.5 times the largest
+of the combinations, and the bolts **pretensioned** (the AISC 360 Table J3.1
+pretension, or the snug-tight fraction, as a pair of forces in a first step).
+The rotation is that of the beam end relative to the column face, without the
+elastic deformation of the beam; the column web and panel zone are not in the
+model.
+
+The curve classifies the connection after the AISC 360-22 §B3.4 Commentary: the
+secant stiffness K_s = M_s/θ_s at the service moment M_s (the largest of the ASD
+combinations or, with LRFD only, the largest divided by 1.5) is compared with the
+beam stiffness EI/L:
+
+| K_s·L/EI | Connection |
+|---|---|
+| ≥ 20 | Fully restrained (FR) |
+| between 2 and 20 | Partially restrained (PR) |
+| ≤ 2 | Simple |
+
+The report includes the curve, the initial and secant stiffness, the
+classification, the largest moment reached and the moment at 0.02 rad. In the
+interface, Analysis › M-θ curve shows it.
+
 ## Loads and report
 
 Load cases give, at the column face: V, M and P of the beam (P positive in
@@ -125,5 +151,6 @@ Combinations are generated with ASCE 7 in LRFD or ASD, or typed by hand.
 
 The report follows the common order: data and loads and, for each
 combination, first the CalculiX model (result tables, the force in each bolt and
-plots) and then the analytic checks with their trace; the seismic block, and at the end the summary,
+plots) and then the analytic checks with their trace (the moment-rotation curve
+comes before the combinations); the seismic block, and at the end the summary,
 recommendations, installation requirements and scope.

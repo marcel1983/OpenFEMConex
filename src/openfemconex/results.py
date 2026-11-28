@@ -15,7 +15,8 @@ from openfemconex.inp import InpNumbering
 from openfemconex.mesh import Mesh
 from openfemconex.model import BasePlateModel, Loads, SectionKind
 
-__all__ = ["AnchorForce", "Results", "WeldPoint", "read_dat", "read_frd", "summarize",
+__all__ = ["AnchorForce", "Results", "WeldPoint", "read_dat", "read_dat_history", "read_frd",
+           "summarize",
            "stiffener_weld_forces", "von_mises", "weld_forces"]
 
 
@@ -45,6 +46,32 @@ def read_dat(path: str | Path) -> dict[str, dict[int, np.ndarray]]:
                 current[0] = np.array([float(p) for p in parts])
             else:
                 current[int(parts[0])] = np.array([float(p) for p in parts[1:]])
+        except ValueError:
+            current = None
+    return out
+
+
+def read_dat_history(path: str | Path, key: str) -> list[tuple[float, dict[int, np.ndarray]]]:
+    """Every printed table of ``key`` (``kind/SET``, as in read_dat) with its time:
+    [(time, {node: values})], in the order of the file (the increments)."""
+    out: list[tuple[float, dict[int, np.ndarray]]] = []
+    current: dict[int, np.ndarray] | None = None
+    for line in Path(path).read_text().splitlines():
+        text = line.strip()
+        if " for set " in line:
+            kind = text.split("(")[0].strip()
+            name = text.split(" for set ")[1].split()[0]
+            current = None
+            if f"{kind}/{name}" == key:
+                time = float(text.rsplit("time", 1)[1]) if "time" in text else 0.0
+                current = {}
+                out.append((time, current))
+            continue
+        if not text or current is None:
+            continue
+        parts = text.split()
+        try:
+            current[int(parts[0])] = np.array([float(v) for v in parts[1:]])
         except ValueError:
             current = None
     return out

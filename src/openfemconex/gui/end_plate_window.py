@@ -106,6 +106,9 @@ class EndPlateWindow:
             self.ep_field_box.addItem(tr(name), name)
         self.ep_field_box.activated.connect(lambda _: self.show_ep_fem())
         g.add_widget("Resultado", self.ep_field_box)
+        g.add_button("Curva M-θ", icon("view"), self.show_ep_curve,
+                     "Curva momento-rotación de la conexión y su clasificación (FR, PR o "
+                     "simple)")
         tab = self.ep_ribbon.add_tab("Verificación")
         g = tab("Verificaciones")
         g.add_button("Resumen", icon("check"), self.show_ep_checks)
@@ -199,9 +202,8 @@ class EndPlateWindow:
     def solve_ep(self) -> None:
         """Analytic checks of every combination (and the AISC 358 block), then CalculiX
         for the combinations checked in Cargas."""
-        from openfemconex import end_plate_fem as epf
         from openfemconex.checks import EDITIONS
-        from openfemconex.gui.through_bolt_panel import FemWorker
+        from openfemconex.gui.end_plate_panel import EndPlateFemWorker
         from openfemconex.model import MeshSettings
 
         if getattr(self, "ep_worker", None) is not None:
@@ -221,19 +223,23 @@ class EndPlateWindow:
                 "{error}", error=exc))
             return
         chosen = set(self.ep.combinations.selected())
-        combos = [c for c in self.ep.combination_list() if c.name in chosen]
-        if not combos:
-            self.ep_ribbon.select("Verificación")
-            QMessageBox.information(self, tr("Resolver"), tr(
-                "Verificaciones analíticas listas. Marque en Cargas las combinaciones que "
-                "se resuelven con CalculiX."))
+        every = self.ep.combination_list()
+        combos = [c for c in every if c.name in chosen]
+        try:
+            span = self.ep.span()
+        except Exception as exc:
+            QMessageBox.warning(self, tr("Resolver"), tr("No se pudo calcular: {error}",
+                                                          error=exc))
             return
         st = self.state.settings
         mesh = MeshSettings(size_fine=st.size, plate_layers=st.layers, fast=st.fast)
-        worker = FemWorker(self.ep.connection(), combos, self.ep.fem_dir(),
-                           EDITIONS["current"], st.ccx, st.fast, st.threads,
-                           settings=mesh, strain_limit=st.strain_limit,
-                           solver=epf.solve_combination)
+        # the combinations ticked in Loads, and always the moment-rotation curve
+        worker = EndPlateFemWorker(self.ep.connection(), combos, self.ep.fem_dir(),
+                                   EDITIONS["current"], span=span, all_combos=every,
+                                   ccx=st.ccx, fast=st.fast, threads=st.threads,
+                                   settings=mesh, strain_limit=st.strain_limit)
+        worker.curve_done.connect(self._ep_curve_done)
+        worker.curve_failed.connect(self._ep_curve_failed)
         worker.stage.connect(self._tb_stage)
         worker.started_combo.connect(self._tb_combo_started)
         worker.combo_done.connect(self._ep_combo_done)
@@ -250,8 +256,10 @@ class EndPlateWindow:
                                     "Salida: {out}", n=len(combos), t=st.threads,
                                     out=self.ep.fem_dir(),
                                     mesh=tr("malla rápida") if st.fast else tr("malla normal")))
+        self.log.appendPlainText(tr("Después, la curva momento-rotación (un modelo más)."))
         axial = any(c.P > 0 for c in combos)  # then two load steps
-        self.solve_progress.start(len(combos), 0, 0, st.threads, steps=2 if axial else 1)
+        self.solve_progress.start(len(combos) + 1, 0, 0, st.threads,
+                                  steps=2 if axial else 1)
         self.progress.setValue(0)
         self.progress.show()
         self._progress_timer.start()
@@ -259,6 +267,45 @@ class EndPlateWindow:
 
     def _ep_combo_done(self, name: str, sides: list) -> None:
         self._tb_combo_done(name, sides, self.ep)
+
+    def _ep_curve_done(self, curve) -> None:
+        self.ep.set_curve(curve)
+        name = {"FR": tr("totalmente restringida (FR)"),
+                "PR": tr("parcialmente restringida (PR)"),
+                "simple": tr("simple")}[curve.classification]
+        text = tr("Curva momento-rotación: {n} puntos hasta {m}; K_s·L/EI = {r}: {name}.",
+                  n=len(curve.points) - 1, m=fmt(curve.M_max, Kind.MOMENT, self.state.units),
+                  r=f"{curve.stiffness_ratio:.1f}", name=name)
+        self.log.appendPlainText(text)
+        self.solve_progress.combo_finished(text)
+
+    def _ep_curve_failed(self, msg: str) -> None:
+        text = tr("Curva momento-rotación: no se pudo resolver: {error}", error=msg)
+        self.log.appendPlainText(text)
+        self.solve_progress.combo_finished(text)
+
+    def show_ep_curve(self) -> None:
+        """The moment-rotation curve in a window."""
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+        from openfemconex.end_plate_fem import curve_figure
+
+        curve = self.ep.curve
+        if curve is None:
+            QMessageBox.information(self, tr("Curva momento-rotación"), tr(
+                "La curva se calcula con CalculiX: use Análisis › Resolver."))
+            return
+        path = curve_figure(curve, self.ep.fem_dir() / "curva_momento_rotacion.png",
+                            self.state.units)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tr("Curva momento-rotación"))
+        layout = QVBoxLayout(dialog)
+        picture = QLabel()
+        picture.setPixmap(QPixmap(str(path)))
+        layout.addWidget(picture)
+        dialog.show()
+        self._curve_dialog = dialog
 
     def stop_ep(self) -> None:
         if getattr(self, "ep_worker", None) is not None:
@@ -306,7 +353,18 @@ class EndPlateWindow:
 
     def _ep_fem_figures(self, folder: Path) -> dict:
         """Figures of the CalculiX models (model, mesh, stresses, strains, displacements
-        and contact pressure) rendered into ``folder``."""
+        and contact pressure) and of the moment-rotation curve (key ``curva``) rendered
+        into ``folder``."""
+        figures = self._ep_model_figures(folder)
+        if self.ep.curve is not None:
+            from openfemconex.end_plate_fem import curve_figure
+
+            name = "curva_momento_rotacion.png"
+            curve_figure(self.ep.curve, folder / name, self.state.units)
+            figures["curva"] = name
+        return figures
+
+    def _ep_model_figures(self, folder: Path) -> dict:
         from PySide6.QtWidgets import QApplication
 
         from openfemconex.scenes import render_through_bolt_figures

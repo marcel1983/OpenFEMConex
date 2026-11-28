@@ -15,10 +15,12 @@ from typing import Any
 
 from openconex.core.materials import ELECTRODES
 from openconex.units import Kind
+from PySide6.QtCore import Signal
 
 from openfemconex import end_plate_project as epp
 from openfemconex.gui.loads import CaseColumn
 from openfemconex.gui.through_bolt_panel import (
+    FemWorker,
     TBField,
     TBForm,
     TBLoadsPanel,
@@ -245,6 +247,8 @@ class EndPlateEditor(ThroughBoltEditor):
     def __init__(self, state) -> None:
         super().__init__(state)
         self.seismic: list = []
+        self.curve = None
+        """Moment-rotation curve (end_plate_fem.MomentRotation) of the last solution."""
 
     @staticmethod
     def load(data: dict[str, Any]) -> dict[str, Any]:
@@ -256,7 +260,16 @@ class EndPlateEditor(ThroughBoltEditor):
     def combination_list(self) -> list:
         return epp.combinations(self.data, self.state.units)
 
+    def span(self) -> float:
+        """Beam span between column faces [mm]."""
+        return epp._Reader(self.state.units).q(self.data.get("span"), Kind.LENGTH)
+
+    def set_curve(self, curve) -> None:
+        self.curve = curve
+        self.results_changed.emit()
+
     def run(self) -> list:
+        self.curve = None
         res = epp.run(self.data, self.state.units)
         self.seismic = res.seismic
         out = list(res.combos)
@@ -266,7 +279,7 @@ class EndPlateEditor(ThroughBoltEditor):
 
     def end_plate_results(self) -> epp.EndPlateResults:
         combos = [r for r in self.results if r.combo.name != epp.SEISMIC_COMBO]
-        return epp.EndPlateResults(combos, self.seismic)
+        return epp.EndPlateResults(combos, self.seismic, self.curve)
 
     def _report_args(self) -> tuple:
         return (self.data, self.end_plate_results(), self.state.units,
@@ -291,3 +304,40 @@ class EndPlateEditor(ThroughBoltEditor):
     @staticmethod
     def new(name: str) -> dict[str, Any]:
         return copy.deepcopy(epp.new_connection(name))
+
+
+class EndPlateFemWorker(FemWorker):
+    """The CalculiX runs of an end-plate connection: the ticked combinations and then,
+    always, the moment-rotation curve."""
+
+    curve_done = Signal(object)
+    curve_failed = Signal(str)
+
+    def __init__(self, conn, combos: list, out, edition, *, span: float, all_combos: list,
+                 **kwargs) -> None:
+        from openfemconex import end_plate_fem as epf
+
+        super().__init__(conn, combos, out, edition, solver=epf.solve_combination, **kwargs)
+        self.span, self.all_combos = span, all_combos
+
+    def run(self) -> None:
+        from openfemconex import end_plate_fem as epf
+        from openfemconex.runner import CcxCancelled
+
+        super().run()
+        if self.cancel.is_set():
+            return
+        try:
+            curve = epf.moment_rotation(
+                self.conn, self.span, self.all_combos, self.out, ccx=self.ccx,
+                threads=self.threads, cancel=self.cancel, fast=self.fast,
+                settings=self.settings,
+                started=lambda name, sta: self.started_combo.emit(name, str(sta)),
+                progress=lambda text: self.stage.emit(f"{epf.CURVE}: {text}"))
+        except CcxCancelled:
+            self.cancelled.emit()
+            return
+        except Exception as exc:
+            self.curve_failed.emit(f"{type(exc).__name__}: {exc}")
+            return
+        self.curve_done.emit(curve)

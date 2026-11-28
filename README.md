@@ -70,7 +70,8 @@ perfiles y los materiales.
   alma, zona de panel, placas de continuidad y doble) y diseño sísmico precalificado
   AISC 358-22. Interfaz, vista 3D, cálculo analítico, modelo CalculiX (placa,
   pernos y ala de la columna apoyada en el alma y las placas de continuidad),
-  reporte y ayuda; sigue la curva momento-rotación.
+  curva momento-rotación con la clasificación FR, PR o simple (AISC 360 §B3.4),
+  reporte y ayuda.
 - **Varias conexiones por proyecto.** **Proyecto › Agregar conexión** abre un
   selector con la vista isométrica de cada tipo; cada conexión tiene sus datos,
   cargas, verificaciones y reporte, y el ribbon cambia según el tipo.

@@ -73,10 +73,12 @@ def test_mesh_and_deck(tmp_path):
     assert "FLANGEHELD, 1, 3" in text and "CONCBOT, 1, 3" not in text
     ks = anchor_stiffness(m)
     assert ks.length == pytest.approx(m.tp + m.concrete.H)
-    # the spring law starts at the pretension
+    # the pretension: a pair of forces in a first step, then the tension-only spring
     T0 = m.flange.pretension
+    assert text.count("*STEP") == 2
     assert rod_force(m, ks, 0.0) == pytest.approx(T0)
-    assert rod_force(m, ks, -2 * T0 / ks.axial) < 0.01 * T0
+    assert rod_force(m, ks, -0.1) == pytest.approx(T0, rel=0.01)
+    assert rod_force(m, ks, 0.1) == pytest.approx(T0 + 0.1 * ks.axial)
 
 
 def test_loads_axes():
@@ -106,3 +108,56 @@ def test_solve_4e_service_moment(tmp_path):
     assert all(c.status.value != "ng" for c in sides[0].checks)
     done = dataclasses.replace(combo, V=0.0, M=0.0)
     assert epf.solve_combination(mc, done, tmp_path) == []
+
+
+def test_curve_stiffness_and_classification():
+    from openconex.core.loads import Method
+
+    EI, L = 2e14, 9000.0
+    # bilinear: 1e11 N·mm/rad up to 500 kN·m, then softer
+    pts = [(0.0, 0.0), (0.002, 2e8), (0.005, 5e8), (0.015, 6e8), (0.03, 6.5e8)]
+    mr = epf.MomentRotation(points=pts, target=7e8, converged=False, span=L, EI=EI,
+                            Ms=3e8, pretension=0.0)
+    assert mr.rotation_at(3e8) == pytest.approx(0.003)
+    assert mr.Ks == pytest.approx(1e11)
+    assert mr.stiffness_ratio == pytest.approx(1e11 * L / EI)  # 4.5
+    assert mr.classification == "PR"
+    assert mr.moment_at(0.02) == pytest.approx(6e8 + 0.5e8 / 3)
+    assert mr.M_ref == mr.moment_at(0.02)
+    assert mr.M_max == 6.5e8 and mr.theta_max == 0.03
+    assert epf.MomentRotation(pts, 7e8, True, 2e5, EI, 3e8, 0.0).classification == "FR"
+    assert epf.MomentRotation(pts, 7e8, True, 1000.0, EI, 3e8, 0.0).classification == "simple"
+    combos = [epp.Combination("a", Method.LRFD, M=300e6), epp.Combination("b", Method.LRFD,
+                                                                          M=-450e6)]
+    assert epf.service_moment(combos) == pytest.approx(300e6)
+    combos.append(epp.Combination("c", Method.ASD, M=280e6))
+    assert epf.service_moment(combos) == pytest.approx(280e6)
+
+
+def test_curve_figure_and_report(tmp_path):
+    pts = [(0.0, 0.0), (0.002, 2e8), (0.005, 5e8), (0.015, 6e8)]
+    mr = epf.MomentRotation(pts, 7e8, True, 9000.0, 2e14, 3e8, 4e5)
+    png = epf.curve_figure(mr, tmp_path / "c.png")
+    assert png.stat().st_size > 10_000
+    data = copy.deepcopy(epp.TEMPLATE)
+    results = epp.run(data, US)
+    html = epp.report_html(data, results, US, {})
+    assert "Curva momento-rotación" in html and "use Análisis › Resolver" in html
+    results.curve = mr
+    html = epp.report_html(data, results, US, {}, fem_figures={"curva": "c.png"})
+    assert "c.png" in html and "parcialmente restringida (PR)" in html
+
+
+@pytest.mark.ccx
+@pytest.mark.skipif(shutil.which("ccx") is None, reason="CalculiX no está instalado")
+def test_moment_rotation_4e(tmp_path):
+    """The 4E example: a rising curve with pretensioned bolts, stiff at service."""
+    mc = connection()
+    combos = [epp.Combination("S", M=300e6)]
+    mr = epf.moment_rotation(mc, 9144.0, combos, tmp_path, fast=True, reuse=False)
+    assert len(mr.points) >= 5
+    moments = [m for _, m in mr.points]
+    assert moments == sorted(moments)
+    assert all(t >= -1e-6 for t, _ in mr.points)
+    assert mr.pretension > 0 and mr.Ks > 0
+    assert mr.classification in ("FR", "PR")
