@@ -639,7 +639,10 @@ class ThroughBoltEditor(QObject):
 
 
 class FemWorker(QThread):
-    """Solves the combinations of a through-bolt connection with CalculiX, one by one."""
+    """Solves the combinations of a connection with CalculiX, one by one.
+
+    ``solver`` is the ``solve_combination`` of the connection type (through-bolts by
+    default)."""
 
     combo_done = Signal(str, object)
     combo_failed = Signal(str, str)
@@ -650,8 +653,9 @@ class FemWorker(QThread):
 
     def __init__(self, conn, combos: list, out, edition, ccx: str | None = None,
                  fast: bool = False, threads: int | None = None, settings=None,
-                 strain_limit: float = 0.05) -> None:
+                 strain_limit: float = 0.05, solver=None) -> None:
         super().__init__()
+        self.solver = solver
         self.conn, self.combos, self.out, self.edition = conn, combos, out, edition
         self.ccx, self.fast, self.threads = ccx, fast, threads
         self.settings, self.strain_limit = settings, strain_limit
@@ -661,6 +665,7 @@ class FemWorker(QThread):
         from openfemconex.runner import CcxCancelled
         from openfemconex.through_bolt_fem import solve_combination
 
+        solve_combination = self.solver or solve_combination
         for combo in self.combos:
             if self.cancel.is_set():
                 self.cancelled.emit()

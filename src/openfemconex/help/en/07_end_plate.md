@@ -4,8 +4,9 @@ A steel beam welded to an **end plate** that is bolted to the **flange of a
 steel column** (strong axis). The connection carries the moment, shear and axial
 force of the beam. The analytic checks are those of the OpenConex engine
 (`openconex.connections.moment`), which OpenFEMConex calls with the project data
-(`openfemconex.end_plate_project`). The CalculiX model and the moment-rotation
-curve are added on top of these results.
+(`openfemconex.end_plate_project`). On top of these results, a CalculiX model of
+the plate, the bolts and the column flange gives the actual bolt forces and the
+plastic strains.
 
 Standards: AISC 360-22; plate strength and bolt forces after AISC Design Guide
 16 and Design Guide 4 (8ES); seismic design after AISC 358-22 Chapter 6 with
@@ -89,12 +90,40 @@ panel zone and continuity plates. This block does not depend on the combinations
 of the beam between column faces and, for the column-beam ratio, the column
 axial force.
 
+## CalculiX model
+
+Resolver also builds a finite element model of each combination ticked in Loads
+(`openfemconex.end_plate_fem`):
+
+- **Beam**: a stub two depths long, elastic, that brings the forces to the
+  plate. The beam strength belongs to the frame design (and to AISC 358 when
+  seismic): an end plate is often designed for more than the plastic moment of
+  the beam.
+- **End plate and stiffeners**: elastic-plastic steel solids, welded to the beam
+  (shared nodes).
+- **Column flange**: an elastic-plastic steel solid of the flange thickness and
+  width over a length of the column, held on its back face along the web and the
+  continuity plates (rigid supports: the model of the flange yield lines). The
+  plate bears on the flange through frictionless contact without tension.
+- **Bolts**: tension-only axial springs E·A/L over the grip (plate plus flange),
+  between the washer and the nut on the back of the flange; they take the shear
+  in bearing. For the checks they are snug tight, without pretension, as in the
+  strength models of the Design Guides: their force already includes prying.
+
+The model checks the most loaded bolt in tension and shear (§J3.6 and §J3.7),
+the plastic strain of the plate, of the column flange and of the stiffeners (5 %
+limit) and the fillet welds (those of the flanges with the force spread over the
+flange width). A complete joint penetration weld is as strong as the beam and is
+not checked with the model. The column web and panel zone are checked
+analytically.
+
 ## Loads and report
 
 Load cases give, at the column face: V, M and P of the beam (P positive in
 compression) and, when the panel zone is checked, Vc and Pc of the column.
 Combinations are generated with ASCE 7 in LRFD or ASD, or typed by hand.
 
-The report follows the common order: data and loads, the checks of each
-combination with their trace, the seismic block, and at the end the summary,
+The report follows the common order: data and loads and, for each
+combination, first the CalculiX model (result tables, the force in each bolt and
+plots) and then the analytic checks with their trace; the seismic block, and at the end the summary,
 recommendations, installation requirements and scope.

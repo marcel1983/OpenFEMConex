@@ -22,6 +22,18 @@ __all__ = ["ADVICE", "installation_notes", "limitations", "recommendations"]
 
 # check id prefix -> what to change (first match wins)
 ADVICE: list[tuple[str, str]] = [
+    ("end_plate.fem_bolt_tension",
+     "Aumente el diámetro o el grado de los pernos, o el espesor de la placa y del ala de "
+     "la columna: el modelo muestra la fuerza de palanca que reciben."),
+    ("end_plate.fem_plate_strain",
+     "Aumente el espesor de la placa de extremo o acerque los pernos a las alas de la viga."),
+    ("end_plate.fem_flange_strain",
+     "Agregue placas de continuidad, o use una columna de ala más gruesa: el ala se "
+     "plastifica bajo los pernos."),
+    ("end_plate.fem_stiffener_strain",
+     "Aumente el espesor o la longitud de los rigidizadores."),
+    ("end_plate.fem_weld",
+     "Aumente el filete de la soldadura de la viga a la placa, o use penetración completa."),
     ("moment.end_plate_yielding",
      "Aumente el espesor de la placa de extremo, acerque las filas de pernos a las alas de "
      "la viga (menor p_f) o cambie a una placa extendida rigidizada (4ES u 8ES)."),
@@ -147,8 +159,11 @@ def limitations(data: dict[str, Any], mc: MomentConnection) -> list[str]:
         "La carga axial de la viga se convierte en un momento equivalente sumado al momento "
         "de la combinación.",
         "El cortante lo toman los pernos del lado comprimido.",
-        "Sin modelo de elementos finitos ni curva momento-rotación en esta versión del "
-        "reporte: se agregan al resolver con CalculiX.",
+        "Modelo CalculiX: viga elástica, placa y ala de la columna elastoplásticas, ala "
+        "apoyada rígidamente en el alma y en las placas de continuidad, pernos ajustados "
+        "sin pretensión que toman el cortante. El alma de la columna, la zona de panel y "
+        "las soldaduras de penetración completa se verifican de forma analítica.",
+        "Sin curva momento-rotación en esta versión del reporte.",
     ]
     if data.get("seismic"):
         out.append("El diseño sísmico revisa la conexión precalificada para el momento "

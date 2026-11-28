@@ -4,6 +4,7 @@
 
 import json
 import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -52,9 +53,20 @@ def test_new_connection_and_shared_stages(window):
     assert calls == ["ep"]
 
 
-def test_solve_fills_checks_and_tree(window):
+def analytic_only(window, monkeypatch):
+    """Resolver without CalculiX: no combination ticked for it."""
+    import openfemconex.gui.end_plate_window as epw
+
+    monkeypatch.setattr(window.ep.combinations, "selected", lambda: [])
+    monkeypatch.setattr(epw.QMessageBox, "information", lambda *a, **k: None)
+    monkeypatch.setattr(epw, "find_ccx", lambda *a, **k: "ccx")
+
+
+def test_solve_fills_checks_and_tree(window, monkeypatch):
     add_end_plate(window)
+    analytic_only(window, monkeypatch)
     window.solve_ep()
+    assert getattr(window, "ep_worker", None) is None
     assert window.ep.results and all(r.ok for r in window.ep.results)
     assert window.ep.checks.rowCount() > 10
     assert "Cumple" in window.status_label.text()
@@ -69,8 +81,9 @@ def test_solve_fills_checks_and_tree(window):
     assert any(t.startswith("U: ") and "ratio" in t for t in texts)
 
 
-def test_editing_a_page_updates_the_connection(window):
+def test_editing_a_page_updates_the_connection(window, monkeypatch):
     index = add_end_plate(window)
+    analytic_only(window, monkeypatch)
     window.solve_ep()
     window.ep.update(("end_plate", "thickness"), "3/4 in")
     assert window.state.connections()[index]["end_plate"]["thickness"] == "3/4 in"
@@ -84,8 +97,9 @@ def test_editing_a_page_updates_the_connection(window):
     assert window.ep.error == ""
 
 
-def test_seismic_toggle(window):
+def test_seismic_toggle(window, monkeypatch):
     add_end_plate(window)
+    analytic_only(window, monkeypatch)
     form = window.ep.forms["Diseño sísmico"]
     assert form.toggle.isEnabled()  # 4E is prequalified
     form.toggle.setChecked(True)
@@ -133,3 +147,26 @@ def test_example_file_is_valid():
     assert len(conns) >= 2
     for c in conns:
         assert epp.run(c, UnitSystem()).combos
+
+
+@pytest.mark.ccx
+@pytest.mark.skipif(shutil.which("ccx") is None, reason="CalculiX no está instalado")
+def test_solve_with_calculix(window, qtbot, tmp_path):
+    """Resolver runs CalculiX for the ticked combinations and the FEM checks join the
+    analytic ones (a service moment, fast mesh)."""
+    index = add_end_plate(window)
+    window.state.path = tmp_path / "p.ocnx"
+    window.state.settings.fast = True
+    conn = window.state.connections()[index]
+    conn["cases"] = [{"name": "S", "type": "D", "V": "15 kip", "M": "2200 kip*in"}]
+    conn["combinations"] = {"methods": ["LRFD"], "include_code": False,
+                            "custom": [{"name": "S", "method": "LRFD", "factors": {"S": 1.0}}]}
+    window.ep.set_index(index)
+    window.solve_ep()
+    assert window.ep_worker is not None
+    qtbot.waitUntil(lambda: getattr(window, "ep_worker", None) is None, timeout=900_000)
+    sides = window.ep.fem_sides()
+    assert sides and sides[0][1].results.converged
+    assert any(r.id.startswith("end_plate.fem_") for r in window.ep.results[0].all_checks)
+    path = window.generate_ep_report()
+    assert "Modelo CalculiX" in path.read_text(encoding="utf-8")

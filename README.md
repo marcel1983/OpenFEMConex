@@ -68,8 +68,9 @@ perfiles y los materiales.
   al ras o extendida (4E, 4ES, 8ES y multifila): líneas de fluencia y pernos con
   acción de palanca (Guías de Diseño 16 y 4), lado de la columna (flexión del ala,
   alma, zona de panel, placas de continuidad y doble) y diseño sísmico precalificado
-  AISC 358-22. Interfaz, vista 3D, cálculo analítico, reporte y ayuda; siguen el
-  modelo CalculiX y la curva momento-rotación.
+  AISC 358-22. Interfaz, vista 3D, cálculo analítico, modelo CalculiX (placa,
+  pernos y ala de la columna apoyada en el alma y las placas de continuidad),
+  reporte y ayuda; sigue la curva momento-rotación.
 - **Varias conexiones por proyecto.** **Proyecto › Agregar conexión** abre un
   selector con la vista isométrica de cada tipo; cada conexión tiene sus datos,
   cargas, verificaciones y reporte, y el ribbon cambia según el tipo.

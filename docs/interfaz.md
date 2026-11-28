@@ -92,7 +92,9 @@ Columna, Placa de extremo (las diez disposiciones), Pernos, Soldaduras,
 Rigidización de la columna y Diseño sísmico (se activa solo con 4E, 4ES y 8ES).
 Sus cargas son V, M y P de la viga y, con la zona de panel, Vc y Pc de la
 columna; Resolver corre el cálculo analítico de todas las combinaciones y el
-bloque AISC 358. El ejemplo `examples/placa_extremo.ocnx` tiene una 4E y una
+bloque AISC 358 y después CalculiX en las combinaciones marcadas en Cargas, con
+su avance en el registro; en Análisis › Resultados se elige la combinación y el
+resultado (von Mises, deformación plástica, desplazamientos, presión de contacto). El ejemplo `examples/placa_extremo.ocnx` tiene una 4E y una
 4ES sísmica.
 
 ![Conexión de momento con placa de extremo](img/placa_extremo_interfaz.png)

@@ -1221,13 +1221,37 @@ EN.update({
     "Configuraciones, camino de las fuerzas y estados límite de esta conexión":
         "Layouts, load path and limit states of this connection",
     "Calcula las verificaciones de AISC 360-22, las Guías de Diseño 16 y 4 y, si es "
-    "sísmica, AISC 358-22 para todas las combinaciones":
+    "sísmica, AISC 358-22 para todas las combinaciones, y resuelve con CalculiX las "
+    "combinaciones marcadas en Cargas: placa, pernos pretensados, ala de la columna y "
+    "soldaduras":
         "Runs the checks of AISC 360-22, Design Guides 16 and 4 and, when seismic, AISC "
-        "358-22 for every combination",
+        "358-22 for every combination, and solves with CalculiX the combinations ticked in "
+        "Loads: plate, pretensioned bolts, column flange and welds",
     "Placa de extremo: {n} combinaciones calculadas.": "End plate: {n} combinations checked.",
-    "El modelo CalculiX y la curva momento-rotación de esta conexión llegan en la próxima "
-    "versión.": "The CalculiX model and the moment-rotation curve of this connection come "
-                "in the next version.",
+    "FEM: perno más cargado, tracción con palanca y cortante (J3.7)":
+        "FEM: most loaded bolt, tension with prying, and shear (J3.7)",
+    "Presión de contacto de la placa de extremo sobre el ala de la columna: máx. {p} MPa":
+        "Contact pressure of the end plate on the column flange: max. {p} MPa",
+    "FEM: deformación plástica del ala de la columna":
+        "FEM: plastic strain of the column flange",
+    "FEM: deformación plástica de los rigidizadores": "FEM: plastic strain of the stiffeners",
+    "FEM: soldadura de las alas de la viga a la placa":
+        "FEM: weld of the beam flanges to the plate",
+    "FEM: soldadura del alma de la viga a la placa": "FEM: weld of the beam web to the plate",
+    "Aumente el diámetro o el grado de los pernos, o el espesor de la placa y del ala de la "
+    "columna: el modelo muestra la fuerza de palanca que reciben.":
+        "Increase the bolt diameter or grade, or the thickness of the plate and of the "
+        "column flange: the model shows the prying force they get.",
+    "Aumente el espesor de la placa de extremo o acerque los pernos a las alas de la viga.":
+        "Increase the end-plate thickness or bring the bolts closer to the beam flanges.",
+    "Agregue placas de continuidad, o use una columna de ala más gruesa: el ala se "
+    "plastifica bajo los pernos.":
+        "Add continuity plates, or use a column with a thicker flange: the flange yields "
+        "under the bolts.",
+    "Aumente el espesor o la longitud de los rigidizadores.":
+        "Increase the thickness or the length of the stiffeners.",
+    "Aumente el filete de la soldadura de la viga a la placa, o use penetración completa.":
+        "Increase the fillet of the beam-to-plate weld, or use complete joint penetration.",
     "Placa de extremo: {n} pernos": "End plate: {n} bolts",
     "Viga de acero al ala de una columna con placa de extremo al ras o extendida (4E, 4ES, "
     "8ES, multifila), con diseño sísmico AISC 358. Cálculo analítico AISC 360-22 y Guías de "

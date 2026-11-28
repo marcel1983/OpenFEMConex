@@ -273,6 +273,9 @@ class Results:
     """Weld of the opposite column (with one)."""
     far_column_top_displacement: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Of the opposite column, in global axes."""
+    flange_von_mises_max: float = 0.0
+    """Of the column flange, when the block is one (moment end plate)."""
+    flange_peeq_element: float = 0.0
 
     def to_json(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(asdict(self), indent=2))
@@ -292,17 +295,16 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     uc = dat.get("displacements/ANCHORCONC", {})
     k_lat = numbering.lateral_stiffness
     anchors = []
-    if model.two_faces:
+    if model.free_nuts:
         # the rod ends are free: its force from the law and the elongation
-        from openfemconex.inp import anchor_stiffness
+        from openfemconex.inp import anchor_stiffness, rod_force
 
         ks = anchor_stiffness(model)
         ug = dat["displacements/ANCHORGND"]
     for i, (a, g, r) in enumerate(zip(model.anchors, numbering.anchor_ground,
                                       numbering.anchor_ref)):
-        if model.two_faces:
-            d = float(u[r][2] - ug[g][2])
-            tension = ks.axial * d if d > 0 else ks.compression * d
+        if model.free_nuts:
+            tension = rod_force(model, ks, float(u[r][2] - ug[g][2]))
         else:
             # The reaction at the fixed end is opposite to the force the rod applies to it.
             tension = -rf[g][2]
@@ -324,7 +326,7 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
                           for i in (0, 1))
     # Compression on the concrete and its line of action, from the reactions at the
     # fixed base of the block taken to the contact plane (z = 0).
-    base = dat["forces/CONCBOT"]
+    base = dat["forces/FLANGEHELD" if model.flange is not None else "forces/CONCBOT"]
     bid = np.fromiter(base, dtype=int)
     brf = np.array([base[i] for i in bid])
     bxyz = mesh.nodes[bid - 1]
@@ -346,14 +348,16 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
     area = mesh.plate_bottom_area
     xy = mesh.nodes[pb - 1, :2]
     far: dict = {}
-    if model.two_faces:
-        # the block is held at its ends: the compression comes from the contact pressure
+    if model.free_nuts:
+        # the block is not held under the plate: the compression comes from the contact
+        # pressure
         forces = p * area
         C = float(forces.sum())
         M_base = float((xy[:, 0] * forces).sum())
         centroid = ((float((xy[:, 0] * forces).sum() / C), float((xy[:, 1] * forces).sum() / C))
                     if C > 0 else (0.0, 0.0))
         brf = np.zeros((1, 3))
+    if model.two_faces:
         fp = press[mesh.far_top_nodes] * mesh.far_top_area
         fxy = mesh.nodes[mesh.far_top_nodes - 1, :2]
         Cf = float(fp.sum())
@@ -405,6 +409,12 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
         vm_table[sid] = vm
         far.update(far_von_mises_max=float(vm_table[conn].max()),
                    far_peeq_element=float(peeq[conn].mean(axis=1).max()))
+    if model.flange is not None:
+        conn = mesh.parts["CONCRETE"]
+        vm_table = np.zeros(len(mesh.nodes) + 1)
+        vm_table[sid] = vm
+        far.update(flange_von_mises_max=float(vm_table[conn].max()),
+                   flange_peeq_element=float(peeq[conn].mean(axis=1).max()))
     if model.opposite is not None:
         # the stresses of the mirror image: the normal one keeps its sign
         far["far_weld"] = weld_forces(model.opposite, mesh.opposite, sid, sv)

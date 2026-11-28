@@ -268,9 +268,6 @@ class EndPlateEditor(ThroughBoltEditor):
         combos = [r for r in self.results if r.combo.name != epp.SEISMIC_COMBO]
         return epp.EndPlateResults(combos, self.seismic)
 
-    def fem_sides(self) -> list:
-        return []
-
     def _report_args(self) -> tuple:
         return (self.data, self.end_plate_results(), self.state.units,
                 self.state.data.get("info", {}))
@@ -280,12 +277,13 @@ class EndPlateEditor(ThroughBoltEditor):
         folder = help_figures if isinstance(help_figures, str) else (
             self.help_dir() if help_figures else "")
         return epp.report_html(*self._report_args(), figures=folder, figure_base=figure_base,
-                               picture=picture)
+                               picture=picture, fem_figures=fem_figures)
 
     def report_docx(self, path, figure_dir, fem_figures: dict | None = None,
                     picture: bool = True):
         return epp.report_docx(path, figure_dir, *self._report_args(),
-                               figures=self.help_dir(), picture=picture)
+                               figures=self.help_dir(), picture=picture,
+                               fem_figures=fem_figures)
 
     def summary(self) -> str:
         return epp.summary(self.data)
