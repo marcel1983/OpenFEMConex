@@ -447,7 +447,13 @@ def report_blocks(data: dict[str, Any], results: list[ComboResult], units: UnitS
     in front of the 3D picture ``conexion.png`` (with ``picture``) and of the FEM
     figures ``fem_figures`` (see ``scenes.render_through_bolt_figures``).
     """
-    from openfemconex.report import _checks_block, _traces_block, check_title
+    from openfemconex.report import (
+        _checks_block,
+        _traces_block,
+        check_title,
+        closing_blocks,
+        governing,
+    )
 
     ed = EDITIONS.get(edition, EDITIONS["current"])
     conn = build(data, units)
@@ -549,47 +555,31 @@ def report_blocks(data: dict[str, Any], results: list[ComboResult], units: UnitS
         blocks.append(_checks_block(r.checks, units))
         blocks.append(("h3", "Traza de cálculo"))
         blocks.append(_traces_block(r.all_checks, units))
-    # summary, recommendations and installation, at the end as in the base plate report
-    blocks.append(("h2", "Resumen de resultados"))
-    blocks.append(("verdict", ok_all, ""))
-    summary_rows = []
-    for r in results:
-        fem = [x for side in r.fem for x in side.checks if x.applicable]
-        worst_fem = max(fem, key=lambda x: x.ratio, default=None)
-        ana = [x for x in r.checks if x.applicable]
-        worst_ana = max(ana, key=lambda x: x.ratio, default=None)
-        summary_rows.append([
-            r.combo.name,
-            "Sí" if r.fem else "No",
-            f"{check_title(worst_fem)} ({worst_fem.ratio:.2f})" if worst_fem else "—",
-            f"{check_title(worst_ana)} ({worst_ana.ratio:.2f})" if worst_ana else "—",
-            "Cumple" if r.ok else "No cumple"])
-    blocks.append(("table", ["Combinación", "FEM", "Rige (FEM)", "Rige (analítico)",
-                             "Estado"], summary_rows, set()))
+    # summary, recommendations and installation: the closing shared by every connection
+    summary_rows = [[r.combo.name, "Sí" if r.fem else "No",
+                     governing([x for side in r.fem for x in side.checks]),
+                     governing(r.checks),
+                     ("ok", "Cumple") if r.ok else ("ng", "No cumple")] for r in results]
     advice = recommendations([x for r in results for x in r.all_checks], check_title)
-    if advice:
-        blocks.append(("h3", "Recomendaciones"))
-        blocks.append(("advice", "Cambios sugeridos para las verificaciones que no cumplen "
-                                 "(un cambio a la vez; vuelva a resolver después):", advice))
-    else:
-        blocks.append(("p", "Todas las verificaciones cumplen: no hay recomendaciones de "
-                            "cambio.", ""))
-    blocks.append(("notes", "Requisitos de instalación de los pernos pasantes",
-                   installation_notes(grout=conn.shear is ShearTransfer.GROUT,
-                                      back_plate=conn.opposite is None,
-                                      opposite=conn.opposite is not None)))
-    blocks.append(("notes", "Alcance y limitaciones", [
-        "Modelo CalculiX: placa de extremo y viga de acero elastoplásticas, concreto elástico "
-        "con contacto unilateral y fricción, pernos sin adherencia como resortes de solo "
-        "tracción entre las dos caras. Las verificaciones del concreto (aplastamiento, "
-        "hendimiento, punzonamiento, puntal y tensor) usan las fuerzas indicadas en cada fila "
-        "y las fórmulas de ACI 318.",
-        "La fricción solo puede contar con compresión permanente (ACI 318 §22.9): el "
-        "ingeniero juzga cada combinación. En sismo se recomienda grout.",
-        "Hendimiento con la zona de anclaje de §25.9 por analogía; apoyo del perno en el grout "
-        "con ℓ = mín(ℓg, 4d), supuesto del programa.",
-        "El diseño global del muro y el nudo de una columna con vigas a los dos lados quedan "
-        "para el análisis global.",
-        "Herramienta de apoyo: la responsabilidad del diseño es del profesional que lo firma.",
-    ]))
+    blocks += closing_blocks(
+        ok_all, summary_rows, advice,
+        installation_notes(grout=conn.shear is ShearTransfer.GROUT,
+                           back_plate=conn.opposite is None,
+                           opposite=conn.opposite is not None),
+        "Requisitos de instalación de los pernos pasantes", [
+            "Modelo CalculiX: placa de extremo y viga de acero elastoplásticas, concreto elástico "
+            "con contacto unilateral y fricción, pernos sin adherencia como resortes de solo "
+            "tracción entre las dos caras. Las verificaciones del concreto (aplastamiento, "
+            "hendimiento, punzonamiento, puntal y tensor) usan las fuerzas indicadas en cada fila "
+            "y las fórmulas de ACI 318.",
+            "La fricción solo puede contar con compresión permanente (ACI 318 §22.9): el "
+            "ingeniero juzga cada combinación. En sismo se recomienda grout.",
+            "Hendimiento con la zona de anclaje de §25.9 por analogía; apoyo del perno en el grout "
+            "con ℓ = mín(ℓg, 4d), supuesto del programa.",
+            "El diseño global del muro y el nudo de una columna con vigas a los dos lados quedan "
+            "para el análisis global.",
+            "Herramienta de apoyo: la responsabilidad del diseño es del profesional que lo firma.",
+        ],
+        "Cambios sugeridos para las verificaciones que no cumplen (un cambio a la vez; "
+        "vuelva a resolver después):")
     return blocks

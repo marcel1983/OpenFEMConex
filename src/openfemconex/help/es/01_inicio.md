@@ -19,7 +19,9 @@ ACI 318 con las fuerzas que salen de ese modelo.
    **Editar combinaciones** permite definir combinaciones propias con sus factores
    (uno por caso; negativo invierte el caso) o copiar las de ASCE 7 para
    cambiarlas y desmarcar las generadas.
-4. En **Análisis** pulse **Resolver**. CalculiX corre en segundo plano y una
+4. En **Análisis** pulse el botón verde **Resolver** (en el ribbon o en el panel
+   de ajustes, que también tiene los hilos de CalculiX y la malla). Resolver
+   calcula las verificaciones analíticas y el modelo FEM. CalculiX corre en segundo plano y una
    ventana flotante muestra la combinación, la etapa, cada incremento de carga
    (con sus iteraciones y el residuo), el tiempo y la barra de avance; **Cancelar**
    detiene CalculiX. **Ocultar** la cierra sin detener el análisis (el avance
@@ -31,7 +33,11 @@ ACI 318 con las fuerzas que salen de ese modelo.
    nombre de la conexión, ingeniero, revisión y fecha, que encabezan el reporte.
    Después de los isométricos van la planta y la elevación acotadas, con llamadas
    que indican cada elemento y su material, y flechas a las soldaduras (filete o
-   CJP).
+   CJP). Cada combinación muestra primero los resultados y gráficos del FEM y sus
+   verificaciones, y luego el camino analítico; el reporte cierra con el resumen
+   por combinación, las recomendaciones para lo que no cumple, los requisitos de
+   instalación que hacen válidas las hipótesis del análisis (mortero, tuercas,
+   anclajes, soldaduras) y el alcance. Todas las conexiones siguen ese orden.
 
 ## Varias conexiones
 

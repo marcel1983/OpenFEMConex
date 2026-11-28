@@ -19,7 +19,9 @@ that model gives.
    **Edit combinations** defines your own combinations with their factors (one
    per case; negative reverses the case) or copies the ASCE 7 ones so that you
    can change them and untick the generated ones.
-4. In **Analysis** press **Solve**. CalculiX runs in the background and a
+4. In **Analysis** press the green **Solve** button (in the ribbon or in the
+   settings panel, which also holds the CalculiX threads and the mesh). Solve
+   runs the analytic checks and the FEM model. CalculiX runs in the background and a
    floating window shows the combination, the stage, every load increment (with
    its iterations and residual), the time and a progress bar; **Cancel** stops
    CalculiX. **Hide** closes it without stopping the analysis (progress stays in
@@ -31,7 +33,11 @@ that model gives.
    client, connection name, engineer, revision and date that head the report.
    After the isometric views come the dimensioned plan and elevation, with
    callouts for every element and its material and arrows to the welds (fillet
-   or CJP).
+   or CJP). Each combination shows first the FEM results, figures and checks,
+   then the analytic path; the report ends with the summary by combination, the
+   recommendations for what fails, the installation requirements that make the
+   assumptions of the analysis valid (grout, nuts, anchor rods, welds) and the
+   scope. Every connection type follows that order.
 
 ## Several connections
 

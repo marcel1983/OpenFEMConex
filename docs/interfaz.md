@@ -19,9 +19,9 @@ El ribbon tiene una pestaña por etapa, en el orden de trabajo.
 | Proyecto | Nuevo, abrir y guardar (`.ocnx`, el mismo formato de OpenConex); unidades de presentación; normas (vigentes o las de la DG1 2.ª ed.) |
 | Geometría | Columna (catálogo AISC con búsqueda), placa, anclajes, concreto y soldadura. El modelo 3D se actualiza al confirmar cada dato. Vista de modelo o de malla |
 | Cargas | Tabla de casos (P, V, M en los dos ejes) y combinaciones ASCE 7 generadas, LRFD y ASD. Se marcan las que se van a resolver |
-| Análisis | Ajustes de malla, resolver con CalculiX en segundo plano (con avance y botón de detener) y resultados en 3D: von Mises, deformación plástica, presión de contacto y desplazamiento, con la deformada amplificada y la tracción de cada anclaje |
+| Análisis | Ajustes de malla e hilos, botón verde **Resolver** (analítico + FEM, también en el panel de ajustes), resolver con CalculiX en segundo plano (con avance y botón de detener) y resultados en 3D: von Mises, deformación plástica, presión de contacto y desplazamiento, con la deformada amplificada y la tracción de cada anclaje |
 | Verificación | Tabla de verificaciones con demanda, capacidad, ratio y referencia; al seleccionar una fila se ve su traza de cálculo |
-| Reporte | Genera el reporte HTML con gráficos de geometría, malla, esfuerzos, deformación plástica, desplazamiento y presión de contacto; lo abre en el navegador o exporta un PDF resumido |
+| Reporte | Genera el reporte HTML con gráficos de geometría, malla, esfuerzos, deformación plástica, desplazamiento y presión de contacto; lo abre en el navegador o lo exporta a PDF o Word. Orden: datos, por combinación FEM y luego analítico, y al final resumen, recomendaciones, requisitos de instalación y alcance |
 | Ayuda | Manual en el idioma de la interfaz y datos del programa |
 
 A la izquierda está el árbol del proyecto, que también sirve para navegar; a la
@@ -78,6 +78,10 @@ las conexiones con su icono; al seleccionar una, el ribbon, las propiedades,
 la vista 3D y la tabla de verificaciones pasan a ese tipo, con las mismas
 etapas (Geometría, Cargas, Análisis, Verificación, Reporte). **Quitar
 conexión** quita la seleccionada; el proyecto conserva al menos una.
+
+Las pestañas Cargas, Análisis y Reporte son las mismas para todos los tipos
+(`gui/stages.py`); cómo se agrega un tipo nuevo está en
+[conexiones.md](conexiones.md).
 
 ![Selector de tipo de conexión](img/selector_conexiones.png)
 
