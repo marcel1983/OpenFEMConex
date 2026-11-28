@@ -158,17 +158,19 @@ Ejemplo 6.3-2 de la Guía de Diseño 39 (4ES sísmica).
 
 El modelo CalculiX (`openfemconex.end_plate_fem`) lleva la placa sobre el modelo
 de placa base: la viga es la "columna" (tramo elástico de dos peraltes), la placa
-de extremo la "placa base" y el ala de la columna el "bloque", de acero
-elastoplástico, apoyado en el alma y en las placas de continuidad
-(`model.ColumnFlange`); los pernos son resortes solo a tracción entre la arandela
-y la tuerca detrás del ala, ajustados sin pretensión para las verificaciones (la
+de extremo la "placa base" y el ala cercana de la columna el "bloque"; con
+`model.ColumnFlange` la malla agrega el resto de la columna (alma, ala lejana,
+placas de continuidad y placa doble), todo de acero elastoplástico con nodos
+compartidos, empotrada en los extremos del tramo (altura de la placa más un
+peralte de columna a cada lado); los pernos son resortes solo a tracción entre la
+arandela y la tuerca en la cara interior del ala, ajustados sin pretensión para las verificaciones (la
 pretensión de la Tabla J3.1 queda como opción del modelo, para la rigidez en
 servicio). Con sus resultados:
 
 | Verificación FEM | Criterio |
 |---|---|
 | Perno más cargado | Tracción con acción de palanca y cortante, F'nt de §J3.7 |
-| Placa, ala de la columna, rigidizadores | Deformación plástica equivalente media por elemento ≤ 5 % |
+| Placa, alas y alma de la columna, rigidizadores, placas de continuidad, placa doble | Deformación plástica equivalente media por elemento ≤ 5 % |
 | Soldaduras de filete | §J2.4; alas con la fuerza repartida en su ancho, alma en su punto más cargado |
 
 `tests/test_end_plate_fem.py` comprueba el modelo, la malla y el archivo de

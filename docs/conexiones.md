@@ -10,7 +10,7 @@ reporte, para que el usuario trabaje igual con cualquiera.
 | Placa base | `base_plate` | DG1 (camino de la guía) | Sí | Completo |
 | Pernos pasantes en concreto | `through_bolt` | AISC 360, ACI 318 | Sí (placa de extremo, placa posterior o viga opuesta) | Completo |
 | Corte simple (placa simple a columna) | `shear_tab` | No | No | Deshabilitado en el selector |
-| Momento con placa de extremo | `moment_end_plate` | AISC 360-22, DG16/DG4 y AISC 358-22 (motor de OpenConex) | Sí (`end_plate_fem`: placa, ala de la columna, pernos, rigidizadores) | Interfaz, analítico, CalculiX, curva momento-rotación con clasificación FR/PR, reporte y ayuda |
+| Momento con placa de extremo | `moment_end_plate` | AISC 360-22, DG16/DG4 y AISC 358-22 (motor de OpenConex) | Sí (`end_plate_fem`: placa, columna completa con placas de continuidad y placa doble, pernos, rigidizadores) | Interfaz, analítico, CalculiX, curva momento-rotación con clasificación FR/PR, reporte y ayuda |
 | Empalme de viga con cubreplacas | `splice` | No | No | Deshabilitado en el selector |
 
 Corte simple y empalme solo tienen el icono en el selector. La placa de extremo (`end_plate_project.py`, `gui/end_plate_panel.py`, `gui/end_plate_window.py`, `ep_scene.py`) reutiliza los formularios, el editor de cargas y la tabla de verificaciones de los pernos pasantes (`ThroughBoltEditor` con sus propias `PAGES`, `FORM` y `LOADS`). Antes de su modelo

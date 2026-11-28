@@ -98,6 +98,9 @@ TITLES = {
     "end_plate.fem_plate_strain": "FEM: deformación plástica de la placa de extremo",
     "end_plate.fem_flange_strain": "FEM: deformación plástica del ala de la columna",
     "end_plate.fem_stiffener_strain": "FEM: deformación plástica de los rigidizadores",
+    "end_plate.fem_column_web_strain": "FEM: deformación plástica del alma de la columna",
+    "end_plate.fem_continuity_strain": "FEM: deformación plástica de las placas de continuidad",
+    "end_plate.fem_doubler_strain": "FEM: deformación plástica de la placa doble",
     "end_plate.fem_weld_flange": "FEM: soldadura de las alas de la viga a la placa",
     "end_plate.fem_weld_web": "FEM: soldadura del alma de la viga a la placa",
 }

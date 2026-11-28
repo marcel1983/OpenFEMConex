@@ -69,7 +69,8 @@ perfiles y los materiales.
   acción de palanca (Guías de Diseño 16 y 4), lado de la columna (flexión del ala,
   alma, zona de panel, placas de continuidad y doble) y diseño sísmico precalificado
   AISC 358-22. Interfaz, vista 3D, cálculo analítico, modelo CalculiX (placa,
-  pernos y ala de la columna apoyada en el alma y las placas de continuidad),
+  rigidizadores, pernos y la columna completa con sus placas de continuidad y placa
+  doble),
   curva momento-rotación con la clasificación FR, PR o simple (AISC 360 §B3.4),
   reporte y ayuda.
 - **Varias conexiones por proyecto.** **Proyecto › Agregar conexión** abre un

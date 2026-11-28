@@ -104,23 +104,29 @@ en Cargas (módulo `openfemconex.end_plate_fem`):
   plástico de la viga.
 - **Placa de extremo y rigidizadores**: sólidos de acero elastoplástico,
   soldados a la viga (nodos compartidos).
-- **Ala de la columna**: sólido de acero elastoplástico del espesor y ancho del
-  ala, sobre una longitud de columna, apoyado en su cara posterior a lo largo del
-  alma y de las placas de continuidad (apoyos rígidos: el modelo de las líneas
-  de fluencia del ala). La placa apoya en el ala por contacto sin fricción y sin
-  tracción.
+- **Columna**: el perfil completo, de acero elastoplástico, sobre la altura de
+  la placa más un peralte de la columna arriba y abajo: ala cercana, alma y ala
+  lejana, con las **placas de continuidad** (a la altura de las alas de la viga,
+  a ambos lados del alma, del ancho indicado o hasta el borde del ala, en todo el
+  peralte) y la **placa doble** del alma si la hay (entre las placas de
+  continuidad, o 6 in más allá de las alas de la viga sin ellas). Todas las
+  piezas comparten nodos, como soldadas. La columna se empotra en sus dos
+  extremos. La placa apoya en el ala por contacto sin fricción y sin tracción.
 - **Pernos**: resortes axiales solo a tracción E·A/L sobre el agarre (placa más
-  ala), entre la arandela y la tuerca en la cara posterior del ala; toman el
+  ala), entre la arandela y la tuerca en la cara interior del ala; toman el
   cortante por aplastamiento. Para las verificaciones van ajustados sin
   pretensión, como en los modelos de resistencia de las Guías de Diseño: la
   fuerza que dan ya incluye la acción de palanca.
 
 Con el modelo se verifica el perno más cargado a tracción y cortante (§J3.6 y
-§J3.7), la deformación plástica de la placa, del ala de la columna y de los
-rigidizadores (límite 5 %) y las soldaduras de filete (las de las alas con la
-fuerza repartida en el ancho del ala). Una soldadura de penetración completa es
-tan resistente como la viga y no se verifica con el modelo. El alma de la
-columna y la zona de panel se verifican de forma analítica.
+§J3.7), la deformación plástica de la placa, de las alas y del alma de la
+columna, de los rigidizadores, de las placas de continuidad y de la placa doble
+(límite 5 %) y las soldaduras de filete (las de las alas con la fuerza repartida
+en el ancho del ala). Una soldadura de penetración completa es tan resistente
+como la viga y no se verifica con el modelo. El alma de la columna, la zona de
+panel y las placas de continuidad se verifican además de forma analítica: el
+tramo de columna del modelo es corto y empotrado, así que el cortante de la zona
+de panel del modelo no es exactamente el del pórtico.
 
 ## Curva momento-rotación
 
@@ -129,8 +135,9 @@ modelo más, con un momento solo que crece en pasos de 5 % hasta 1.5 veces el
 mayor de las combinaciones, y los pernos **pretensados** (la pretensión de la
 Tabla J3.1 de AISC 360, o la fracción de pernos ajustados, como un par de
 fuerzas en un primer paso). La rotación es la del extremo de la viga respecto de
-la cara de la columna, sin la deformación elástica de la viga; el alma y la zona
-de panel de la columna no están en el modelo.
+la cara de la columna, sin la deformación elástica de la viga; incluye la
+deformación del ala, del alma y de la zona de panel del tramo de columna del
+modelo.
 
 Con la curva se clasifica la conexión según el comentario de AISC 360-22 §B3.4:
 la rigidez secante K_s = M_s/θ_s en el momento de servicio M_s (el mayor de las

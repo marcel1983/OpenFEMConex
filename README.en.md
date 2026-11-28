@@ -66,8 +66,8 @@ from OpenConex.
   extended plate (4E, 4ES, 8ES and multiple row): yield lines and bolts with
   prying (Design Guides 16 and 4), column side (flange bending, web, panel zone,
   continuity and doubler plates) and AISC 358-22 prequalified seismic design.
-  Interface, 3D view, analytic checks, CalculiX model (plate, bolts and the column
-  flange held on the web and continuity plates), moment-rotation curve with the
+  Interface, 3D view, analytic checks, CalculiX model (plate,
+  stiffeners, bolts and the whole column with its continuity and doubler plates), moment-rotation curve with the
   FR, PR or simple classification (AISC 360 §B3.4), report and help.
 - **Several connections per project.** **Project › Add connection** opens a
   picker with an isometric view of each type; each connection has its own data,

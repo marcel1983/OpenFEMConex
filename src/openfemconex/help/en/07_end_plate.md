@@ -102,21 +102,27 @@ Resolver also builds a finite element model of each combination ticked in Loads
   the beam.
 - **End plate and stiffeners**: elastic-plastic steel solids, welded to the beam
   (shared nodes).
-- **Column flange**: an elastic-plastic steel solid of the flange thickness and
-  width over a length of the column, held on its back face along the web and the
-  continuity plates (rigid supports: the model of the flange yield lines). The
-  plate bears on the flange through frictionless contact without tension.
+- **Column**: the whole section, of elastic-plastic steel, over the height of the
+  plate plus one column depth above and below: near flange, web and far flange,
+  with the **continuity plates** (at the beam flanges, on both sides of the web,
+  of the given width or up to the flange edge, over the full depth) and the web
+  **doubler plate** if any (between the continuity plates, or 6 in beyond the
+  beam flanges without them). All the parts share nodes, as welded. The column is
+  fixed at both ends. The plate bears on the flange through frictionless contact
+  without tension.
 - **Bolts**: tension-only axial springs E·A/L over the grip (plate plus flange),
-  between the washer and the nut on the back of the flange; they take the shear
+  between the washer and the nut on the inner face of the flange; they take the shear
   in bearing. For the checks they are snug tight, without pretension, as in the
   strength models of the Design Guides: their force already includes prying.
 
 The model checks the most loaded bolt in tension and shear (§J3.6 and §J3.7),
-the plastic strain of the plate, of the column flange and of the stiffeners (5 %
-limit) and the fillet welds (those of the flanges with the force spread over the
-flange width). A complete joint penetration weld is as strong as the beam and is
-not checked with the model. The column web and panel zone are checked
-analytically.
+the plastic strain of the plate, of the column flanges and web, of the
+stiffeners, of the continuity plates and of the doubler plate (5 % limit) and
+the fillet welds (those of the flanges with the force spread over the flange
+width). A complete joint penetration weld is as strong as the beam and is not
+checked with the model. The column web, panel zone and continuity plates are
+also checked analytically: the column segment of the model is short and fixed,
+so the panel zone shear of the model is not exactly that of the frame.
 
 ## Moment-rotation curve
 
@@ -125,8 +131,8 @@ more model, with a moment alone rising in 5 % steps up to 1.5 times the largest
 of the combinations, and the bolts **pretensioned** (the AISC 360 Table J3.1
 pretension, or the snug-tight fraction, as a pair of forces in a first step).
 The rotation is that of the beam end relative to the column face, without the
-elastic deformation of the beam; the column web and panel zone are not in the
-model.
+elastic deformation of the beam; it includes the deformation of the flange, web
+and panel zone of the column segment of the model.
 
 The curve classifies the connection after the AISC 360-22 §B3.4 Commentary: the
 secant stiffness K_s = M_s/θ_s at the service moment M_s (the largest of the ASD

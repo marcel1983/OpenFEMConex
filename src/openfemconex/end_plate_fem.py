@@ -10,25 +10,25 @@ for the through-bolts, and reuses its mesh, solver and result reader:
   to the plate: the strength of the beam belongs to the frame design (and, for a
   seismic connection, to the AISC 358 checks), and an end plate is often designed for
   more than the beam's plastic moment (the probable moment at the column face);
-* "block" = the column flange (``model.ColumnFlange``): elastic-plastic steel of the
-  flange thickness and width, over a length of the column, held on its back face
-  along the column web and along the continuity plates; frictionless contact with
-  the end plate;
+* "block" = the near flange of the column (``model.ColumnFlange``), in frictionless
+  contact with the end plate; the mesh adds the rest of the column under it: web, far
+  flange, continuity plates (full depth, both sides of the web) and doubler plate,
+  all elastic-plastic steel sharing nodes, over the plate height plus one column
+  depth above and below, fixed at both ends;
 * "anchor rods" = the bolts: axial springs E·A/L over the grip (plate + flange),
-  tension only, between a washer on the plate and the nut on the back of the flange;
-  they take the shear by bearing (lateral springs). For the checks the bolts are snug
-  tight, as in the strength models of the Design Guides (the pretension does not add
-  to the required tension of AISC J3.6, and the force of a separated joint is the
-  applied tension plus prying). With ``pretension`` the spring law starts at the
-  Table J3.1 pretension (or its snug-tight fraction): the stiffness of the joint in
-  service, for the moment-rotation curve;
+  tension only, between a washer on the plate and the nut on the inner face of the
+  flange; they take the shear by bearing (lateral springs). For the checks the bolts
+  are snug tight, as in the strength models of the Design Guides (the pretension
+  does not add to the required tension of AISC J3.6, and the force of a separated
+  joint is the applied tension plus prying). With ``pretension`` the Table J3.1
+  pretension (or its snug-tight fraction) is applied first: the stiffness of the
+  joint in service, for the moment-rotation curve;
 * extension stiffeners (4ES, 8ES, 1/3 stiffened) and the stiffeners of the stiffened
   flush layouts: plates welded to the beam and to the end plate.
 
-The web and continuity plates are taken as rigid supports of the flange, so the model
-gives the local behaviour of the connection (plate, bolts, column flange); the panel
-zone and the column web are checked analytically and their flexibility is added to
-the moment-rotation curve separately.
+The column segment is short and fixed at its ends, so the shear of its panel zone is
+not exactly that of the frame: the column web, panel zone and continuity plates are
+also checked analytically.
 
 Model axes (those of the base plate): z along the beam, out of the column flange; x
 up the beam depth; y across. The plate centre is at x = 0 and the beam axis at x =
@@ -172,15 +172,24 @@ def fem_model(mc: MomentConnection, pretension: bool = False) -> BasePlateModel:
                       welded_washers=True)
     if B > col.bf + 1e-6:
         raise ValueError("la placa de extremo es más ancha que el ala de la columna")
-    # the flange over the plate and one flange width beyond it, above and below
-    length = N + 2 * max(col.bf / 2, 4 * INCH)
+    # the column over the plate and a column depth beyond it, above and below
+    length = N + 2 * max(col.d, col.bf / 2, 4 * INCH)
+    flanges = [(beam.d - beam.tf) / 2 - centre, -(beam.d - beam.tf) / 2 - centre]
     continuity = []
     if mc.continuity_plate > 0:
-        t = mc.continuity_plate
-        for zf in ((beam.d - beam.tf) / 2, -(beam.d - beam.tf) / 2):
-            continuity.append((zf - centre, t))
+        width = min(mc.continuity_plate_width or (col.bf - col.tw) / 2,
+                    (col.bf - col.tw) / 2)
+        continuity = [(x, mc.continuity_plate, width) for x in flanges]
+    doubler = None
+    if mc.doubler_plate > 0:
+        # between the continuity plates, or 6 in beyond the beam flanges without them
+        reach = 0.0 if continuity else 6 * INCH
+        x0 = max(min(flanges) - reach, -length / 2)
+        x1 = min(max(flanges) + reach, length / 2)
+        doubler = (mc.doubler_plate, x0, x1)
     cs = _steel(col.grade)
-    flange = ColumnFlange(steel=cs, web=col.tw, stiffeners=tuple(continuity),
+    flange = ColumnFlange(steel=cs, d=col.d, tw=col.tw, stiffeners=tuple(continuity),
+                          doubler=doubler,
                           pretension=bolt_pretension(mc) if pretension else 0.0)
     concrete = Concrete(fc=28.0, N=length, B=col.bf, H=col.tf)
     stiffeners = _stiffeners(mc, ex, top, bottom)
@@ -266,6 +275,12 @@ def fem_checks(mc: MomentConnection, res: Results, model: BasePlateModel,
                        label))
     out.append(_strain("end_plate.fem_flange_strain", res.flange_peeq_element, strain_limit,
                        label))
+    # the rest of the column: its web (panel zone), continuity plates and doubler plate
+    for region, id_ in (("web", "end_plate.fem_column_web_strain"),
+                        ("continuity", "end_plate.fem_continuity_strain"),
+                        ("doubler", "end_plate.fem_doubler_strain")):
+        if region in res.column_peeq_element:
+            out.append(_strain(id_, res.column_peeq_element[region], strain_limit, label))
     if model.stiffeners:
         out.append(_strain("end_plate.fem_stiffener_strain", res.stiffener_peeq_element,
                            strain_limit, label))

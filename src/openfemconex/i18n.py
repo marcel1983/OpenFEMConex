@@ -1250,6 +1250,19 @@ EN.update({
     "FEM: deformación plástica del ala de la columna":
         "FEM: plastic strain of the column flange",
     "FEM: deformación plástica de los rigidizadores": "FEM: plastic strain of the stiffeners",
+    "FEM: deformación plástica del alma de la columna":
+        "FEM: plastic strain of the column web",
+    "FEM: deformación plástica de las placas de continuidad":
+        "FEM: plastic strain of the continuity plates",
+    "FEM: deformación plástica de la placa doble": "FEM: plastic strain of the doubler plate",
+    "Agregue una placa doble en la zona de panel o placas de continuidad, o use una "
+    "columna con alma más gruesa: el alma se plastifica en el nudo.":
+        "Add a doubler plate in the panel zone or continuity plates, or use a column with "
+        "a thicker web: the web yields in the joint.",
+    "Aumente el espesor o el ancho de las placas de continuidad.":
+        "Increase the thickness or the width of the continuity plates.",
+    "Aumente el espesor de la placa doble o agregue placas de continuidad.":
+        "Increase the thickness of the doubler plate or add continuity plates.",
     "FEM: soldadura de las alas de la viga a la placa":
         "FEM: weld of the beam flanges to the plate",
     "FEM: soldadura del alma de la viga a la placa": "FEM: weld of the beam web to the plate",

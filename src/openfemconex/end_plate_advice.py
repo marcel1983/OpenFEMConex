@@ -32,6 +32,13 @@ ADVICE: list[tuple[str, str]] = [
      "plastifica bajo los pernos."),
     ("end_plate.fem_stiffener_strain",
      "Aumente el espesor o la longitud de los rigidizadores."),
+    ("end_plate.fem_column_web_strain",
+     "Agregue una placa doble en la zona de panel o placas de continuidad, o use una "
+     "columna con alma más gruesa: el alma se plastifica en el nudo."),
+    ("end_plate.fem_continuity_strain",
+     "Aumente el espesor o el ancho de las placas de continuidad."),
+    ("end_plate.fem_doubler_strain",
+     "Aumente el espesor de la placa doble o agregue placas de continuidad."),
     ("end_plate.fem_weld",
      "Aumente el filete de la soldadura de la viga a la placa, o use penetración completa."),
     ("moment.end_plate_yielding",
@@ -159,12 +166,14 @@ def limitations(data: dict[str, Any], mc: MomentConnection) -> list[str]:
         "La carga axial de la viga se convierte en un momento equivalente sumado al momento "
         "de la combinación.",
         "El cortante lo toman los pernos del lado comprimido.",
-        "Modelo CalculiX: viga elástica, placa y ala de la columna elastoplásticas, ala "
-        "apoyada rígidamente en el alma y en las placas de continuidad, pernos ajustados "
-        "sin pretensión que toman el cortante. El alma de la columna, la zona de panel y "
-        "las soldaduras de penetración completa se verifican de forma analítica.",
-        "Curva momento-rotación con pernos pretensados y momento solo; no incluye la "
-        "deformación del alma ni de la zona de panel de la columna.",
+        "Modelo CalculiX: viga elástica; placa, rigidizadores y tramo de columna "
+        "elastoplásticos (alas, alma, placas de continuidad de todo el peralte y placa "
+        "doble), empotrado a un peralte de columna de la placa; pernos ajustados sin "
+        "pretensión que toman el cortante. El alma, la zona de panel, las placas de "
+        "continuidad y las soldaduras de penetración completa se verifican además de "
+        "forma analítica.",
+        "Curva momento-rotación con pernos pretensados y momento solo; incluye la "
+        "deformación del tramo de columna del modelo.",
     ]
     if data.get("seismic"):
         out.append("El diseño sísmico revisa la conexión precalificada para el momento "

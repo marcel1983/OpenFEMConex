@@ -33,15 +33,32 @@ def test_model_of_the_4e_example():
     assert m.tp == ep.thickness and m.B == ep.width
     assert len(m.anchors) == 8  # two rows outside and two inside, two bolts each
     assert m.concrete.H == col.tf and m.concrete.B == col.bf
-    assert m.flange is not None and m.flange.web == col.tw
-    # continuity plates at both beam flanges
-    assert sorted(round(x) for x, _ in m.flange.stiffeners) == [
+    assert m.flange is not None and m.flange.tw == col.tw and m.flange.d == col.d
+    assert m.concrete.N >= m.N + 2 * col.d - 1e-6  # a column depth beyond the plate
+    # continuity plates at both beam flanges, as wide as the flange outstand
+    assert sorted(round(x) for x, _, _ in m.flange.stiffeners) == [
         round(-(beam.d - beam.tf) / 2), round((beam.d - beam.tf) / 2)]
+    assert all(w == pytest.approx((col.bf - col.tw) / 2) for _, _, w in m.flange.stiffeners)
+    assert m.flange.doubler is None
     assert m.flange.pretension == 0.0  # snug tight for the checks
     assert epf.fem_model(mc, pretension=True).flange.pretension == pytest.approx(
         102 * 4448.2216, rel=1e-3)  # Table J3.1, 1 1/4 in A490: 102 kips
     assert m.column_steel.Fy > 5 * 345  # the beam stub stays elastic
     assert m.anchor.welded_washers  # the bolts take the shear in bearing
+
+
+def test_doubler_plate():
+    data = copy.deepcopy(epp.TEMPLATE)
+    data["column_side"]["doubler_plate"] = "1/2 in"
+    mc = epp.build(data, US)
+    m = epf.fem_model(mc)
+    td, x0, x1 = m.flange.doubler
+    assert td == pytest.approx(12.7)
+    # between the continuity plates
+    xs = sorted(x for x, _, _ in m.flange.stiffeners)
+    assert (x0, x1) == pytest.approx(tuple(xs))
+    mesh = build_mesh(m, MeshSettings(fast=True))
+    assert len(mesh.column_regions["doubler"]) > 0
 
 
 def test_unsymmetric_and_stiffened_layouts():
@@ -61,12 +78,12 @@ def test_mesh_and_deck(tmp_path):
     mesh = build_mesh(m, MeshSettings(fast=True))
     assert len(mesh.flange_held_nodes) > 0
     assert len(mesh.far_washer_nodes) == len(m.anchors)
-    # the held nodes are on the back of the flange, over the web or a continuity plate
+    # the column is held at its ends, and has a web, a far flange and the plates
     xyz = mesh.nodes[mesh.flange_held_nodes - 1]
-    assert abs(xyz[:, 2] + m.concrete.H).max() < 1e-6
-    on_web = abs(xyz[:, 1]) <= m.flange.web / 2 + 1e-6
-    on_plates = [abs(xyz[:, 0] - x) <= t / 2 + 1e-6 for x, t in m.flange.stiffeners]
-    assert (on_web | on_plates[0] | on_plates[1]).all()
+    assert abs(abs(xyz[:, 0]) - m.concrete.N / 2).max() < 1e-6
+    assert set(mesh.column_regions) == {"flange", "web", "continuity"}
+    col = mesh.nodes[mesh.parts["CONCRETE"] - 1]
+    assert col[..., 2].min() == pytest.approx(-m.flange.d)
     path = tmp_path / "ep.inp"
     write_inp(path, m, mesh, epf.fem_loads("U", 100e3, 300e6))
     text = path.read_text()

@@ -301,8 +301,13 @@ class Results:
     far_column_top_displacement: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Of the opposite column, in global axes."""
     flange_von_mises_max: float = 0.0
-    """Of the column flange, when the block is one (moment end plate)."""
+    """Of the column flanges, when the block is a steel column (moment end plate)."""
     flange_peeq_element: float = 0.0
+    column_von_mises: dict[str, float] = field(default_factory=dict)
+    """Of a steel column: largest von Mises stress of each of its regions (``flange``,
+    ``web``, ``continuity``, ``doubler``)."""
+    column_peeq_element: dict[str, float] = field(default_factory=dict)
+    """Of a steel column: largest element-mean PEEQ of each of its regions."""
 
     def to_json(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(asdict(self), indent=2))
@@ -440,8 +445,13 @@ def summarize(base: str | Path, model: BasePlateModel, mesh: Mesh, numbering: In
         conn = mesh.parts["CONCRETE"]
         vm_table = np.zeros(len(mesh.nodes) + 1)
         vm_table[sid] = vm
-        far.update(flange_von_mises_max=float(vm_table[conn].max()),
-                   flange_peeq_element=float(peeq[conn].mean(axis=1).max()))
+        regions = mesh.column_regions or {"flange": np.arange(len(conn))}
+        vms = {k: float(vm_table[conn[i]].max()) for k, i in regions.items() if len(i)}
+        peeqs = {k: float(peeq[conn[i]].mean(axis=1).max()) for k, i in regions.items()
+                 if len(i)}
+        far.update(flange_von_mises_max=vms.get("flange", 0.0),
+                   flange_peeq_element=peeqs.get("flange", 0.0),
+                   column_von_mises=vms, column_peeq_element=peeqs)
     if model.opposite is not None:
         # the stresses of the mirror image: the normal one keeps its sign
         far["far_weld"] = weld_forces(model.opposite, mesh.opposite, sid, sv)
