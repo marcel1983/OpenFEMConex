@@ -134,6 +134,29 @@ cálculo a mano independiente, incluidos los casos de la conexión opuesta
 (balanceada, desbalanceada, un solo lado y sismo). Pendiente: interfaz, proyecto
 `.ocnx` y modelo CalculiX.
 
+## Momento con placa de extremo
+
+Módulo `openfemconex.end_plate_project`: viga unida al ala de una columna con
+placa de extremo al ras o extendida. Las verificaciones son las del motor de
+OpenConex (`openconex.connections.moment`), validado allí contra las Guías de
+Diseño 16, 4 y 39 y AISC 358-22; este módulo lleva los datos del proyecto a ese
+motor, corre todas las combinaciones (LRFD o ASD) y arma el reporte común. La
+ayuda integrada (tema *Momento con placa de extremo*) explica las configuraciones
+y el camino de las fuerzas con esquemas.
+
+| Componente | Verificación |
+|---|---|
+| Placa de extremo | Fluencia por líneas de fluencia (DG16 tablas 3-2 a 4-6, DG4 tabla 3.3 para 8ES); cortante de la extensión (§J4.2) |
+| Pernos | Ruptura con o sin acción de palanca (DG16); cortante, aplastamiento y desgarre de los pernos del lado comprimido (§J3.7, §J3.11) |
+| Soldaduras | Alma a cortante y a tracción cerca de los pernos, alas con filete (§J2.4) |
+| Columna | Flexión del ala (DG4), fluencia y aplastamiento del alma (§J10.2, §J10.3), pandeo con vigas a ambos lados (§J10.5), zona de panel (§J10.6), placas de continuidad (§J10.8, DG13) y placa doble |
+| Sísmico | BUEEP (4E) y BSEEP (4ES, 8ES) de AISC 358-22 cap. 6 con AISC 341-22: límites de precalificación, esbeltez, cortante de la viga, relación columna-viga, zona de panel y placas de continuidad |
+
+Las pruebas (`tests/test_end_plate.py`) comprueban que los datos del proyecto
+llegan al motor sin cambios con el Ejemplo A de la Guía de Diseño 4 (4E) y el
+Ejemplo 6.3-2 de la Guía de Diseño 39 (4ES sísmica). Pendiente: interfaz, modelo
+CalculiX y curva momento-rotación.
+
 ## Pendiente
 
 - Rotura del metal base en la soldadura (J4) y soldadura de penetración.

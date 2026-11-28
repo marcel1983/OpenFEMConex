@@ -64,6 +64,12 @@ perfiles y los materiales.
   grout; una viga o dos vigas opuestas con los mismos pernos. Por ahora en el
   interfaz con cálculo analítico, modelo CalculiX (placa posterior flexible, o las
   dos vigas opuestas cargadas a la vez en un mismo modelo) y reporte.
+- **Momento con placa de extremo (en desarrollo).** Viga a ala de columna con placa
+  al ras o extendida (4E, 4ES, 8ES y multifila): líneas de fluencia y pernos con
+  acción de palanca (Guías de Diseño 16 y 4), lado de la columna (flexión del ala,
+  alma, zona de panel, placas de continuidad y doble) y diseño sísmico precalificado
+  AISC 358-22. Por ahora el cálculo analítico y la ayuda; siguen la interfaz, el
+  modelo CalculiX y la curva momento-rotación.
 - **Varias conexiones por proyecto.** **Proyecto › Agregar conexión** abre un
   selector con la vista isométrica de cada tipo; cada conexión tiene sus datos,
   cargas, verificaciones y reporte, y el ribbon cambia según el tipo.
