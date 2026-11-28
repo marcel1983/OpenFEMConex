@@ -10,10 +10,10 @@ reporte, para que el usuario trabaje igual con cualquiera.
 | Placa base | `base_plate` | DG1 (camino de la guía) | Sí | Completo |
 | Pernos pasantes en concreto | `through_bolt` | AISC 360, ACI 318 | Sí (placa de extremo, placa posterior o viga opuesta) | Completo |
 | Corte simple (placa simple a columna) | `shear_tab` | No | No | Deshabilitado en el selector |
-| Momento con placa de extremo | `moment_end_plate` | No | No | Deshabilitado en el selector |
+| Momento con placa de extremo | `moment_end_plate` | AISC 360-22, DG16/DG4 y AISC 358-22 (motor de OpenConex) | No (siguiente fase) | Analítico y ayuda; deshabilitado en el selector hasta tener su interfaz |
 | Empalme de viga con cubreplacas | `splice` | No | No | Deshabilitado en el selector |
 
-Los tres últimos solo tienen el icono en el selector. Antes de su modelo
+Corte simple y empalme solo tienen el icono en el selector; la placa de extremo tiene el cálculo (`end_plate_project.py`) y su tema de ayuda, y le falta la interfaz. Antes de su modelo
 CalculiX hace falta definir su alcance (qué estados límite, qué se modela con
 elementos sólidos y qué como resortes, cómo se apoya y se carga) igual que se
 hizo con los pernos pasantes.
