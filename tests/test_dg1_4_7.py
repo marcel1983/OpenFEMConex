@@ -73,6 +73,19 @@ def test_fem_against_dg1(case, tmp_path):
     html = render_report("DG1 4.7", DG1_2ED, project.info.unit_system(),
                          [ComboReport(res, "LRFD", list(checks.values()))], [("Columna", "W12X96")])
     assert "ACI 318-08 D.5.2" in html and "<math" in html
+    # FEM first, then the shared closing: summary, recommendations, installation, scope
+    from openfemconex.advice import installation_notes
+
+    notes = installation_notes(model, project.info.unit_system())
+    assert any("Mortero de nivelación" in n or "directamente sobre el concreto" in n
+               for n in notes)
+    html = render_report("DG1 4.7", DG1_2ED, project.info.unit_system(),
+                         [ComboReport(res, "LRFD", list(checks.values()))],
+                         [("Columna", "W12X96")], installation=notes)
+    order = [html.index(t) for t in ("Resultados del modelo FEM", "Resumen de resultados",
+                                     "Requisitos de instalación de la placa base",
+                                     "Alcance y limitaciones")]
+    assert order == sorted(order)
     # the same report as an editable Word document, headed by the title block
     from docx import Document
 

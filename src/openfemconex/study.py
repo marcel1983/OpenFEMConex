@@ -260,6 +260,12 @@ class Study:
                 (tr("Fecha"), info.date or dt.date.today().isoformat())]
         return [(k, v) for k, v in rows if v]
 
+    def installation(self, model: BasePlateModel) -> list[str]:
+        """Installation requirements that make the assumptions of the analysis valid."""
+        from openfemconex.advice import installation_notes
+
+        return installation_notes(model, display_units(self.project.info))
+
     def report_title(self) -> str:
         name = self.extras.connection or self.project.info.name
         return tr("Memoria de cálculo: {name}", name=name) if name else tr("Memoria de cálculo")
@@ -270,7 +276,7 @@ class Study:
         return report_blocks(self.report_title(), self.edition,
                              display_units(self.project.info), reports,
                              self.inputs(model, mesh), traces=traces, figures=figures,
-                             ficha=self.ficha())
+                             ficha=self.ficha(), installation=self.installation(model))
 
     def report_html(self, reports: list[ComboReport], model: BasePlateModel,
                     mesh: Mesh | None = None, image: str | None = None,
@@ -279,7 +285,8 @@ class Study:
         return render_report(self.report_title(), self.edition,
                              display_units(self.project.info), reports,
                              self.inputs(model, mesh), image=image, traces=traces,
-                             figures=figures, figure_base=figure_base, ficha=self.ficha())
+                             figures=figures, figure_base=figure_base, ficha=self.ficha(),
+                             installation=self.installation(model))
 
     def report_docx(self, path: Path, reports: list[ComboReport], model: BasePlateModel,
                     mesh: Mesh | None = None, figures: dict | None = None,

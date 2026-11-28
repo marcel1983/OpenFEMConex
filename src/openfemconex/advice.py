@@ -33,7 +33,7 @@ from openfemconex.extras import Extras
 from openfemconex.i18n import tr
 from openfemconex.results import Results
 
-__all__ = ["advise"]
+__all__ = ["advise", "installation_notes"]
 
 ROD_DIAMETERS_IN = (0.5, 0.625, 0.75, 0.875, 1.0, 1.125, 1.25, 1.375, 1.5, 1.75, 2.0, 2.25,
                     2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0)
@@ -250,3 +250,77 @@ def advise(bp: BasePlate, res: Results, checks: list[CheckResult], units: UnitSy
             out[check.id] = [tr("Revise los datos de este componente; la relación es {r}.",
                                 r=f"{check.ratio:.2f}")]
     return out
+
+
+def installation_notes(model, units: UnitSystem) -> list[str]:
+    """What the construction must ensure for the base plate analysis to be valid.
+
+    ``model`` is the :class:`~openfemconex.model.BasePlateModel` that was solved; each
+    note ties a construction step to an assumption of the model or of the checks.
+    """
+    a = model.anchor
+    L = lambda v: fmt(v, Kind.THICKNESS, units, 4)  # noqa: E731
+    notes = [
+        tr("Anclajes colocados con plantilla rígida antes de colar, en la posición, la "
+           "verticalidad y la longitud embebida hef = {hef} de los datos; el modelo y las "
+           "verificaciones de ACI 318 Cap. 17 suponen esas posiciones y esa profundidad.",
+           hef=L(a.hef)),
+        tr("Agujeros de la placa de {hole} para anclajes de {d}: si en obra se agrandan o "
+           "se cortan con soplete, el cortante ya no se reparte como en el modelo; consulte "
+           "al ingeniero.", hole=L(a.hole), d=L(a.diameter)),
+        tr("Concreto con la resistencia f'c de diseño antes de montar la columna y de "
+           "apretar las tuercas; no cargue la conexión antes."),
+        tr("Tuercas apretadas al contacto firme (snug-tight) con la arandela de placa "
+           "indicada; el análisis no cuenta con pretensión de los anclajes."),
+    ]
+    if model.concrete.grout > 0:
+        notes.append(tr(
+            "Mortero de nivelación sin retracción de {t}, de resistencia no menor que f'c, "
+            "que llene todo el espacio bajo la placa sin vacíos (con agujeros de respiro si "
+            "la placa es grande): el modelo apoya la placa en contacto continuo y la fricción "
+            "usa μ = {mu} sobre ese mortero.", t=L(model.concrete.grout),
+            mu=f"{model.contact.mu:g}"))
+    else:
+        notes.append(tr(
+            "Placa apoyada directamente sobre el concreto, con la superficie plana y nivelada "
+            "en toda el área de la placa: el modelo supone contacto continuo (μ = {mu}).",
+            mu=f"{model.contact.mu:g}"))
+    if a.leveling_nuts:
+        notes.append(tr(
+            "Tuercas de nivelación bajo la placa: el modelo cuenta con que los anclajes "
+            "toman compresión. Verifique que las tuercas queden en contacto con la placa "
+            "antes de colocar el mortero."))
+    else:
+        notes.append(tr(
+            "Sin tuercas de nivelación que tomen carga: nivele con calzas o lainas de acero "
+            "que no impidan llenar el mortero, o retire las tuercas de nivelación después de "
+            "que el mortero endurezca. El modelo supone que toda la compresión pasa por el "
+            "contacto bajo la placa."))
+    if a.welded_washers:
+        notes.append(tr(
+            "Arandelas de placa soldadas a la placa base después de nivelar, con la soldadura "
+            "indicada: así todos los anclajes toman cortante, como en las verificaciones."))
+    if model.lug is not None:
+        notes.append(tr(
+            "Llave de cortante en una cajuela dejada en el concreto, con holgura para "
+            "nivelar; llene la cajuela con el mismo mortero sin retracción, sin vacíos frente "
+            "a la cara cargada de la llave (empotramiento {e}).", e=L(model.lug.embedment)))
+    if model.stiffeners:
+        notes.append(tr(
+            "Rigidizadores con las soldaduras indicadas en los dos lados; recorte las "
+            "esquinas para no cruzar la soldadura columna-placa."))
+    if model.cjp:
+        notes.append(tr(
+            "Soldadura de penetración completa columna-placa con procedimiento calificado e "
+            "inspección por ultrasonido, como supone la verificación CJP."))
+    else:
+        notes.append(tr(
+            "Soldadura de filete columna-placa de {w} todo alrededor del perfil, como en el "
+            "modelo.", w=L(model.weld)))
+    if model.hairpins is not None or model.rebar is not None:
+        notes.append(tr(
+            "Refuerzo de anclaje (horquillas, estribos superiores del pedestal) colocado "
+            "antes de colar, en contacto con los anclajes o a la distancia indicada, con su "
+            "longitud de desarrollo completa a cada lado del cono de arrancamiento: las "
+            "verificaciones solo cuentan con él en esas condiciones."))
+    return notes

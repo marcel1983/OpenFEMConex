@@ -11,7 +11,7 @@ from openconex.core.materials import BOLTS
 from openconex.core.shapes import aisc_shapes
 from openconex.report.builder import fmt
 from openconex.units import PRESETS, Kind, to_internal
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -307,13 +307,35 @@ class LoadsPanel(LoadsEditor):
 
 
 class AnalysisPanel(QWidget):
-    """Mesh and solver settings."""
+    """Mesh and solver settings, with the green "Resolver" button; the same panel for
+    every connection type (the window connects the buttons to the current one)."""
+
+    solve_requested = Signal()
+    stop_requested = Signal()
+    progress_requested = Signal()
 
     def __init__(self, state: ProjectState) -> None:
+        from openfemconex.gui.stages import solve_push_button
+
         super().__init__()
         self.state = state
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(tr("<b>Ajustes de malla y análisis</b>")))
+        row = QHBoxLayout()
+        self.solve_button = solve_push_button()
+        self.solve_button.setToolTip(tr(
+            "Calcula las verificaciones analíticas y resuelve con CalculiX las combinaciones "
+            "marcadas en Cargas"))
+        self.solve_button.clicked.connect(self.solve_requested)
+        self.stop_button = QPushButton(tr("Detener"))
+        self.stop_button.setEnabled(False)
+        self.stop_button.clicked.connect(self.stop_requested)
+        self.progress_button = QPushButton(tr("Ver avance de CalculiX"))
+        self.progress_button.clicked.connect(self.progress_requested)
+        row.addWidget(self.solve_button, 1)
+        row.addWidget(self.stop_button)
+        row.addWidget(self.progress_button)
+        layout.addLayout(row)
         form = QFormLayout()
         layout.addLayout(form)
         self.size = QDoubleSpinBox()
@@ -358,6 +380,11 @@ class AnalysisPanel(QWidget):
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
         layout.addStretch(1)
+
+    def set_running(self, running: bool, can_solve: bool = True) -> None:
+        """Mirror the state of the ribbon buttons: solving or not, and data valid."""
+        self.solve_button.setEnabled(can_solve and not running)
+        self.stop_button.setEnabled(running)
 
     def set_base_plate(self, on: bool) -> None:
         """Options of the base plate only (leveling nuts) shown or not."""

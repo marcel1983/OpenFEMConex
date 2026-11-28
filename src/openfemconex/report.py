@@ -20,8 +20,8 @@ from openfemconex.i18n import language
 from openfemconex.i18n import tr as _
 from openfemconex.results import Results
 
-__all__ = ["ComboReport", "TITLES", "blocks_to_html", "check_title", "render_report",
-           "report_blocks", "write_report"]
+__all__ = ["ComboReport", "TITLES", "blocks_to_html", "check_title", "closing_blocks",
+           "render_report", "report_blocks", "write_report"]
 
 TITLES = {
     "fem.concrete_bearing": "Aplastamiento del concreto (bloque centrado en la resultante FEM)",
@@ -164,14 +164,63 @@ def _checks_block(checks: list[CheckResult], units: UnitSystem) -> Block:
                                                 "Estado", "Referencia")], rows, {1, 2, 3})
 
 
-def _advice_block(c: ComboReport) -> list[Block]:
-    if not c.advice:
-        return []
-    titles = {r.id: check_title(r) for r in c.fem_checks}
-    return [("h3", _("Recomendaciones")),
-            ("advice", _("Cambios posibles para que cumpla, uno a la vez; los valores son "
-                         "estimaciones: vuelva a resolver después de cambiar los datos."),
-             [(titles.get(cid, cid), items) for cid, items in c.advice.items()])]
+def closing_blocks(ok: bool, rows: list[list], advice: list[tuple[str, list[str]]],
+                   installation: list[str], installation_title: str, limits: list[str],
+                   advice_intro: str = "") -> list[Block]:
+    """The end of every connection report, in the same order for all types: summary of
+    results by combination, recommendations, installation requirements that make the
+    assumptions of the analysis valid, and scope and limitations.
+
+    ``rows`` are [combination, FEM solved (Sí/No), governing FEM check, governing
+    analytical check, status]; ``advice`` is (failing check, [changes]).
+    """
+    out: list[Block] = [
+        ("h2", _("Resumen de resultados")),
+        ("verdict", ok, ""),
+        ("table", [_(h, "column") for h in ("Combinación", "FEM", "Rige (FEM)",
+                                             "Rige (analítico)", "Estado")], rows, set()),
+    ]
+    if advice:
+        out += [("h3", _("Recomendaciones")),
+                ("advice", advice_intro or _("Cambios sugeridos para las verificaciones que "
+                                             "no cumplen (un cambio a la vez; los valores son "
+                                             "estimaciones: vuelva a resolver después):"),
+                 advice)]
+    else:
+        out.append(("p", _("Todas las verificaciones cumplen: no hay recomendaciones de "
+                           "cambio."), ""))
+    if installation:
+        out.append(("notes", installation_title, installation))
+    out.append(("notes", _("Alcance y limitaciones"), limits))
+    return out
+
+
+def governing(checks: list[CheckResult]) -> str:
+    """'title (ratio)' of the governing applicable check, or a dash."""
+    live = [r for r in checks if r.applicable]
+    worst = max(live, key=lambda r: r.ratio / (r.ratio_limit or 1.0), default=None)
+    return f"{check_title(worst)} ({worst.ratio:.2f})" if worst else "—"
+
+
+def _status_word(checks: list[CheckResult]) -> tuple[str, str]:
+    ok = all(r.status.value != "ng" for r in checks)
+    return ("ok", _("Cumple")) if ok else ("ng", _("No cumple"))
+
+
+def _base_plate_advice(combos: list[ComboReport]) -> list[tuple[str, list[str]]]:
+    """Recommendations of every combination, the worst first, one entry per check."""
+    items = []
+    for c in combos:
+        for r in c.fem_checks:
+            if r.id in c.advice:
+                items.append((r.ratio / (r.ratio_limit or 1.0), r, c.advice[r.id]))
+    out, seen = [], set()
+    for _ratio, r, adv in sorted(items, key=lambda t: t[0], reverse=True):
+        if r.id in seen:
+            continue
+        seen.add(r.id)
+        out.append((f"{check_title(r)} ({r.combo}, ratio {r.ratio:.2f})", adv))
+    return out
 
 
 def _traces_block(checks: list[CheckResult], units: UnitSystem) -> Block:
@@ -233,8 +282,11 @@ def report_blocks(title: str, edition: Edition, units: UnitSystem, combos: list[
                   inputs: list[tuple[str, str]], today: dt.date | None = None,
                   image: str | None = None, traces: bool = True,
                   figures: dict[str, list[tuple[str, str]]] | None = None,
-                  ficha: list[tuple[str, str]] | None = None) -> list[Block]:
-    """The whole report as blocks (see the list above)."""
+                  ficha: list[tuple[str, str]] | None = None,
+                  installation: list[str] | None = None) -> list[Block]:
+    """The whole report as blocks: data, FEM results and checks of each combination,
+    the analytical path, then :func:`closing_blocks` (summary, recommendations,
+    installation requirements, limitations)."""
     today = today or dt.date.today()
     every = [r for c in combos for r in c.fem_checks]
     ok = all(r.status.value != "ng" for r in every)
@@ -276,7 +328,7 @@ def report_blocks(title: str, edition: Edition, units: UnitSystem, combos: list[
                 ("figs", _("Gráficos de resultados"),
                  [(cap, f) for cap, f in figures.get(r.load, []) if f]),
                 ("h3", _("Verificaciones con demandas del FEM")),
-                _checks_block(c.fem_checks, units), *_advice_block(c)]
+                _checks_block(c.fem_checks, units)]
         if traces:
             out.append(_traces_block(c.fem_checks, units))
         if c.analytical:
@@ -286,7 +338,14 @@ def report_blocks(title: str, edition: Edition, units: UnitSystem, combos: list[
                             "esfuerzos). Sirve para ver dónde coincide con el FEM y dónde no."),
                      "note"),
                     _checks_block(c.analytical, units)]
-    out.append(("notes", _("Alcance y limitaciones"), [_(n) for n in NOTES]))
+    rows = [[c.results.load, _("Sí") if c.results.converged else _("Incompleto"),
+             governing(c.fem_checks), governing(c.analytical) if c.analytical else "—",
+             _status_word(c.fem_checks)] for c in combos]
+    out += closing_blocks(ok, rows, _base_plate_advice(combos), installation or [],
+                          _("Requisitos de instalación de la placa base"),
+                          [_(n) for n in NOTES],
+                          _("Cambios posibles para que cumpla, uno a la vez; los valores son "
+                            "estimaciones: vuelva a resolver después de cambiar los datos."))
     return out
 
 
@@ -365,9 +424,10 @@ def render_report(title: str, edition: Edition, units: UnitSystem, combos: list[
                   inputs: list[tuple[str, str]], today: dt.date | None = None,
                   image: str | None = None, traces: bool = True,
                   figures: dict[str, list[tuple[str, str]]] | None = None,
-                  figure_base: str = "", ficha: list[tuple[str, str]] | None = None) -> str:
+                  figure_base: str = "", ficha: list[tuple[str, str]] | None = None,
+                  installation: list[str] | None = None) -> str:
     return blocks_to_html(report_blocks(title, edition, units, combos, inputs, today, image,
-                                        traces, figures, ficha), figure_base)
+                                        traces, figures, ficha, installation), figure_base)
 
 
 def write_report(path: str | Path, *args, **kwargs) -> Path:

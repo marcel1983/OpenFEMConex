@@ -62,6 +62,12 @@ from openfemconex.gui.panels import (
 from openfemconex.gui.progress import SolveProgress
 from openfemconex.gui.ribbon import STYLE as RIBBON_STYLE
 from openfemconex.gui.ribbon import Ribbon
+from openfemconex.gui.stages import (
+    StageActions,
+    add_analysis_tab,
+    add_loads_tab,
+    add_report_tab,
+)
 from openfemconex.gui.state import ProjectState
 from openfemconex.gui.theme import apply_theme, settings
 from openfemconex.gui.through_bolt_panel import ThroughBoltEditor
@@ -239,6 +245,11 @@ class MainWindow(QMainWindow):
         self.pages["Refuerzo del pedestal"] = scroll
         self.properties.addWidget(scroll)
         self.analysis_panel = AnalysisPanel(self.state)
+        self.analysis_panel.solve_requested.connect(
+            lambda: self.solve_tb() if self.mode == "through_bolt" else self.solve())
+        self.analysis_panel.stop_requested.connect(
+            lambda: self.stop_tb() if self.mode == "through_bolt" else self.stop())
+        self.analysis_panel.progress_requested.connect(lambda: self.show_progress())
         self.properties.addWidget(self.analysis_panel)
         self.detail = QTextBrowser()
         self.detail.setOpenExternalLinks(True)
@@ -340,26 +351,21 @@ class MainWindow(QMainWindow):
         g.add_button("Modelo", icon("view"), lambda: self.show_model(False))
         g.add_button("Malla", icon("mesh"), lambda: self.show_model(True))
 
-        tab = self.ribbon.add_tab("Cargas")
-        g = tab("Cargas")
-        g.add_button("Casos", icon("load"), lambda: self.loads.cases.setFocus())
-        g.add_button("Combinaciones", icon("combo"), lambda: self.loads.combos.setFocus())
-        g.add_button("Editar combinaciones", icon("table"), self.loads.open_editor,
-                     "Combinaciones propias con sus factores, o copia editable de las de "
-                     "ASCE 7")
-
-        tab = self.ribbon.add_tab("Análisis")
-        g = tab("Malla")
-        g.add_button("Ajustes", icon("table"), self.show_analysis_settings)
-        g.add_button("Generar malla", icon("mesh"), lambda: self.show_model(True))
-        g = tab("CalculiX")
-        self.solve_button = g.add_button("Resolver", icon("play"), self.solve,
-                                         "Resuelve las combinaciones marcadas en Cargas")
-        self.stop_button = g.add_button("Detener", icon("stop"), self.stop)
-        self.stop_button.setEnabled(False)
-        g.add_button("Avance", icon("table"), self.show_progress,
-                     "Muestra el avance detallado de CalculiX")
-        g = tab("Resultados")
+        actions = StageActions(
+            cases=lambda: self.loads.cases.setFocus(),
+            combinations=lambda: self.loads.combos.setFocus(),
+            edit_combinations=self.loads.open_editor,
+            settings=self.show_analysis_settings, mesh=lambda: self.show_model(True),
+            solve=self.solve, stop=self.stop, progress=self.show_progress,
+            generate=self.generate_report, open_report=self.open_report,
+            pdf=self.export_pdf, docx=self.export_docx,
+            ficha=lambda: self.show_section("Ficha"),
+            solve_tip="Resuelve con CalculiX las combinaciones marcadas en Cargas y calcula "
+                      "las verificaciones con sus demandas y el camino analítico de la guía")
+        add_loads_tab(self.ribbon, actions)
+        buttons = add_analysis_tab(self.ribbon, actions)
+        self.solve_button, self.stop_button = buttons.solve, buttons.stop
+        g = buttons.results
         self.combo_box = QComboBox()
         self.combo_box.setMinimumWidth(130)
         self.combo_box.textActivated.connect(self.show_results)
@@ -381,17 +387,7 @@ class MainWindow(QMainWindow):
         g.add_button("Resumen", icon("check"), self.show_checks)
         g.add_button("Ver en 3D", icon("results"), lambda: self.show_results())
 
-        tab = self.ribbon.add_tab("Reporte")
-        g = tab("Memoria de cálculo")
-        g.add_button("Generar", icon("report"), self.generate_report)
-        g.add_button("Abrir", icon("browser"), self.open_report,
-                     "Abre el reporte completo en el navegador")
-        g.add_button("Exportar PDF", icon("pdf"), self.export_pdf)
-        g.add_button("Exportar Word", icon("report"), self.export_docx,
-                     "Memoria editable en Word (.docx)")
-        g = tab("Identificación")
-        g.add_button("Ficha", icon("info"), lambda: self.show_section("Ficha"),
-                     "Proyecto, conexión, ingeniero y revisión que encabezan el reporte")
+        add_report_tab(self.ribbon, actions)
         tab = self.ribbon.add_tab("Ayuda")
         g = tab("Ayuda")
         g.add_button("Manual", icon("help"), self.show_help,
@@ -439,34 +435,28 @@ class MainWindow(QMainWindow):
         g = tab("Vista")
         g.add_button("Modelo", icon("view"), self._show_tb_view)
 
-        tab = self.tb_ribbon.add_tab("Cargas")
-        g = tab("Cargas")
-        g.add_button("Casos", icon("load"), lambda: (
-            self.central.setCurrentWidget(self.tb.combinations),
-            self.tb.combinations.cases.setFocus()))
-        g.add_button("Combinaciones", icon("combo"), lambda: (
-            self.central.setCurrentWidget(self.tb.combinations),
-            self.tb.combinations.combos.setFocus()))
-        g.add_button("Editar combinaciones", icon("table"),
-                     lambda: self.tb.combinations.open_editor(),
-                     "Combinaciones propias con sus factores, o copia editable de las de "
-                     "ASCE 7")
-
-        tab = self.tb_ribbon.add_tab("Análisis")
-        g = tab("Malla")
-        g.add_button("Ajustes", icon("table"), self.show_analysis_settings,
-                     "Tamaño de malla, malla rápida, capas, hilos de CalculiX y límite de "
-                     "deformación plástica (los mismos de la placa base)")
-        g = tab("CalculiX")
-        self.tb_solve_button = g.add_button(
-            "Resolver", icon("play"), self.solve_tb,
-            "Calcula las verificaciones analíticas y resuelve con CalculiX las combinaciones "
-            "marcadas en Cargas: placas sobre el concreto, pernos sin adherencia y soldaduras")
-        self.tb_stop_button = g.add_button("Detener", icon("stop"), self.stop_tb)
-        self.tb_stop_button.setEnabled(False)
-        g.add_button("Avance", icon("table"), self.show_progress,
-                     "Muestra el avance detallado de CalculiX")
-        g = tab("Resultados")
+        actions = StageActions(
+            cases=lambda: (self.central.setCurrentWidget(self.tb.combinations),
+                           self.tb.combinations.cases.setFocus()),
+            combinations=lambda: (self.central.setCurrentWidget(self.tb.combinations),
+                                  self.tb.combinations.combos.setFocus()),
+            edit_combinations=lambda: self.tb.combinations.open_editor(),
+            settings=self.show_analysis_settings,
+            solve=self.solve_tb, stop=self.stop_tb, progress=self.show_progress,
+            generate=self.generate_tb_report, open_report=self.open_tb_report,
+            pdf=self.export_tb_pdf, docx=self.export_tb_docx,
+            ficha=lambda: self.show_tb_page("Identificación"),
+            settings_tip="Tamaño de malla, malla rápida, capas, hilos de CalculiX y límite de "
+                         "deformación plástica (los mismos de la placa base)",
+            solve_tip="Calcula las verificaciones analíticas y resuelve con CalculiX las "
+                      "combinaciones marcadas en Cargas: placas sobre el concreto, pernos sin "
+                      "adherencia y soldaduras",
+            ficha_tip="Nombre de la conexión; el proyecto, cliente e ingeniero son los del "
+                      "proyecto")
+        add_loads_tab(self.tb_ribbon, actions)
+        buttons = add_analysis_tab(self.tb_ribbon, actions)
+        self.tb_solve_button, self.tb_stop_button = buttons.solve, buttons.stop
+        g = buttons.results
         self.tb_fem_box = QComboBox()
         self.tb_fem_box.setMinimumWidth(170)
         self.tb_fem_box.textActivated.connect(self.show_tb_fem)
@@ -484,18 +474,7 @@ class MainWindow(QMainWindow):
         g = tab("Verificaciones")
         g.add_button("Resumen", icon("check"), self.show_tb_checks)
 
-        tab = self.tb_ribbon.add_tab("Reporte")
-        g = tab("Memoria de cálculo")
-        g.add_button("Generar", icon("report"), self.generate_tb_report)
-        g.add_button("Abrir", icon("browser"), self.open_tb_report,
-                     "Abre el reporte completo en el navegador")
-        g.add_button("Exportar PDF", icon("pdf"), self.export_tb_pdf)
-        g.add_button("Exportar Word", icon("report"), self.export_tb_docx,
-                     "Reporte editable en Word (.docx), con los mismos gráficos")
-        g = tab("Identificación")
-        g.add_button("Ficha", icon("info"), lambda: self.show_tb_page("Identificación"),
-                     "Nombre de la conexión; el proyecto, cliente e ingeniero son los del "
-                     "proyecto")
+        add_report_tab(self.tb_ribbon, actions)
         tab = self.tb_ribbon.add_tab("Ayuda")
         g = tab("Ayuda")
         g.add_button("Pernos pasantes", icon("help"), lambda: self.show_help(self._tb_topic()),
@@ -504,6 +483,14 @@ class MainWindow(QMainWindow):
         g.add_button("Manual", icon("help"), self.show_help)
         g.add_button("Acerca de", icon("info"), lambda: about(self))
         self.tb_ribbon.tab_changed.connect(self._tb_ribbon_tab)
+
+    def _sync_panel(self) -> None:
+        """The green button of the Análisis panel follows the ribbon of the current type."""
+        through = getattr(self, "mode", "base_plate") == "through_bolt"
+        solve = getattr(self, "tb_solve_button" if through else "solve_button", None)
+        stop = getattr(self, "tb_stop_button" if through else "stop_button", None)
+        if solve is not None and stop is not None:
+            self.analysis_panel.set_running(stop.isEnabled(), solve.isEnabled())
 
     # ------------------------------------------------------------------ connections
     def set_mode(self, mode: str, index: int = -1) -> None:
@@ -528,6 +515,7 @@ class MainWindow(QMainWindow):
             self._view = "model"
             self._ribbon_tab(self.ribbon.current())
         self._update_status()
+        self._sync_panel()
         QTimer.singleShot(0, self._fill_tree)  # not inside the click on the tree
 
     def add_connection(self) -> None:
@@ -662,6 +650,7 @@ class MainWindow(QMainWindow):
         self._cancelled_run = False
         self.tb_solve_button.setEnabled(False)
         self.tb_stop_button.setEnabled(True)
+        self._sync_panel()
         self.bottom.setCurrentWidget(self.log)
         self.log.appendPlainText(tr("{n} combinaciones con CalculiX ({mesh}, {t} hilos). "
                                     "Salida: {out}", n=len(combos), t=st.threads,
@@ -721,6 +710,7 @@ class MainWindow(QMainWindow):
         self._progress_timer.stop()
         self.tb_solve_button.setEnabled(True)
         self.tb_stop_button.setEnabled(False)
+        self._sync_panel()
         self.progress.hide()
         self._update_status()
         if self.tb.fem_sides():
@@ -965,6 +955,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText(text)
             self.status_label.setStyleSheet(f"color: {color};" if color else "")
             self.solve_button.setEnabled(False)
+            self._sync_panel()
             return
         if not st.valid:
             text, color = tr("Datos no válidos: {error}", error=st.error), "#d03040"
@@ -985,6 +976,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(text)
         self.status_label.setStyleSheet(f"color: {color};" if color else "")
         self.solve_button.setEnabled(st.valid and self.worker is None)
+        self._sync_panel()
 
     def _fill_tree(self) -> None:
         st = self.state
@@ -1325,6 +1317,7 @@ class MainWindow(QMainWindow):
         self.progress.show()
         self.stop_button.setEnabled(True)
         self.solve_button.setEnabled(False)
+        self._sync_panel()
         self._progress_timer.start()
         self.worker.start()
 
@@ -1386,6 +1379,7 @@ class MainWindow(QMainWindow):
         self.worker = None
         self._running = None
         self.stop_button.setEnabled(False)
+        self._sync_panel()
         self._update_status()
 
     # ------------------------------------------------------------------ checks and report

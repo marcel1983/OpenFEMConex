@@ -1061,5 +1061,57 @@ _CONNECTIONS: dict[str, str] = {
         "Mesh size, fast mesh, layers, CalculiX threads and plastic strain limit (the same "
         "as the base plate)",
     "Casos": "Cases", "todas las cargas": "all loads",
+    'Requisitos de instalación de la placa base':
+        'Base plate installation requirements',  # noqa: E501
+    'Resumen de resultados':
+        'Summary of results',  # noqa: E501
+    'Todas las verificaciones cumplen: no hay recomendaciones de cambio.':
+        'All checks pass: no changes are recommended.',  # noqa: E501
+    'Sí':
+        'Yes',  # noqa: E501
+    'Incompleto':
+        'Incomplete',  # noqa: E501
+    'Rige (FEM)':
+        'Governs (FEM)',  # noqa: E501
+    'Rige (analítico)':
+        'Governs (analytic)',  # noqa: E501
+    'Cambios sugeridos para las verificaciones que no cumplen (un cambio a la vez; los valores son estimaciones: vuelva a resolver después):':  # noqa: E501
+        'Suggested changes for the checks that fail (one change at a time; the values are estimates: solve again afterwards):',  # noqa: E501
+    'Calcula las verificaciones analíticas y resuelve con CalculiX las combinaciones marcadas en Cargas':  # noqa: E501
+        'Runs the analytic checks and solves with CalculiX the combinations checked in Loads',  # noqa: E501
+    'Ver avance de CalculiX':
+        'Show CalculiX progress',  # noqa: E501
+    'Tamaño de malla, malla rápida, capas, hilos de CalculiX y límite de deformación plástica':
+        'Mesh size, fast mesh, layers, CalculiX threads and plastic strain limit',  # noqa: E501
+    'Resuelve con CalculiX las combinaciones marcadas en Cargas y calcula las verificaciones con sus demandas y el camino analítico de la guía':  # noqa: E501
+        'Solves with CalculiX the combinations checked in Loads and runs the checks with their demands and the analytic path of the guide',  # noqa: E501
+    'Anclajes colocados con plantilla rígida antes de colar, en la posición, la verticalidad y la longitud embebida hef = {hef} de los datos; el modelo y las verificaciones de ACI 318 Cap. 17 suponen esas posiciones y esa profundidad.':  # noqa: E501
+        'Anchor rods set with a rigid template before casting, at the position, plumbness and embedment hef = {hef} of the data; the model and the ACI 318 Ch. 17 checks assume those positions and that depth.',  # noqa: E501
+    'Agujeros de la placa de {hole} para anclajes de {d}: si en obra se agrandan o se cortan con soplete, el cortante ya no se reparte como en el modelo; consulte al ingeniero.':  # noqa: E501
+        'Plate holes of {hole} for {d} anchor rods: if they are enlarged or torch-cut on site, the shear no longer spreads as in the model; consult the engineer.',  # noqa: E501
+    "Concreto con la resistencia f'c de diseño antes de montar la columna y de apretar las tuercas; no cargue la conexión antes.":  # noqa: E501
+        "Concrete at its design strength f'c before erecting the column and tightening the nuts; do not load the connection earlier.",  # noqa: E501
+    'Tuercas apretadas al contacto firme (snug-tight) con la arandela de placa indicada; el análisis no cuenta con pretensión de los anclajes.':  # noqa: E501
+        'Nuts snug-tight with the specified plate washer; the analysis does not count on anchor pretension.',  # noqa: E501
+    "Mortero de nivelación sin retracción de {t}, de resistencia no menor que f'c, que llene todo el espacio bajo la placa sin vacíos (con agujeros de respiro si la placa es grande): el modelo apoya la placa en contacto continuo y la fricción usa μ = {mu} sobre ese mortero.":  # noqa: E501
+        "Non-shrink grout of {t}, with strength not less than f'c, filling the whole space under the plate without voids (with vent holes if the plate is large): the model bears the plate in continuous contact and friction uses μ = {mu} on that grout.",  # noqa: E501
+    'Placa apoyada directamente sobre el concreto, con la superficie plana y nivelada en toda el área de la placa: el modelo supone contacto continuo (μ = {mu}).':  # noqa: E501
+        'Plate bearing directly on the concrete, with the surface flat and level over the whole plate area: the model assumes continuous contact (μ = {mu}).',  # noqa: E501
+    'Tuercas de nivelación bajo la placa: el modelo cuenta con que los anclajes toman compresión. Verifique que las tuercas queden en contacto con la placa antes de colocar el mortero.':  # noqa: E501
+        'Leveling nuts under the plate: the model counts on the rods taking compression. Check that the nuts bear on the plate before placing the grout.',  # noqa: E501
+    'Sin tuercas de nivelación que tomen carga: nivele con calzas o lainas de acero que no impidan llenar el mortero, o retire las tuercas de nivelación después de que el mortero endurezca. El modelo supone que toda la compresión pasa por el contacto bajo la placa.':  # noqa: E501
+        'No load-carrying leveling nuts: level with steel shims that do not prevent filling the grout, or back off the leveling nuts once the grout has hardened. The model assumes all compression goes through the contact under the plate.',  # noqa: E501
+    'Arandelas de placa soldadas a la placa base después de nivelar, con la soldadura indicada: así todos los anclajes toman cortante, como en las verificaciones.':  # noqa: E501
+        'Plate washers welded to the base plate after leveling, with the specified weld: so all rods take shear, as in the checks.',  # noqa: E501
+    'Llave de cortante en una cajuela dejada en el concreto, con holgura para nivelar; llene la cajuela con el mismo mortero sin retracción, sin vacíos frente a la cara cargada de la llave (empotramiento {e}).':  # noqa: E501
+        'Shear lug in a pocket left in the concrete, with clearance for leveling; fill the pocket with the same non-shrink grout, without voids in front of the loaded face of the lug (embedment {e}).',  # noqa: E501
+    'Rigidizadores con las soldaduras indicadas en los dos lados; recorte las esquinas para no cruzar la soldadura columna-placa.':  # noqa: E501
+        'Stiffeners with the specified welds on both sides; clip the corners so as not to cross the column-to-plate weld.',  # noqa: E501
+    'Soldadura de penetración completa columna-placa con procedimiento calificado e inspección por ultrasonido, como supone la verificación CJP.':  # noqa: E501
+        'Complete joint penetration column-to-plate weld with a qualified procedure and ultrasonic inspection, as the CJP check assumes.',  # noqa: E501
+    'Soldadura de filete columna-placa de {w} todo alrededor del perfil, como en el modelo.':
+        'Column-to-plate fillet weld of {w} all around the shape, as in the model.',  # noqa: E501
+    'Refuerzo de anclaje (horquillas, estribos superiores del pedestal) colocado antes de colar, en contacto con los anclajes o a la distancia indicada, con su longitud de desarrollo completa a cada lado del cono de arrancamiento: las verificaciones solo cuentan con él en esas condiciones.':  # noqa: E501
+        'Anchor reinforcement (hairpins, top ties of the pedestal) placed before casting, against the rods or at the specified distance, with its full development length on each side of the breakout cone: the checks only count on it under those conditions.',  # noqa: E501
 }
 EN.update({k: v for k, v in _CONNECTIONS.items() if k not in EN})

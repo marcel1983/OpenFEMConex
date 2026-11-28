@@ -34,6 +34,23 @@ def test_new_project_is_valid_and_previews(window):
     assert "hexaedros" in window.viewer.description
     assert window.loads.combos.rowCount() >= 2
     assert window.solve_button.isEnabled()
+    # the same green Resolver in the ribbon and in the Análisis panel
+    assert window.solve_button.objectName() == "solveButton"
+    assert window.tb_solve_button.objectName() == "solveButton"
+    assert window.analysis_panel.solve_button.isEnabled()
+    assert "#2e7d32" in window.analysis_panel.solve_button.styleSheet()
+
+
+def test_shared_stages_in_every_connection_type(window):
+    names = {"Cargas", "Análisis", "Reporte"}
+    assert names <= set(window.ribbon._names) and names <= set(window.tb_ribbon._names)
+    calls = []
+    window.solve, window.solve_tb = (lambda: calls.append("bp")), (lambda: calls.append("tb"))
+    window.analysis_panel.solve_requested.emit()
+    window.mode = "through_bolt"
+    window.analysis_panel.solve_requested.emit()
+    window.mode = "base_plate"
+    assert calls == ["bp", "tb"]
 
 
 def test_editing_a_field_revalidates_and_marks_dirty(window):
@@ -50,6 +67,7 @@ def test_editing_a_field_revalidates_and_marks_dirty(window):
     assert not st.valid
     assert "no válidos" in window.status_label.text()
     assert not window.solve_button.isEnabled()
+    assert not window.analysis_panel.solve_button.isEnabled()
 
 
 def test_anchor_outside_plate_is_reported(window):
